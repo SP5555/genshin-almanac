@@ -1,9 +1,9 @@
 {
-	"1": { "region": "Mondstadt & Liyue", "tagline": "Anemo Archon of Freedom, Geo Archon of Contracts" },
-	"2": { "region": "Inazuma", "tagline": "Electro Archon of Eternity" },
-	"3": { "region": "Sumeru", "tagline": "Dendro Archon of Wisdom" },
-	"4": { "region": "Fontaine", "tagline": "Hydro Archon of Justice" },
-	"5": { "region": "Natlan", "tagline": "Pyro Archon of War" },
-	"6": { "region": "Nod-Krai", "label": "Luna", "tagline": "Song of the Welkin Moon" },
-	"7": { "region": "Snezhnaya", "tagline": "Cryo Archon — the ninth and final of The Seven" }
+	"1": { "region": "Mondstadt & Liyue", "tagline": "Anemo Archon of Freedom, Geo Archon of Contracts", "bgImage": "mondstadt" },
+	"2": { "region": "Inazuma", "tagline": "Electro Archon of Eternity", "bgImage": "inazuma" },
+	"3": { "region": "Sumeru", "tagline": "Dendro Archon of Wisdom", "bgImage": "sumeru" },
+	"4": { "region": "Fontaine", "tagline": "Hydro Archon of Justice", "bgImage": "fontaine" },
+	"5": { "region": "Natlan", "tagline": "Pyro Archon of War", "bgImage": "natlan" },
+	"6": { "region": "Nod-Krai", "label": "Luna", "tagline": "Song of the Welkin Moon", "bgImage": "nodkrai" },
+	"7": { "region": "Snezhnaya", "tagline": "Cryo Archon — the ninth and final of The Seven", "bgImage": "snezhnaya" }
 }

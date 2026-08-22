@@ -312,8 +312,7 @@ function jumpToCard(version, phaseLabel) {
 		`.phase-card[data-version="${CSS.escape(version)}"][data-phase-label="${CSS.escape(phaseLabel)}"]`
 	);
 	if (!card) return;
-	let headerH = document.querySelector(".site-header").offsetHeight;
-	let top = pageOffsetTop(card) - headerH - 20;
+	let top = pageOffsetTop(card) - 20;
 	window.scrollTo({ top, behavior: "smooth" });
 	card.classList.add("is-highlighted");
 	setTimeout(() => card.classList.remove("is-highlighted"), 1800);
@@ -458,8 +457,7 @@ function buildVersionNav(groups) {
 		if (!a) return;
 		e.preventDefault();
 		let target = document.getElementById(a.dataset.target);
-		let headerH = document.querySelector(".site-header").offsetHeight;
-		let top = target.offsetTop - headerH - 12;
+		let top = target.offsetTop - 12;
 		window.scrollTo({ top, behavior: "smooth" });
 		history.pushState(null, "", `#${a.dataset.target}`);
 	});
@@ -494,17 +492,29 @@ function init(data) {
 			if (entry.isIntersecting) {
 				navLinks.forEach(l => l.classList.remove("active"));
 				link.classList.add("active");
+				let major = entry.target.id.replace("v-section-", "");
+				setRegionBackground(major);
 			}
 		});
 	}, { rootMargin: "-45% 0px -45% 0px", threshold: 0 });
 	majorBlocks.forEach(block => navObserver.observe(block));
 }
 
-function syncHeaderHeight() {
-	let header = document.querySelector(".site-header");
-	let sync = () => document.documentElement.style.setProperty("--header-h", `${header.offsetHeight}px`);
-	sync();
-	new ResizeObserver(sync).observe(header);
+var activeRegionLayer = "A";
+var currentRegionMajor = null;
+function setRegionBackground(major) {
+	if (major === currentRegionMajor) return;
+	let meta = versionMeta[major] || {};
+	if (!meta.bgImage) return;
+	currentRegionMajor = major;
+
+	let nextLayer = document.getElementById(activeRegionLayer === "A" ? "regionBgB" : "regionBgA");
+	let prevLayer = document.getElementById(activeRegionLayer === "A" ? "regionBgA" : "regionBgB");
+	nextLayer.style.backgroundImage =
+		`linear-gradient(rgba(7,7,12,0.65), rgba(7,7,12,0.8)), url(assets/regions/${meta.bgImage}.jpg)`;
+	nextLayer.classList.add("is-active");
+	prevLayer.classList.remove("is-active");
+	activeRegionLayer = activeRegionLayer === "A" ? "B" : "A";
 }
 
 async function loadJSON(path) {
@@ -529,7 +539,6 @@ async function bootstrap() {
 
 		init(data);
 		initCharPanel();
-		syncHeaderHeight();
 
 		let t2v2 = new Date().getTime();
 		document.getElementById("loadTime").innerHTML = `Loading Time - ${t2v2 - t1v2}ms`;
