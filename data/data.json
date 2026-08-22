@@ -1,4 +1,4 @@
-var data = [{
+[{
 	"version": "1.0",
 	"banner": [{
 		"5": ["Venti"],
@@ -7,7 +7,7 @@ var data = [{
 		"5": ["Klee"],
 		"4": ["Noelle", "Sucrose", "Xingqiu"]
 	}]
-},{	
+},{
 	"version": "1.1",
 	"banner": [{
 		"5": ["Tartaglia"],
@@ -16,7 +16,7 @@ var data = [{
 		"5": ["Zhongli"],
 		"4": ["Chongyun", "Razor", "Xinyan"]
 	}]
-},{	
+},{
 	"version": "1.2",
 	"banner": [{
 		"5": ["Albedo"],
@@ -279,7 +279,13 @@ var data = [{
 	},{
 		"5": ["Kazuha", "Neuvillette"],
 		"4": ["Barbara", "Xingqiu", "Yanfei"]
-	}]
+	}],
+	"chronicled": {
+		"phase": 1,
+		"theme": "Mondstadt",
+		"5": ["Albedo", "Diluc", "Eula", "Jean", "Klee", "Mona"],
+		"4": ["Amber", "Barbara", "Bennett", "Diona", "Fischl", "Kaeya", "Lisa", "Mika", "Noelle", "Razor", "Rosaria", "Sucrose"]
+	}
 },{
 	"version": "4.6",
 	"banner": [{
@@ -342,7 +348,13 @@ var data = [{
 	},{
 		"5": ["Arlecchino", "Clorinde"],
 		"4": ["Chevreuse", "Lan Yan", "Rosaria"]
-	}]
+	}],
+	"chronicled": {
+		"phase": 1,
+		"theme": "Liyue",
+		"5": ["Baizhu", "Ganyu", "Keqing", "Qiqi", "Shenhe", "Tartaglia", "Xiao"],
+		"4": ["Beidou", "Chongyun", "Gaming", "Ningguang", "Xiangling", "Xingqiu", "Yanfei", "Yaoyao", "Yun Jin", "Xinyan"]
+	}
 },{
 	"version": "5.4",
 	"banner": [{
@@ -369,7 +381,13 @@ var data = [{
 	},{
 		"5": ["Kinich", "Shogun"],
 		"4": ["Lynette", "Sara", "Thoma"]
-	}]
+	}],
+	"chronicled": {
+		"phase": 1,
+		"theme": "Inazuma",
+		"5": ["Ayaka", "Ayato", "Chiori", "Itto", "Kazuha", "Kokomi", "Yae", "Yoimiya"],
+		"4": ["Gorou", "Heizou", "Kirara", "Sara", "Sayu", "Shinobu", "Thoma"]
+	}
 },{
 	"version": "5.7",
 	"banner": [{
@@ -396,7 +414,13 @@ var data = [{
 	},{
 		"5": ["Flins", "Yelan"],
 		"4": ["Aino", "Dori", "Sucrose"]
-	}]
+	}],
+	"chronicled": {
+		"phase": 1,
+		"theme": "Sumeru",
+		"5": ["Alhaitham", "Cyno", "Dehya", "Nilou", "Tighnari", "Wanderer"],
+		"4": ["Candace", "Collei", "Dori", "Faruzan", "Kaveh", "Layla", "Sethos"]
+	}
 },{
 	"version": "6.1",
 	"banner": [{
@@ -432,7 +456,13 @@ var data = [{
 	},{
 		"5": ["Escoffier", "Skirk"],
 		"4": ["Candace", "Charlotte", "Dahlia"]
-	}]
+	}],
+	"chronicled": {
+		"phase": 1,
+		"theme": "Mondstadt",
+		"5": ["Albedo", "Diluc", "Eula", "Jean", "Klee", "Mona"],
+		"4": ["Amber", "Barbara", "Bennett", "Dahlia", "Diona", "Fischl", "Kaeya", "Lisa", "Mika", "Noelle", "Razor", "Rosaria", "Sucrose"]
+	}
 },{
 	"version": "6.5",
 	"banner": [{
@@ -441,7 +471,13 @@ var data = [{
 	},{
 		"5": ["Lauma", "Nefer"],
 		"4": ["Jahoda", "Kirara", "Xingqiu"]
-	}]
+	}],
+	"chronicled": {
+		"phase": 2,
+		"theme": "Fontaine",
+		"5": ["Clorinde", "Emilie", "Lyney", "Navia", "Sigewinne"],
+		"4": ["Charlotte", "Chevreuse", "Freminet", "Lynette"]
+	}
 },{
 	"version": "6.6",
 	"banner": [{
@@ -465,5 +501,8 @@ var data = [{
 	"banner": [{
 		"5": ["Arlecchino", "Odette"],
 		"4": ["Alyosha", "Lynette", "Sucrose"]
+	},{
+		"5": ["Flins", "Ineffa"],
+		"4": []
 	}]
 }]

@@ -1,0 +1,25 @@
+{
+	"Qiqi": { "rateDown": true, "preexisting": true },
+	"Mona": { "rateDown": true, "preexisting": true },
+	"Keqing": { "rateDown": true, "preexisting": true },
+	"Diluc": { "rateDown": true, "preexisting": true },
+	"Jean": { "rateDown": true, "preexisting": true },
+	"Tighnari": { "rateDown": true },
+	"Dehya": { "rateDown": true },
+	"Mizuki": { "rateDown": true },
+
+	"Barbara": { "preexisting": true },
+	"Fischl": { "preexisting": true },
+	"Xiangling": { "preexisting": true },
+	"Noelle": { "preexisting": true },
+	"Sucrose": { "preexisting": true },
+	"Xingqiu": { "preexisting": true },
+	"Beidou": { "preexisting": true },
+	"Ningguang": { "preexisting": true },
+	"Chongyun": { "preexisting": true },
+	"Razor": { "preexisting": true },
+	"Bennett": { "preexisting": true },
+	"Amber": { "preexisting": true },
+	"Kaeya": { "preexisting": true },
+	"Lisa": { "preexisting": true }
+}
