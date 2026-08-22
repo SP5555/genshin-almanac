@@ -1,0 +1,11 @@
+{
+  "name": "gigachatimeline",
+  "private": true,
+  "description": "Local dev server only — the deployed site is plain HTML/CSS/JS with no build step.",
+  "scripts": {
+    "dev": "live-server --port=8200 --ignore=node_modules,.git"
+  },
+  "devDependencies": {
+    "live-server": "^1.2.2"
+  }
+}

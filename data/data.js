@@ -1,0 +1,469 @@
+var data = [{
+	"version": "1.0",
+	"banner": [{
+		"5": ["Venti"],
+		"4": ["Barbara", "Fischl", "Xiangling"]
+	},{
+		"5": ["Klee"],
+		"4": ["Noelle", "Sucrose", "Xingqiu"]
+	}]
+},{	
+	"version": "1.1",
+	"banner": [{
+		"5": ["Tartaglia"],
+		"4": ["Beidou", "Diona", "Ningguang"]
+	},{
+		"5": ["Zhongli"],
+		"4": ["Chongyun", "Razor", "Xinyan"]
+	}]
+},{	
+	"version": "1.2",
+	"banner": [{
+		"5": ["Albedo"],
+		"4": ["Bennett", "Fischl", "Sucrose"]
+	},{
+		"5": ["Ganyu"],
+		"4": ["Noelle", "Xiangling", "Xingqiu"]
+	}]
+},{
+	"version": "1.3",
+	"banner": [{
+		"5": ["Xiao"],
+		"4": ["Beidou", "Diona", "Xinyan"]
+	},{
+		"5": ["Keqing"],
+		"4": ["Barbara", "Bennett", "Ningguang"]
+	},{
+		"5": ["Hu Tao"],
+		"4": ["Chongyun", "Xiangling", "Xingqiu"]
+	}]
+},{
+	"version": "1.4",
+	"banner": [{
+		"5": ["Venti"],
+		"4": ["Noelle", "Razor", "Sucrose"]
+	},{
+		"5": ["Tartaglia"],
+		"4": ["Barbara", "Fischl", "Rosaria"]
+	}]
+},{
+	"version": "1.5",
+	"banner": [{
+		"5": ["Zhongli"],
+		"4": ["Diona", "Noelle", "Yanfei"]
+	},{
+		"5": ["Eula"],
+		"4": ["Beidou", "Xingqiu", "Xinyan"]
+	}]
+},{
+	"version": "1.6",
+	"banner": [{
+		"5": ["Klee"],
+		"4": ["Barbara", "Fischl", "Sucrose"]
+	},{
+		"5": ["Kazuha"],
+		"4": ["Bennett", "Razor", "Rosaria"]
+	}]
+},{
+	"version": "2.0",
+	"banner": [{
+		"5": ["Ayaka"],
+		"4": ["Chongyun", "Ningguang", "Yanfei"]
+	},{
+		"5": ["Yoimiya"],
+		"4": ["Diona", "Sayu", "Xinyan"]
+	}]
+},{
+	"version": "2.1",
+	"banner": [{
+		"5": ["Shogun"],
+		"4": ["Sara", "Sucrose", "Xiangling"]
+	},{
+		"5": ["Kokomi"],
+		"4": ["Beidou", "Rosaria", "Xingqiu"]
+	}]
+},{
+	"version": "2.2",
+	"banner": [{
+		"5": ["Tartaglia"],
+		"4": ["Chongyun", "Ningguang", "Yanfei"]
+	},{
+		"5": ["Hu Tao"],
+		"4": ["Diona", "Sayu", "Thoma"]
+	}]
+},{
+	"version": "2.3",
+	"banner": [{
+		"5": ["Albedo", "Eula"],
+		"4": ["Bennett", "Noelle", "Rosaria"]
+	},{
+		"5": ["Itto"],
+		"4": ["Barbara", "Gorou", "Xiangling"]
+	}]
+},{
+	"version": "2.4",
+	"banner": [{
+		"5": ["Shenhe", "Xiao"],
+		"4": ["Chongyun", "Ningguang", "Yun Jin"]
+	},{
+		"5": ["Ganyu", "Zhongli"],
+		"4": ["Beidou", "Xingqiu", "Yanfei"]
+	}]
+},{
+	"version": "2.5",
+	"banner": [{
+		"5": ["Yae"],
+		"4": ["Diona", "Fischl", "Thoma"]
+	},{
+		"5": ["Kokomi", "Shogun"],
+		"4": ["Bennett", "Sara", "Xinyan"]
+	}]
+},{
+	"version": "2.6",
+	"banner": [{
+		"5": ["Ayato", "Venti"],
+		"4": ["Sucrose", "Xiangling", "Yun Jin"]
+	},{
+		"5": ["Ayaka"],
+		"4": ["Razor", "Rosaria", "Sayu"]
+	}]
+},{
+	"version": "2.7",
+	"banner": [{
+		"5": ["Xiao", "Yelan"],
+		"4": ["Barbara", "Noelle", "Yanfei"]
+	},{
+		"5": ["Itto"],
+		"4": ["Chongyun", "Gorou", "Shinobu"]
+	}]
+},{
+	"version": "2.8",
+	"banner": [{
+		"5": ["Kazuha", "Klee"],
+		"4": ["Heizou", "Ningguang", "Thoma"]
+	},{
+		"5": ["Yoimiya"],
+		"4": ["Bennett", "Xinyan", "Yun Jin"]
+	}]
+},{
+	"version": "3.0",
+	"banner": [{
+		"5": ["Tighnari", "Zhongli"],
+		"4": ["Collei", "Diona", "Fischl"]
+	},{
+		"5": ["Ganyu", "Kokomi"],
+		"4": ["Dori", "Sucrose", "Xingqiu"]
+	}]
+},{
+	"version": "3.1",
+	"banner": [{
+		"5": ["Cyno", "Venti"],
+		"4": ["Candace", "Sayu", "Shinobu"]
+	},{
+		"5": ["Albedo", "Nilou"],
+		"4": ["Barbara", "Beidou", "Xiangling"]
+	}]
+},{
+	"version": "3.2",
+	"banner": [{
+		"5": ["Nahida", "Yoimiya"],
+		"4": ["Bennett", "Noelle", "Razor"]
+	},{
+		"5": ["Tartaglia", "Yae"],
+		"4": ["Heizou", "Layla", "Thoma"]
+	}]
+},{
+	"version": "3.3",
+	"banner": [{
+		"5": ["Wanderer", "Itto"],
+		"4": ["Faruzan", "Gorou", "Yanfei"]
+	},{
+		"5": ["Ayato", "Shogun"],
+		"4": ["Rosaria", "Sara", "Sayu"]
+	}]
+},{
+	"version": "3.4",
+	"banner": [{
+		"5": ["Alhaitham", "Xiao"],
+		"4": ["Xinyan", "Yaoyao", "Yun Jin"]
+	},{
+		"5": ["Hu Tao", "Yelan"],
+		"4": ["Beidou", "Ningguang", "Xingqiu"]
+	}]
+},{
+	"version": "3.5",
+	"banner": [{
+		"5": ["Cyno", "Dehya"],
+		"4": ["Barbara", "Bennett", "Collei"]
+	},{
+		"5": ["Ayaka", "Shenhe"],
+		"4": ["Diona", "Mika", "Sucrose"]
+	}]
+},{
+	"version": "3.6",
+	"banner": [{
+		"5": ["Nahida", "Nilou"],
+		"4": ["Dori", "Layla", "Shinobu"]
+	},{
+		"5": ["Baizhu", "Ganyu"],
+		"4": ["Candace", "Fischl", "Kaveh"]
+	}]
+},{
+	"version": "3.7",
+	"banner": [{
+		"5": ["Yae", "Yoimiya"],
+		"4": ["Chongyun", "Kirara", "Yun Jin"]
+	},{
+		"5": ["Alhaitham", "Kazuha"],
+		"4": ["Heizou", "Xiangling", "Yaoyao"]
+	}]
+},{
+	"version": "3.8",
+	"banner": [{
+		"5": ["Eula", "Klee"],
+		"4": ["Mika", "Razor", "Thoma"]
+	},{
+		"5": ["Kokomi", "Wanderer"],
+		"4": ["Faruzan", "Rosaria", "Yanfei"]
+	}]
+},{
+	"version": "4.0",
+	"banner": [{
+		"5": ["Lyney", "Yelan"],
+		"4": ["Barbara", "Bennett", "Lynette"]
+	},{
+		"5": ["Zhongli", "Tartaglia"],
+		"4": ["Freminet", "Noelle", "Sayu"]
+	}]
+},{
+	"version": "4.1",
+	"banner": [{
+		"5": ["Neuvillette", "Hu Tao"],
+		"4": ["Diona", "Fischl", "Xingqiu"]
+	},{
+		"5": ["Wriothesley", "Venti"],
+		"4": ["Chongyun", "Dori", "Thoma"]
+	}]
+},{
+	"version": "4.2",
+	"banner": [{
+		"5": ["Baizhu", "Furina"],
+		"4": ["Beidou", "Charlotte", "Collei"]
+	},{
+		"5": ["Ayato", "Cyno"],
+		"4": ["Kirara", "Shinobu", "Xiangling"]
+	}]
+},{
+	"version": "4.3",
+	"banner": [{
+		"5": ["Ayaka", "Navia"],
+		"4": ["Candace", "Rosaria", "Sucrose"]
+	},{
+		"5": ["Shogun", "Yoimiya"],
+		"4": ["Bennett", "Chevreuse", "Sara"]
+	}]
+},{
+	"version": "4.4",
+	"banner": [{
+		"5": ["Nahida", "Xianyun"],
+		"4": ["Faruzan", "Gaming", "Noelle"]
+	},{
+		"5": ["Xiao", "Yae"],
+		"4": ["Ningguang", "Xinyan", "Yaoyao"]
+	}]
+},{
+	"version": "4.5",
+	"banner": [{
+		"5": ["Chiori", "Itto"],
+		"4": ["Dori", "Gorou", "Yun Jin"]
+	},{
+		"5": ["Kazuha", "Neuvillette"],
+		"4": ["Barbara", "Xingqiu", "Yanfei"]
+	}]
+},{
+	"version": "4.6",
+	"banner": [{
+		"5": ["Arlecchino", "Lyney"],
+		"4": ["Freminet", "Lynette", "Xiangling"]
+	},{
+		"5": ["Baizhu", "Wanderer"],
+		"4": ["Beidou", "Faruzan", "Layla"]
+	}]
+},{
+	"version": "4.7",
+	"banner": [{
+		"5": ["Alhaitham", "Clorinde"],
+		"4": ["Bennett", "Thoma", "Sethos"]
+	},{
+		"5": ["Furina", "Sigewinne"],
+		"4": ["Gaming", "Noelle", "Rosaria"]
+	}]
+},{
+	"version": "4.8",
+	"banner": [{
+		"5": ["Navia", "Nilou"],
+		"4": ["Kaveh", "Kirara", "Ningguang"]
+	},{
+		"5": ["Emilie", "Yelan"],
+		"4": ["Razor", "Xiangling", "Yanfei"]
+	}]
+},{
+	"version": "5.0",
+	"banner": [{
+		"5": ["Kazuha", "Mualani"],
+		"4": ["Bennett", "Kachina", "Xinyan"]
+	},{
+		"5": ["Shogun", "Kinich"],
+		"4": ["Chevreuse", "Sara", "Thoma"]
+	}]
+},{
+	"version": "5.1",
+	"banner": [{
+		"5": ["Chiori", "Xilonen"],
+		"4": ["Candace", "Collei", "Dori"]
+	},{
+		"5": ["Hu Tao", "Nahida"],
+		"4": ["Sethos", "Shinobu", "Xingqiu"]
+	}]
+},{
+	"version": "5.2",
+	"banner": [{
+		"5": ["Chasca", "Lyney"],
+		"4": ["Barbara", "Ororon", "Sucrose"]
+	},{
+		"5": ["Neuvillette", "Zhongli"],
+		"4": ["Fischl", "Heizou", "Yaoyao"]
+	}]
+},{
+	"version": "5.3",
+	"banner": [{
+		"5": ["Citlali", "Mavuika"],
+		"4": ["Bennett", "Diona", "Kachina"]
+	},{
+		"5": ["Arlecchino", "Clorinde"],
+		"4": ["Chevreuse", "Lan Yan", "Rosaria"]
+	}]
+},{
+	"version": "5.4",
+	"banner": [{
+		"5": ["Mizuki", "Sigewinne"],
+		"4": ["Gorou", "Sayu", "Xiangling"]
+	},{
+		"5": ["Furina", "Wriothesley"],
+		"4": ["Charlotte", "Chongyun", "Mika"]
+	}]
+},{
+	"version": "5.5",
+	"banner": [{
+		"5": ["Varesa", "Xianyun"],
+		"4": ["Chevreuse", "Gaming", "Iansan"]
+	},{
+		"5": ["Venti", "Xilonen"],
+		"4": ["Beidou", "Faruzan", "Yanfei"]
+	}]
+},{
+	"version": "5.6",
+	"banner": [{
+		"5": ["Escoffier", "Navia"],
+		"4": ["Ifa", "Layla", "Ororon"]
+	},{
+		"5": ["Kinich", "Shogun"],
+		"4": ["Lynette", "Sara", "Thoma"]
+	}]
+},{
+	"version": "5.7",
+	"banner": [{
+		"5": ["Shenhe", "Skirk"],
+		"4": ["Candace", "Dahlia", "Diona"]
+	},{
+		"5": ["Emilie", "Mavuika"],
+		"4": ["Iansan", "Xiangling", "Yaoyao"]
+	}]
+},{
+	"version": "5.8",
+	"banner": [{
+		"5": ["Citlali", "Ineffa"],
+		"4": ["Fischl", "Sethos", "Xingqiu"]
+	},{
+		"5": ["Chasca", "Mualani"],
+		"4": ["Bennett", "Ifa", "Ororon"]
+	}]
+},{
+	"version": "6.0",
+	"banner": [{
+		"5": ["Lauma", "Nahida"],
+		"4": ["Barbara", "Kaveh", "Shinobu"]
+	},{
+		"5": ["Flins", "Yelan"],
+		"4": ["Aino", "Dori", "Sucrose"]
+	}]
+},{
+	"version": "6.1",
+	"banner": [{
+		"5": ["Furina", "Nefer"],
+		"4": ["Collei", "Xingqiu", "Yaoyao"]
+	},{
+		"5": ["Arlecchino", "Zhongli"],
+		"4": ["Lan Yan", "Rosaria", "Yun Jin"]
+	}]
+},{
+	"version": "6.2",
+	"banner": [{
+		"5": ["Durin", "Venti"],
+		"4": ["Bennett", "Faruzan", "Jahoda"]
+	},{
+		"5": ["Varesa", "Xilonen"],
+		"4": ["Chevreuse", "Gaming", "Iansan"]
+	}]
+},{
+	"version": "6.3",
+	"banner": [{
+		"5": ["Columbina", "Ineffa"],
+		"4": ["Fischl", "Ifa", "Sethos"]
+	},{
+		"5": ["Neuvillette", "Zibai"],
+		"4": ["Aino", "Gorou", "Illuga"]
+	}]
+},{
+	"version": "6.4",
+	"banner": [{
+		"5": ["Flins", "Varka"],
+		"4": ["Bennett", "Sucrose", "Xiangling"]
+	},{
+		"5": ["Escoffier", "Skirk"],
+		"4": ["Candace", "Charlotte", "Dahlia"]
+	}]
+},{
+	"version": "6.5",
+	"banner": [{
+		"5": ["Chasca", "Linnea"],
+		"4": ["Aino", "Illuga", "Noelle"]
+	},{
+		"5": ["Lauma", "Nefer"],
+		"4": ["Jahoda", "Kirara", "Xingqiu"]
+	}]
+},{
+	"version": "6.6",
+	"banner": [{
+		"5": ["Durin", "Nicole"],
+		"4": ["Fischl", "Prune", "Razor"]
+	},{
+		"5": ["Lohen", "Mavuika"],
+		"4": ["Bennett", "Mika", "Xiangling"]
+	}]
+},{
+	"version": "6.7",
+	"banner": [{
+		"5": ["Citlali", "Sandrone"],
+		"4": ["Beidou", "Diona", "Freminet"]
+	},{
+		"5": ["Columbina", "Shogun"],
+		"4": ["Jahoda", "Ororon", "Sethos"]
+	}]
+},{
+	"version": "7.0",
+	"banner": [{
+		"5": ["Arlecchino", "Odette"],
+		"4": ["Alyosha", "Lynette", "Sucrose"]
+	}]
+}]

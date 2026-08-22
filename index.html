@@ -5,66 +5,34 @@
   <meta name="author" content="Eroisk">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title id="webTitle">Genshin Gacha Timeline</title>
-  <link rel="stylesheet" type="text/css" href="reset.css">
-  <link rel="stylesheet" type="text/css" href="style_darkblue.css">
-  <!-- <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script> -->
+  <link rel="stylesheet" type="text/css" href="css/reset.css">
+  <link rel="stylesheet" type="text/css" href="css/style.css">
 </head>
 <body>
 
-  <div class="header not-selectable">
-    <div class="wrapper">
-      <div class="main-title-holder">
-        <h1 class="main-title">Genshin Gacha Timeline</h1>
-      </div>
+  <header class="site-header not-selectable">
+    <div class="site-header-inner container">
+      <h1 class="main-title">Genshin Gacha Timeline</h1>
+      <p class="site-tagline">Every character banner from 1.0 to today, at a glance</p>
     </div>
-  </div>
-  
-  <div class="main-body not-selectable">
-    <div class="wrapper">
-      <p class="normal-text">Sort by:</p>
-      <div style="display: flex;">
-        <button class="sort-btn normal-text" onclick="sortByT()">Timeline</button>
-        <button class="sort-btn normal-text" onclick="sortByMR()">Most Recent</button>
-      </div>
-    </div>
+  </header>
 
-    <div class="wrapper-body">
-      <div class="vertical-space"></div>
-      <div style="overflow-x: auto; overflow-y: visible;">
-        <table class="main-table" id="mainTable5" style="width: 100%">
-          <thead id="thead5">
-            <tr class="version-row" id="versionRow5">
-              <td class="first-col" id="firstCol5">5S Char/Version</td>
-            </tr>
-          </thead>
-        </table>
-      </div>
-      <div class="vertical-space"></div>
-      <div style="overflow-x: auto; overflow-y: visible;">
-        <table class="main-table" id="mainTable4" style="width: 100%">
-          <thead id="thead4">
-            <tr class="version-row" id="versionRow4">
-              <td class="first-col" id="firstCol4">4S Char/Version</td>
-            </tr>
-          </thead>
-        </table>
-      </div>
-    </div>
-  </div>
+  <nav class="version-nav not-selectable" id="versionNav"></nav>
 
-  <div class="footer not-selectable">
-    <div class="wrapper align-center">
-      <div class="footer-text">
-        <p class="credit-info">Test Website under development</p>
-        <p class="credit-info" id="loadTime"></p>
-      </div>
-    </div>
-  </div>
+  <main id="timelineRoot" class="timeline-root"></main>
 
-  <script src="data.js"></script>
-  <script src="script.js"></script>
+  <footer class="site-footer not-selectable">
+    <div class="container">
+      <p class="credit-info">Test Website under development</p>
+      <p class="credit-info" id="loadTime"></p>
+    </div>
+  </footer>
+
+  <script src="data/data.js"></script>
+  <script src="data/character-notes.js"></script>
+  <script src="data/version-notes.js"></script>
+  <script src="js/glow-config.js"></script>
+  <script src="js/app.js"></script>
 
 </body>
 </html>
