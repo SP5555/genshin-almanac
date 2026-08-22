@@ -10,6 +10,11 @@ function facePath(character) {
 	return `assets/faces/${character.replace(/\s/g, "").toLowerCase()}.png`;
 }
 
+function formatDate(isoDate) {
+	let d = new Date(isoDate + "T00:00:00");
+	return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 function groupByMajor(data) {
 	let groups = [];
 	let byMajor = {};
@@ -58,11 +63,16 @@ function normalizeChar(name) {
 function buildNode(version, phaseLabel, phase, charCount, isFiller, isChronicled) {
 	let card = document.createElement("div");
 	card.className = "trail-node phase-card" + (isFiller ? " is-filler" : "") + (isChronicled ? " is-chronicled" : "");
+	card.dataset.version = version;
+	card.dataset.phaseLabel = phaseLabel;
 
 	let badge = document.createElement("div");
 	badge.className = "phase-tag";
 	badge.textContent = phaseLabel;
 	card.appendChild(badge);
+
+	let body = document.createElement("div");
+	body.className = "phase-card-body";
 
 	let fiveGroup = document.createElement("div");
 	fiveGroup.className = "phase-five-group";
@@ -113,24 +123,13 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, isChronicled
 		fiveUnits.push(unit);
 	}
 
-	if (isChronicled) {
-		let half = Math.ceil(fiveUnits.length / 2);
-		[fiveUnits.slice(0, half), fiveUnits.slice(half)].forEach(rowUnits => {
-			if (rowUnits.length === 0) return;
-			let row = document.createElement("div");
-			row.className = "phase-five-row";
-			rowUnits.forEach(u => row.appendChild(u));
-			fiveGroup.appendChild(row);
-		});
-	} else {
-		fiveUnits.forEach(u => fiveGroup.appendChild(u));
-	}
-	card.appendChild(fiveGroup);
+	fiveUnits.forEach(u => fiveGroup.appendChild(u));
+	body.appendChild(fiveGroup);
 
 	if (phase["4"].length > 0) {
 		let divider = document.createElement("div");
 		divider.className = "phase-divider";
-		card.appendChild(divider);
+		body.appendChild(divider);
 
 		let fourGroup = document.createElement("div");
 		fourGroup.className = "phase-four-group";
@@ -175,8 +174,10 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, isChronicled
 		} else {
 			fourUnits.forEach(u => fourGroup.appendChild(u));
 		}
-		card.appendChild(fourGroup);
+		body.appendChild(fourGroup);
 	}
+
+	card.appendChild(body);
 
 	return card;
 }
@@ -193,8 +194,15 @@ function buildAppearanceRow(entry) {
 	label.className = "char-appear-label";
 
 	let ver = document.createElement("span");
-	ver.className = "char-appear-version";
+	ver.className = "char-appear-version is-jumpable";
 	ver.textContent = `${entry.version} — ${entry.phaseLabel}`;
+	ver.tabIndex = 0;
+	ver.setAttribute("role", "button");
+	ver.setAttribute("aria-label", `Jump to ${entry.version} ${entry.phaseLabel} card`);
+	ver.addEventListener("click", () => jumpToCard(entry.version, entry.phaseLabel));
+	ver.addEventListener("keydown", e => {
+		if (e.key === "Enter" || e.key === " ") { e.preventDefault(); jumpToCard(entry.version, entry.phaseLabel); }
+	});
 	label.appendChild(ver);
 
 	let status = document.createElement("span");
@@ -290,6 +298,27 @@ function closeCharPanel() {
 	document.body.classList.remove("panel-open");
 }
 
+function pageOffsetTop(el) {
+	let top = 0;
+	while (el) {
+		top += el.offsetTop;
+		el = el.offsetParent;
+	}
+	return top;
+}
+
+function jumpToCard(version, phaseLabel) {
+	let card = document.querySelector(
+		`.phase-card[data-version="${CSS.escape(version)}"][data-phase-label="${CSS.escape(phaseLabel)}"]`
+	);
+	if (!card) return;
+	let headerH = document.querySelector(".site-header").offsetHeight;
+	let top = pageOffsetTop(card) - headerH - 20;
+	window.scrollTo({ top, behavior: "smooth" });
+	card.classList.add("is-highlighted");
+	setTimeout(() => card.classList.remove("is-highlighted"), 1800);
+}
+
 function initCharPanel() {
 	document.getElementById("timelineRoot").addEventListener("click", e => {
 		let trigger = e.target.closest(".char-trigger");
@@ -364,6 +393,13 @@ function buildPatchRow(entry, charCount) {
 
 	let content = document.createElement("div");
 	content.className = "vt-content";
+
+	if (entry.date) {
+		let dateEl = document.createElement("div");
+		dateEl.className = "vt-patch-date";
+		dateEl.textContent = formatDate(entry.date);
+		content.appendChild(dateEl);
+	}
 
 	let phasesWrap = document.createElement("div");
 	phasesWrap.className = "vt-phases";

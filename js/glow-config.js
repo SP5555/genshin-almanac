@@ -15,8 +15,8 @@ var GLOW_CONFIG = {
 		durationMaxS: 4    // slowest possible flicker cycle length (s)
 	},
 	bloom: {
-		five: { ringWidth: 3, blur: 12, spread: 6 },
-		four: { ringWidth: 2, blur: 8, spread: 4 }
+		five: { ringWidth: 3, innerBlur: 6, innerSpread: 3, outerBlur: 12, outerSpread: 6 },
+		four: { ringWidth: 2, innerBlur: 4, innerSpread: 2, outerBlur: 8, outerSpread: 4 }
 	}
 };
 
@@ -29,10 +29,14 @@ var GLOW_CONFIG = {
 	root.setProperty("--ray-peak-opacity", cfg.rays.peakOpacity);
 
 	root.setProperty("--five-ring-w", `${cfg.bloom.five.ringWidth}px`);
-	root.setProperty("--five-blur", `${cfg.bloom.five.blur}px`);
-	root.setProperty("--five-spread", `${cfg.bloom.five.spread}px`);
+	root.setProperty("--five-inner-blur", `${cfg.bloom.five.innerBlur}px`);
+	root.setProperty("--five-inner-spread", `${cfg.bloom.five.innerSpread}px`);
+	root.setProperty("--five-outer-blur", `${cfg.bloom.five.outerBlur}px`);
+	root.setProperty("--five-outer-spread", `${cfg.bloom.five.outerSpread}px`);
 
 	root.setProperty("--four-ring-w", `${cfg.bloom.four.ringWidth}px`);
-	root.setProperty("--four-blur", `${cfg.bloom.four.blur}px`);
-	root.setProperty("--four-spread", `${cfg.bloom.four.spread}px`);
+	root.setProperty("--four-inner-blur", `${cfg.bloom.four.innerBlur}px`);
+	root.setProperty("--four-inner-spread", `${cfg.bloom.four.innerSpread}px`);
+	root.setProperty("--four-outer-blur", `${cfg.bloom.four.outerBlur}px`);
+	root.setProperty("--four-outer-spread", `${cfg.bloom.four.outerSpread}px`);
 })(GLOW_CONFIG);

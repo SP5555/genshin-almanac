@@ -22,7 +22,12 @@
 
 @font-face{font-family: GIFont; src: url("../assets/fonts/zh-cn.ttf"); font-display: swap;}
 
-html{min-width: 320px; scroll-behavior: smooth; scroll-padding-top: var(--header-h, 90px);}
+html{
+	min-width: 320px; scroll-behavior: smooth; scroll-padding-top: var(--header-h, 90px);
+	scrollbar-width: none; -ms-overflow-style: none;
+	overflow-x: hidden;
+}
+html::-webkit-scrollbar{display: none;}
 body{
 	font-family: GIFont; cursor: default;
 	background-color: var(--bg); color: var(--text);
@@ -86,6 +91,7 @@ body::-webkit-scrollbar{display: none;}
 /* ---------- timeline root ---------- */
 .timeline-root{
 	padding: 20px 0 60px 0;
+	transition: transform 0.4s ease;
 	background-color: var(--bg);
 	background-image:
 		radial-gradient(1.5px 1.5px at 15% 20%, rgba(255,255,255,0.3), transparent),
@@ -149,8 +155,13 @@ body::-webkit-scrollbar{display: none;}
 	font-size: 11px; font-weight: bold; box-shadow: 0 0 0 3px var(--line), 0 0 12px 1px var(--accent-glow);
 }
 .vt-patch-row .vt-content{padding: 0 0 0 20px;}
+.vt-patch-date{
+	display: flex; align-items: center;
+	height: 40px; margin-top: 2px;
+	font-size: 12px; color: var(--text-dim); letter-spacing: 0.3px;
+}
 
-.vt-phases{display: flex; flex-wrap: wrap; gap: 14px 16px;}
+.vt-phases{display: flex; flex-wrap: wrap; gap: 14px 16px; margin-top: 8px;}
 
 @media (min-width: 768px){
 	.vt-marker-col{width: 70px;}
@@ -158,11 +169,13 @@ body::-webkit-scrollbar{display: none;}
 	.vt-major-title{font-size: 38px;}
 	.vt-major-range{font-size: 15px;}
 	.vt-patch-marker{width: 46px; height: 46px; font-size: 12px;}
+	.vt-patch-date{height: 46px;}
 }
 @media (max-width: 480px){
 	.vt-marker-col{width: 44px;}
 	.vt-major-marker{width: 46px; height: 46px; font-size: 18px;}
 	.vt-patch-marker{width: 34px; height: 34px; font-size: 9px;}
+	.vt-patch-date{height: 34px;}
 	.vt-major-row .vt-content, .vt-patch-row .vt-content{padding-left: 14px;}
 }
 
@@ -179,8 +192,8 @@ body::-webkit-scrollbar{display: none;}
 /* ---------- phase card (horizontal media-row, glassmorphic) ---------- */
 .trail-node.phase-card{
 	position: relative; z-index: 1; min-width: 190px; flex: 0 1 auto; max-width: 100%;
-	display: flex; align-items: center; gap: 16px;
-	padding: 16px 20px 16px 16px; margin-top: 22px; border-radius: 0 20px 20px 20px;
+	display: flex; flex-direction: column; gap: 8px;
+	padding: 14px 20px 16px 16px; border-radius: 20px;
 	background-color: var(--glass); border: 1px solid var(--glass-border);
 	backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
 	transition: background-color 0.25s, border-color 0.25s;
@@ -192,23 +205,25 @@ body::-webkit-scrollbar{display: none;}
 	border-style: dashed; opacity: 0.8;
 }
 .trail-node.phase-card.is-filler:hover{opacity: 1;}
-.trail-node.phase-card.is-filler .phase-tag{background-color: var(--text-dim); color: #14141c;}
+.trail-node.phase-card.is-filler .phase-tag{border-left-color: var(--text-dim); color: var(--text-dim);}
 .trail-node.phase-card.is-chronicled{
 	border-color: var(--chronicled); background-color: var(--chronicled-glow);
 }
 .trail-node.phase-card.is-chronicled:hover{border-color: var(--chronicled);}
-.trail-node.phase-card.is-chronicled .phase-tag{background-color: var(--chronicled); color: #1a1206;}
+.trail-node.phase-card.is-chronicled .phase-tag{border-left-color: var(--chronicled); color: var(--chronicled);}
+
+.phase-card-body{display: flex; align-items: center; gap: 16px;}
 
 .phase-tag{
-	position: absolute; bottom: 100%; left: 0; margin-bottom: -1px;
-	background-color: var(--accent); color: var(--text);
-	font-size: 10px; font-weight: bold; padding: 4px 12px 5px; letter-spacing: 0.5px;
-	border-radius: 10px 10px 0 0;
+	align-self: flex-start;
+	font-size: 10px; font-weight: bold; letter-spacing: 0.6px; text-transform: uppercase;
+	color: var(--text-dim);
+	padding-left: 8px; border-left: 2px solid var(--accent);
+	line-height: 1.3;
 }
 
 .phase-five-group{display: flex; flex-direction: row; flex-wrap: wrap; gap: 10px 18px; flex-shrink: 0;}
-.is-chronicled .phase-five-group{display: flex; flex-direction: column; gap: 10px; flex-shrink: 0;}
-.phase-five-row{display: flex; flex-direction: row; justify-content: center; gap: 10px 18px;}
+.is-chronicled .phase-five-group{flex-wrap: wrap; justify-content: center; max-width: 340px;}
 .phase-five-unit{display: flex; flex-direction: column; align-items: center; gap: 6px;}
 
 /* flickering sunburst rays behind release portraits — each ray is a separate
@@ -242,11 +257,13 @@ body::-webkit-scrollbar{display: none;}
 .phase-face-lg.is-release{
 	filter: none;
 	box-shadow: 0 0 0 var(--five-ring-w, 3px) var(--five),
-		0 0 var(--five-blur, 16px) var(--five-spread, 6px) var(--five-glow);
+		0 0 var(--five-inner-blur, 6px) var(--five-inner-spread, 2px) var(--five-glow),
+		0 0 var(--five-outer-blur, 12px) var(--five-outer-spread, 6px) var(--five-glow);
 }
 .phase-face-lg.is-release.rarity-four{
 	box-shadow: 0 0 0 var(--four-ring-w, 2px) var(--four),
-		0 0 var(--four-blur, 12px) var(--four-spread, 3px) var(--four-glow);
+		0 0 var(--four-inner-blur, 4px) var(--four-inner-spread, 1px) var(--four-glow),
+		0 0 var(--four-outer-blur, 8px) var(--four-outer-spread, 4px) var(--four-glow);
 }
 .phase-five-text{display: flex; flex-direction: column; align-items: center; gap: 4px;}
 .phase-five-text .char-name{font-size: 14px; font-weight: bold; color: var(--text-dim); text-align: center;
@@ -265,7 +282,8 @@ body::-webkit-scrollbar{display: none;}
 .char-face-sm.is-release{
 	filter: none;
 	box-shadow: 0 0 0 var(--four-ring-w, 2px) var(--four),
-		0 0 var(--four-blur, 12px) var(--four-spread, 3px) var(--four-glow);
+		0 0 var(--four-inner-blur, 4px) var(--four-inner-spread, 1px) var(--four-glow),
+		0 0 var(--four-outer-blur, 8px) var(--four-outer-spread, 4px) var(--four-glow);
 }
 .phase-four-unit .char-name{font-size: 12px; color: var(--text-dim); opacity: 0.6; white-space: nowrap;
 	transition: opacity 0.25s, color 0.25s;}
@@ -278,7 +296,8 @@ body::-webkit-scrollbar{display: none;}
 	.phase-four-unit .char-name{font-size: 12.5px;}
 }
 @media (max-width: 480px){
-	.trail-node.phase-card{min-width: 0; max-width: 100%; flex-direction: column; align-items: stretch; gap: 12px;}
+	.trail-node.phase-card{min-width: 0; max-width: 100%;}
+	.phase-card-body{flex-direction: column; align-items: stretch; gap: 12px;}
 	.phase-divider{width: 100%; height: 1px; align-self: auto;}
 	.phase-five-group, .phase-four-group{width: 100%;}
 }
@@ -361,6 +380,13 @@ body.panel-open{overflow: hidden;}
 .char-appear-dot.is-four{background-color: var(--four); box-shadow: 0 0 6px 1px var(--four-glow);}
 .char-appear-label{display: flex; flex-direction: column; gap: 2px;}
 .char-appear-version{font-size: 14px; color: var(--text);}
+.char-appear-version.is-jumpable{cursor: pointer; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; transition: text-decoration-color 0.2s, color 0.2s;}
+.char-appear-version.is-jumpable:hover, .char-appear-version.is-jumpable:focus-visible{color: var(--four); text-decoration-color: var(--four);}
+
+.trail-node.phase-card.is-highlighted{
+	border-color: var(--four); box-shadow: 0 0 0 3px var(--four-glow), 0 0 24px 4px var(--four-glow);
+	transition: border-color 0.3s, box-shadow 0.3s;
+}
 .char-appear-tag{font-size: 11px; color: var(--text-dim);}
 .char-appear-tag.is-release{color: var(--five); font-weight: bold;}
 
@@ -373,4 +399,7 @@ body.panel-open{overflow: hidden;}
 		transform: translateY(100%);
 	}
 	.char-panel.is-open{transform: translateY(0);}
+}
+@media (min-width: 701px){
+	body.panel-open .timeline-root{transform: translateX(300px);}
 }
