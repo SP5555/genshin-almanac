@@ -271,7 +271,7 @@ function openCharPanel(character) {
 	if (notes.preexisting) {
 		let note = document.createElement("p");
 		note.className = "char-panel-note";
-		note.textContent = "Part of the original launch roster, before this timeline's tracked banners begin — the appearances below are reruns, not a debut.";
+		note.textContent = "Already in the game at launch — these appearances are technically reruns, not a debut.";
 		content.appendChild(note);
 	}
 
@@ -333,6 +333,126 @@ function initCharPanel() {
 	document.getElementById("charPanelBackdrop").addEventListener("click", closeCharPanel);
 	document.addEventListener("keydown", e => {
 		if (e.key === "Escape") closeCharPanel();
+	});
+}
+
+function highlightMatches(name, strippedQuery) {
+	let frag = document.createDocumentFragment();
+	if (!strippedQuery) {
+		frag.appendChild(document.createTextNode(name));
+		return frag;
+	}
+
+	let map = [];
+	let stripped = "";
+	for (let i = 0; i < name.length; i++) {
+		if (!/\s/.test(name[i])) {
+			map.push(i);
+			stripped += name[i].toLowerCase();
+		}
+	}
+
+	let cursor = 0;
+	let i = 0;
+	while (i < stripped.length) {
+		let idx = stripped.indexOf(strippedQuery, i);
+		if (idx === -1) break;
+		let startOrig = map[idx];
+		let endOrig = map[idx + strippedQuery.length - 1] + 1;
+		if (startOrig > cursor) frag.appendChild(document.createTextNode(name.slice(cursor, startOrig)));
+		let mark = document.createElement("span");
+		mark.className = "char-search-match";
+		mark.textContent = name.slice(startOrig, endOrig);
+		frag.appendChild(mark);
+		cursor = endOrig;
+		i = idx + strippedQuery.length;
+	}
+	if (cursor < name.length) frag.appendChild(document.createTextNode(name.slice(cursor)));
+	return frag;
+}
+
+function initSearch() {
+	let input = document.getElementById("charSearchInput");
+	let results = document.getElementById("charSearchResults");
+	let currentMatches = [];
+	let activeIndex = -1;
+
+	function applyActiveClass() {
+		[...results.children].forEach((el, i) => el.classList.toggle("is-active", i === activeIndex));
+	}
+
+	function updateActiveHighlight() {
+		applyActiveClass();
+		let activeEl = results.children[activeIndex];
+		if (activeEl) activeEl.scrollIntoView({ block: "nearest" });
+	}
+
+	function selectResult(name) {
+		if (!name) return;
+		openCharPanel(name);
+		input.value = "";
+		currentMatches = [];
+		activeIndex = -1;
+		results.innerHTML = "";
+		results.classList.remove("has-results");
+		input.blur();
+	}
+
+	input.addEventListener("input", () => {
+		let strippedQuery = input.value.trim().toLowerCase().replace(/\s+/g, "");
+		activeIndex = -1;
+		results.innerHTML = "";
+		results.classList.remove("has-results");
+		currentMatches = [];
+		if (!strippedQuery) return;
+
+		currentMatches = Object.keys(characterIndex)
+			.filter(name => name.toLowerCase().replace(/\s+/g, "").includes(strippedQuery))
+			.sort((a, b) => {
+				let aLower = a.toLowerCase(), bLower = b.toLowerCase();
+				let aStarts = aLower.replace(/\s+/g, "").startsWith(strippedQuery);
+				let bStarts = bLower.replace(/\s+/g, "").startsWith(strippedQuery);
+				if (aStarts !== bStarts) return aStarts ? -1 : 1;
+				return aLower.localeCompare(bLower);
+			});
+		if (currentMatches.length === 0) return;
+
+		currentMatches.forEach((name, i) => {
+			let item = document.createElement("div");
+			item.className = "char-search-result";
+			item.appendChild(faceImg(name, "char-search-avatar"));
+			let nameWrap = document.createElement("span");
+			nameWrap.appendChild(highlightMatches(name, strippedQuery));
+			item.appendChild(nameWrap);
+			item.addEventListener("click", () => selectResult(name));
+			item.addEventListener("mouseenter", () => {
+				activeIndex = i;
+				applyActiveClass();
+			});
+			results.appendChild(item);
+		});
+		results.classList.add("has-results");
+	});
+
+	results.addEventListener("mouseleave", () => {
+		activeIndex = -1;
+		applyActiveClass();
+	});
+
+	input.addEventListener("keydown", e => {
+		if (currentMatches.length === 0) return;
+		if (e.key === "ArrowDown") {
+			e.preventDefault();
+			activeIndex = Math.min(activeIndex + 1, currentMatches.length - 1);
+			updateActiveHighlight();
+		} else if (e.key === "ArrowUp") {
+			e.preventDefault();
+			activeIndex = Math.max(activeIndex - 1, 0);
+			updateActiveHighlight();
+		} else if (e.key === "Enter") {
+			e.preventDefault();
+			selectResult(currentMatches[activeIndex === -1 ? 0 : activeIndex]);
+		}
 	});
 }
 
@@ -511,7 +631,7 @@ function setRegionBackground(major) {
 	let nextLayer = document.getElementById(activeRegionLayer === "A" ? "regionBgB" : "regionBgA");
 	let prevLayer = document.getElementById(activeRegionLayer === "A" ? "regionBgA" : "regionBgB");
 	nextLayer.style.backgroundImage =
-		`linear-gradient(rgba(7,7,12,0.65), rgba(7,7,12,0.8)), url(assets/regions/${meta.bgImage}.jpg)`;
+		`linear-gradient(rgba(7,7,12,0.78), rgba(7,7,12,0.9)), url(assets/regions/${meta.bgImage}.jpg)`;
 	nextLayer.classList.add("is-active");
 	prevLayer.classList.remove("is-active");
 	activeRegionLayer = activeRegionLayer === "A" ? "B" : "A";
@@ -539,6 +659,7 @@ async function bootstrap() {
 
 		init(data);
 		initCharPanel();
+		initSearch();
 
 		let t2v2 = new Date().getTime();
 		document.getElementById("loadTime").innerHTML = `Loading Time - ${t2v2 - t1v2}ms`;

@@ -46,10 +46,11 @@ body::-webkit-scrollbar{display: none;}
 
 /* ---------- ambient region background, crossfades between major versions ---------- */
 .region-bg{
-	position: fixed; inset: 0;
+	position: fixed; inset: -20px;
 	background-size: cover; background-position: center;
 	opacity: 0; transition: opacity 1.6s ease;
 	pointer-events: none;
+	filter: blur(4px);
 }
 .region-bg.is-active{opacity: 1;}
 
@@ -108,6 +109,64 @@ body::-webkit-scrollbar{display: none;}
 }
 .version-nav a:hover::after{opacity: 1;}
 @media (max-width: 600px){ .version-nav{right: 6px; gap: 8px;} .version-nav a{width: 8px; height: 8px;} }
+
+/* ---------- character search ---------- */
+.char-search{
+	position: sticky; top: 12px; z-index: 25;
+	height: 0; overflow: visible;
+	display: flex; justify-content: flex-end;
+	padding: 0 14px;
+	margin-top: 12px;
+}
+.char-search-bar{
+	display: flex; align-items: center; gap: 8px;
+	width: 40px; height: 40px; padding: 0 11px;
+	border-radius: 999px; overflow: hidden;
+	background-color: var(--glass); border: 1px solid var(--glass-border);
+	backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+	transition: width 0.3s ease, background-color 0.25s, border-color 0.25s;
+}
+.char-search-bar:hover, .char-search-bar:focus-within{
+	width: 220px;
+	background-color: var(--glass-hover); border-color: var(--glass-border-hover);
+}
+.char-search-icon{
+	position: relative; width: 12px; height: 12px; flex-shrink: 0;
+	border: 2px solid var(--text); border-radius: 50%;
+}
+.char-search-icon::after{
+	content: ''; position: absolute; width: 6px; height: 2px; border-radius: 1px;
+	background-color: var(--text); bottom: -5px; right: -4px; transform: rotate(45deg);
+}
+.char-search-input{
+	flex: 1; min-width: 0; background: none; border: none; color: var(--text);
+	font-size: 13px; opacity: 0; transition: opacity 0.2s ease;
+}
+.char-search-bar:hover .char-search-input, .char-search-bar:focus-within .char-search-input{opacity: 1;}
+.char-search-results{
+	display: none;
+	position: absolute; top: 48px; right: 14px; width: 220px; max-height: 320px;
+	overflow-y: auto;
+	scrollbar-width: thin; scrollbar-color: var(--glass-border-hover) transparent;
+	background-color: var(--bg-alt); border: 1px solid var(--glass-border); border-radius: 12px;
+	box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+}
+.char-search:hover .char-search-results.has-results,
+.char-search:focus-within .char-search-results.has-results{display: block;}
+.char-search-results::-webkit-scrollbar{width: 6px;}
+.char-search-results::-webkit-scrollbar-track{background: transparent;}
+.char-search-results::-webkit-scrollbar-thumb{background-color: var(--glass-border-hover); border-radius: 999px;}
+.char-search-results::-webkit-scrollbar-thumb:hover{background-color: var(--four);}
+.char-search-result{
+	display: flex; align-items: center; gap: 10px;
+	padding: 7px 14px; font-size: 13px; color: var(--text); cursor: pointer;
+}
+.char-search-avatar{
+	width: 24px; height: 24px; border-radius: 50%; object-fit: contain; flex-shrink: 0;
+	background-color: rgba(255,255,255,0.06);
+}
+.char-search-match{color: var(--five); font-weight: bold;}
+.char-search-result.is-active{background-color: var(--glass-hover);}
 
 /* ---------- timeline root ---------- */
 .timeline-root{
@@ -244,7 +303,7 @@ body::-webkit-scrollbar{display: none;}
    no recurring JS — the randomness is baked in, animation runs on CSS alone */
 .avatar-wrap{position: relative; display: inline-flex; flex-shrink: 0;}
 .avatar-wrap img{position: relative; z-index: 1;}
-.rays-wrap{position: absolute; inset: -70%; z-index: 0; pointer-events: none;
+.rays-wrap{position: absolute; inset: -70%; z-index: 0; pointer-events: none; content-visibility: auto;
 	mask-image: radial-gradient(circle, transparent 34%, black 52%, transparent 80%);
 	-webkit-mask-image: radial-gradient(circle, transparent 34%, black 52%, transparent 80%);
 }
