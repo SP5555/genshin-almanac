@@ -43,10 +43,12 @@ function buildRays(count, colorVar) {
 	let wrap = document.createElement("div");
 	wrap.className = "rays-wrap";
 	let cfg = GLOW_CONFIG.rays;
+	let arcSize = 360 / count;
 	for (let i = 0; i < count; i++) {
 		let ray = document.createElement("div");
 		ray.className = "ray";
-		ray.style.setProperty("--ray-angle", `${(Math.random() * 360).toFixed(1)}deg`);
+		let angle = i * arcSize + Math.random() * arcSize;
+		ray.style.setProperty("--ray-angle", `${angle.toFixed(1)}deg`);
 		ray.style.setProperty("--ray-delay", `${(Math.random() * cfg.delayMaxS).toFixed(2)}s`);
 		ray.style.setProperty("--ray-dur", `${(cfg.durationMinS + Math.random() * (cfg.durationMaxS - cfg.durationMinS)).toFixed(2)}s`);
 		ray.style.setProperty("--ray-color", colorVar);

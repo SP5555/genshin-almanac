@@ -307,14 +307,14 @@ body::-webkit-scrollbar{display: none;}
 	mask-image: radial-gradient(circle, transparent 34%, black 52%, transparent 80%);
 	-webkit-mask-image: radial-gradient(circle, transparent 34%, black 52%, transparent 80%);
 }
-.ray{position: absolute; top: 50%; left: 50%; width: var(--ray-width-lg, 2px); height: 46%;
+.ray{position: absolute; top: 50%; left: 50%; width: var(--ray-width-lg, 2px); height: var(--ray-length-lg, 46%);
 	transform-origin: 50% 100%;
 	transform: translate(-50%, -100%) rotate(var(--ray-angle, 0deg)) scaleY(0.6);
-	background: linear-gradient(to top, var(--ray-color, var(--five-glow)), transparent);
+	background: linear-gradient(to top, var(--ray-color, var(--five-glow)) 0%, var(--ray-color, var(--five-glow)) 18%, transparent 95%);
 	opacity: 0; filter: blur(var(--ray-blur-lg, 2px));
 	animation: ray-flicker var(--ray-dur, 3s) ease-in-out var(--ray-delay, 0s) infinite;
 }
-.avatar-wrap-sm .ray{width: var(--ray-width-sm, 1.5px); height: 42%; filter: blur(var(--ray-blur-sm, 1.5px));}
+.avatar-wrap-sm .ray{width: var(--ray-width-sm, 1.5px); height: var(--ray-length-sm, 42%); filter: blur(var(--ray-blur-sm, 1.5px));}
 @keyframes ray-flicker{
 	0%, 100% { opacity: 0; transform: translate(-50%, -100%) rotate(var(--ray-angle, 0deg)) scaleY(0.6); }
 	50% { opacity: var(--ray-peak-opacity, 0.7); transform: translate(-50%, -100%) rotate(var(--ray-angle, 0deg)) scaleY(1); }

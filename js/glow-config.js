@@ -3,16 +3,18 @@
 // reload — nothing else in js/app.js or css/style.css needs to change.
 var GLOW_CONFIG = {
 	rays: {
-		countLg: 4,        // number of ray blades behind a 5-star release portrait
+		countLg: 8,        // number of ray blades behind a 5-star release portrait
 		countSm: 8,        // number of ray blades behind a 4-star release portrait
 		widthLg: 8,        // px width of each 5-star ray blade
-		widthSm: 6,        // px width of each 4-star ray blade
+		widthSm: 4,        // px width of each 4-star ray blade
+		lengthLg: 50,      // % of avatar-wrap radius each 5-star ray reaches at peak
+		lengthSm: 50,      // % of avatar-wrap radius each 4-star ray reaches at peak
 		blurLg: 2,         // px blur applied to each 5-star ray blade
 		blurSm: 1,         // px blur applied to each 4-star ray blade
 		peakOpacity: 2.0,  // opacity a ray reaches at the peak of its flicker
 		delayMaxS: 4,      // each ray gets a random start delay between 0 and this (s)
-		durationMinS: 2,   // fastest possible flicker cycle length (s)
-		durationMaxS: 4    // slowest possible flicker cycle length (s)
+		durationMinS: 4,   // fastest possible flicker cycle length (s)
+		durationMaxS: 8    // slowest possible flicker cycle length (s)
 	},
 	bloom: {
 		five: { ringWidth: 3, innerBlur: 6, innerSpread: 3, outerBlur: 12, outerSpread: 6 },
@@ -24,6 +26,8 @@ var GLOW_CONFIG = {
 	let root = document.documentElement.style;
 	root.setProperty("--ray-width-lg", `${cfg.rays.widthLg}px`);
 	root.setProperty("--ray-width-sm", `${cfg.rays.widthSm}px`);
+	root.setProperty("--ray-length-lg", `${cfg.rays.lengthLg}%`);
+	root.setProperty("--ray-length-sm", `${cfg.rays.lengthSm}%`);
 	root.setProperty("--ray-blur-lg", `${cfg.rays.blurLg}px`);
 	root.setProperty("--ray-blur-sm", `${cfg.rays.blurSm}px`);
 	root.setProperty("--ray-peak-opacity", cfg.rays.peakOpacity);
