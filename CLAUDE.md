@@ -7,9 +7,8 @@ codebase; keep additions zero-build/vanilla-JS unless asked to modernize.
 
 Renamed from "GI Gacha Timeline" (repo `SP5555/GI-Gacha-Timeline`, domain
 gigachatimeline.netlify.app) to "Genshin Almanac" (repo
-`SP5555/genshin-almanac`) around 2026-08-23 — confirm the live Netlify
-domain rather than assuming genshin-almanac.netlify.app, since the
-site-name change itself was left as "maybe later."
+`SP5555/genshin-almanac`, live at genshin-almanac.netlify.app — confirmed
+2026-08-24) around 2026-08-23.
 
 `npm run dev` (`live-server`) is **required** for local testing — `data/*.json`
 loads via `fetch()`, which is CORS-blocked on `file://`. No effect on the

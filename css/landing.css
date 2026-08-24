@@ -38,32 +38,33 @@
 	margin-top: 28px;
 }
 .spotlight-poster{
-	width: 340px; max-width: 100%; padding: 14px 14px 16px;
+	width: 430px; max-width: 100%; padding: 14px 14px 16px;
 	background-color: var(--glass); border: 1px solid var(--glass-border);
 	border-radius: var(--radius-lg);
 	backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 	box-shadow: 0 14px 40px rgba(0,0,0,0.4);
-	transition: transform 0.25s ease, background-color 0.25s, border-color 0.25s;
+	transition: background-color 0.25s, border-color 0.25s;
 	text-align: center;
 }
 .spotlight-poster:hover{
-	transform: translateY(-6px);
 	background-color: var(--glass-hover); border-color: var(--glass-border-hover);
 }
+/* Cropped tighter than the source's actual 2:1 canvas (see splashPath() in
+   landing.js) — safe to do since the character is always centered on that
+   canvas with room to spare on both sides, so cover here just trims empty
+   space instead of cutting anything that matters. */
 .spotlight-poster-img-wrap{
-	aspect-ratio: 2 / 1;
+	aspect-ratio: 1.4 / 1;
 	display: flex; align-items: center; justify-content: center;
+	overflow: hidden; border-radius: calc(var(--radius-lg) - 6px);
 }
-.spotlight-poster-img{max-width: 100%; max-height: 100%; object-fit: contain; display: block;}
-.spotlight-poster-img.is-fallback{max-width: 40%; max-height: 40%;}
+.spotlight-poster-img{width: 100%; height: 100%; object-fit: cover; object-position: center center; display: block;}
+.spotlight-poster-img.is-fallback{width: auto; height: auto; max-width: 40%; max-height: 80%; object-fit: contain;}
 .spotlight-poster-label{
 	display: flex; flex-direction: column; align-items: center; gap: 6px;
 	margin-top: 10px;
 }
 .spotlight-poster-name{font-size: 15px; font-weight: bold; color: var(--text);}
-@media (min-width: 600px){
-	.spotlight-poster{width: 300px;}
-}
 
 /* ---------- 4-star supporting row — plain face icons, no card art ---------- */
 .spotlight-fourstars{

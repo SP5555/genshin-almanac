@@ -106,9 +106,16 @@ function updateClockCard(server, el, now, { animateRing = true } = {}) {
 	let reset = nextServerReset(server.offset, now);
 	let remaining = reset.getTime() - now.getTime();
 	if (animateRing) {
+		// The ring shows elapsed time since the last reset, not remaining time
+		// — nearly empty right after reset, nearly full right before the next
+		// one — filling in from the 12-o'clock position clockwise, like a
+		// normal clock hand (confirmed empirically; the "1 - fraction" here
+		// looks backwards at a glance but fraction is remaining-time-based,
+		// so this correctly maps remaining≈1 (just reset) to dashoffset≈C
+		// (hidden) and remaining≈0 (about to reset) to dashoffset≈0 (full)).
 		let fraction = remaining / DAY_MS;
 		el.querySelector(".clock-ring-progress").style.strokeDashoffset =
-			String(RING_CIRCUMFERENCE * (1 - fraction));
+			String(RING_CIRCUMFERENCE * fraction);
 	}
 	el.querySelector('[data-role="countdown"]').textContent = formatDuration(remaining);
 	let todayIdx = serverWeekdayIndex(server.offset, now);
@@ -203,8 +210,8 @@ function buildUpdateCard(lastEntry, prevEntry) {
 		roughly every <strong>${PREDICTED_CADENCE_DAYS} days</strong> — so the next one is expected around
 		<strong>${targetLabel}</strong> your time. Maintenance always starts at the same real-world moment
 		for all four servers at once (06:00 China Standard Time), which is why there's one clock here, not
-		four. The cadence occasionally shifts by a week or two, so treat this as a solid guide rather than
-		an exact date.
+		four. This cadence has only ever shifted once in the game's history (a 2022 delay, recovered over the
+		following few patches), so treat this as a strong guide — just not a guarantee.
 	`;
 	let overdueDesc = `
 		This estimate has passed — <strong>${liveEntry.version}</strong> (launched <strong>${liveLabel}</strong>) is

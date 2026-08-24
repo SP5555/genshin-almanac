@@ -1,5 +1,5 @@
 {
-  "name": "gigachatimeline",
+  "name": "genshin-almanac",
   "private": true,
   "description": "Local dev server only — the deployed site is plain HTML/CSS/JS with no build step.",
   "scripts": {
