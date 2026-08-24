@@ -291,6 +291,7 @@ function openCharPanel(character) {
 	document.getElementById("charPanel").setAttribute("aria-hidden", "false");
 	document.getElementById("charPanelBackdrop").classList.add("is-open");
 	document.body.classList.add("panel-open");
+	document.documentElement.classList.add("panel-open");
 }
 
 function closeCharPanel() {
@@ -298,6 +299,7 @@ function closeCharPanel() {
 	document.getElementById("charPanel").setAttribute("aria-hidden", "true");
 	document.getElementById("charPanelBackdrop").classList.remove("is-open");
 	document.body.classList.remove("panel-open");
+	document.documentElement.classList.remove("panel-open");
 }
 
 function pageOffsetTop(el) {
@@ -336,6 +338,35 @@ function initCharPanel() {
 	document.addEventListener("keydown", e => {
 		if (e.key === "Escape") closeCharPanel();
 	});
+
+	let grabber = document.getElementById("charPanelGrabber");
+	let panel = document.getElementById("charPanel");
+	let dragging = false;
+	let startY = 0;
+	let dragDistance = 0;
+
+	grabber.addEventListener("pointerdown", e => {
+		dragging = true;
+		startY = e.clientY;
+		dragDistance = 0;
+		panel.style.transition = "none";
+		grabber.setPointerCapture(e.pointerId);
+	});
+	grabber.addEventListener("pointermove", e => {
+		if (!dragging) return;
+		dragDistance = Math.max(0, e.clientY - startY);
+		panel.style.transform = `translateY(${dragDistance}px)`;
+	});
+	function endGrabberDrag() {
+		if (!dragging) return;
+		dragging = false;
+		let shouldDismiss = dragDistance > panel.offsetHeight * 0.25;
+		panel.style.transition = "";
+		panel.style.transform = "";
+		if (shouldDismiss) closeCharPanel();
+	}
+	grabber.addEventListener("pointerup", endGrabberDrag);
+	grabber.addEventListener("pointercancel", endGrabberDrag);
 }
 
 function highlightMatches(name, strippedQuery) {
@@ -502,13 +533,13 @@ function buildMajorRow(group) {
 	return row;
 }
 
-function buildPatchRow(entry, charCount) {
+function buildPatchRow(entry, charCount, isLive) {
 	let version = entry.version;
 	let row = document.createElement("div");
 	row.className = "vt-row vt-patch-row container";
 
 	let marker = document.createElement("div");
-	marker.className = "vt-patch-marker";
+	marker.className = "vt-patch-marker" + (isLive ? " is-live" : "");
 	marker.textContent = version;
 	row.appendChild(buildMarkerCol(marker));
 
@@ -551,14 +582,14 @@ function buildPatchRow(entry, charCount) {
 	return row;
 }
 
-function buildVersionBlock(group, charCount) {
+function buildVersionBlock(group, charCount, lastVersion) {
 	let block = document.createElement("div");
 	block.className = "vt-block";
 	block.id = `v-section-${group.major}`;
 	block.appendChild(buildMajorRow(group));
 	for (let v = 0; v < group.versions.length; v++) {
 		let entry = group.versions[v];
-		block.appendChild(buildPatchRow(entry, charCount));
+		block.appendChild(buildPatchRow(entry, charCount, entry.version === lastVersion));
 	}
 	return block;
 }
@@ -590,9 +621,13 @@ function init(data) {
 	let charCount = {};
 	let root = document.getElementById("timelineRoot");
 	let majorBlocks = [];
+	let LIVE_WINDOW_DAYS = 42;
+	let lastEntry = data[data.length - 1];
+	let daysSinceLastEntry = (Date.now() - new Date(lastEntry.date + "T00:00:00").getTime()) / 86400000;
+	let lastVersion = (daysSinceLastEntry >= 0 && daysSinceLastEntry <= LIVE_WINDOW_DAYS) ? lastEntry.version : null;
 
 	groups.forEach(group => {
-		let block = buildVersionBlock(group, charCount);
+		let block = buildVersionBlock(group, charCount, lastVersion);
 		root.appendChild(block);
 		majorBlocks.push(block);
 
