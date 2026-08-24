@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="author" content="Eroisk">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Server Clocks — Genshin Almanac</title>
+  <link rel="stylesheet" type="text/css" href="css/reset.css">
+  <link rel="stylesheet" type="text/css" href="css/style.css">
+  <link rel="stylesheet" type="text/css" href="css/clocks.css">
+</head>
+<body>
+
+  <div class="region-bg is-active" id="clocksBg"></div>
+
+  <header class="site-header not-selectable">
+    <div class="site-header-inner container">
+      <a href="index.html" class="site-brand">Genshin Almanac<span id="brandLiveDot" class="brand-live-dot" aria-hidden="true"></span></a>
+      <nav class="page-nav">
+        <a href="timeline.html" class="page-nav-link">Timeline</a>
+        <a href="clocks.html" class="page-nav-link is-active">Server Clocks</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="clocksRoot" class="clocks-root">
+    <div class="container">
+
+      <section class="clocks-intro">
+        <h1 class="clocks-title">Server Clocks</h1>
+        <p class="clocks-subtitle">
+          Daily reset countdowns for all four servers, plus an estimated countdown to
+          the next version update — everything shown converted to your own local time.
+        </p>
+        <p class="clocks-tz-note" id="clocksTzNote"></p>
+      </section>
+
+      <section class="clocks-section">
+        <h2 class="clocks-section-title">Daily Reset</h2>
+        <p class="clocks-section-desc">
+          Each server resets independently at 4:00 AM its own server time — Asia and
+          TW/HK/MO happen to share a time zone, but all four are separate servers. The
+          week strip below each clock marks the current in-game day.
+        </p>
+        <div class="clock-grid" id="dailyClockGrid"></div>
+      </section>
+
+      <section class="clocks-section">
+        <h2 class="clocks-section-title">Next Version Update</h2>
+        <p class="clocks-section-desc">
+          Unlike daily reset, a new version's maintenance starts at the same moment
+          for every server at once — so this is a single estimate, not one per server.
+        </p>
+        <div class="update-card" id="updateCard"></div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="site-footer not-selectable">
+    <div class="container footer-inner">
+      <span class="footer-brand-name">Genshin Almanac</span>
+      <p class="footer-tagline">An unofficial fan project tracking Genshin Impact's banner history.</p>
+      <p class="footer-meta">
+        <a href="https://github.com/SP5555/genshin-almanac" target="_blank" rel="noopener" class="footer-link">GitHub</a>
+        <span class="footer-divider">·</span>
+        Not affiliated with or endorsed by HoYoverse.
+      </p>
+    </div>
+  </footer>
+
+  <button id="backToTop" class="back-to-top not-selectable" aria-label="Back to top">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 19V5M5 12l7-7 7 7"/>
+    </svg>
+  </button>
+
+  <script src="js/shared.js"></script>
+  <script src="js/clocks.js"></script>
+
+</body>
+</html>

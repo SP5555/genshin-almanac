@@ -1,409 +1,409 @@
-# GI Gacha Timeline — project notes
+# Genshin Almanac — project notes
 
 Fan-made static site (vanilla HTML/CSS/JS, zero build step) tracking Genshin
-Impact character banner history. Deployed at https://gigachatimeline.netlify.app/.
-Built by the repo owner before they knew how to code — still a passion project,
-not a professional codebase. Keep additions in the same zero-build, vanilla-JS
-spirit unless the owner asks to modernize the stack.
+Impact character banner history, growing into a multi-page companion site.
+Built by the owner before they knew how to code — not a professional
+codebase; keep additions zero-build/vanilla-JS unless asked to modernize.
 
-`npm run dev` (via `live-server`) is now **required** for local testing, not
-just a convenience — since 2026-08-21 the `data/*.json` files are loaded via
-`fetch()` (see below), and `fetch()` on `file://` URLs is blocked by CORS in
-every major browser. Double-clicking `index.html` will show a "Failed to load
-banner data" message instead of the timeline. This has no effect on the
-deployed site, which Netlify serves over `https://` where `fetch()` of a
-same-origin static JSON file needs no special config (no `netlify.toml`
-required — it's genuinely just another static asset, same as the images).
+Renamed from "GI Gacha Timeline" (repo `SP5555/GI-Gacha-Timeline`, domain
+gigachatimeline.netlify.app) to "Genshin Almanac" (repo
+`SP5555/genshin-almanac`) around 2026-08-23 — confirm the live Netlify
+domain rather than assuming genshin-almanac.netlify.app, since the
+site-name change itself was left as "maybe later."
+
+`npm run dev` (`live-server`) is **required** for local testing — `data/*.json`
+loads via `fetch()`, which is CORS-blocked on `file://`. No effect on the
+deployed site (Netlify serves over https, no `netlify.toml` needed).
+
+**Keep this file lean.** Record decisions, non-obvious reasoning, and facts
+that would be expensive to re-derive (research, gotchas, rejected
+approaches) — not a narrated history of routine implementation. The code
+and git log already show what changed; this file should only hold what
+they can't tell you.
 
 ## Directory layout
 
-Reorganized on 2026-08-21 from a flat root into:
-- `index.html` — entry point.
-- `css/` — `reset.css` (generic YUI reset) + `style.css` (everything else:
-  palette, layout, components).
-- `js/app.js` — all site logic: `bootstrap()` fetches five `data/*.json`
-  files in parallel, then renders.
-- `js/glow-config.js` — tunable knobs for the release-glow effect (see
-  below); kept as a `.js` file (not JSON) since it's config-with-logic, not
-  pure data — it applies its own values as CSS custom properties.
-- `data/data.json` — the banner history itself (see below).
-- `data/character-notes.json` / `data/phase-notes.json` — exceptional
-  per-character / per-phase facts (see below).
-- `data/version-notes.json` — per-major-version region + lore tagline (see
-  below).
-- `data/character-elements.json` — character → element (Pyro/Hydro/Anemo/
-  Electro/Dendro/Geo/Cryo) lookup, used for the character panel's element
-  watermark.
-- `assets/faces/<name>.png` — one face icon per character (was `GIfaces/`).
-- `assets/namecards/<name>.jpg` — namecard art, used as the character panel
-  header background.
-- `assets/elements/<element>.svg` — one watermark SVG per element, used as
-  the character panel content background.
-- `assets/regions/<region>.jpg` — one ambient background photo per major
-  version's region, used for the crossfading region background (see below).
-- `assets/fonts/zh-cn.ttf` — the `GIFont` custom font.
+- `index.html` — landing page (the site's actual root/entry point).
+  `timeline.html` — the full banner Timeline (this used to be `index.html`,
+  renamed when the landing page was built — see "Landing page" below).
+  `clocks.html` — Server Clocks page.
+- `css/reset.css` + `css/style.css` — shared base (palette, header, footer,
+  char panel, timeline, back-to-top button, brand live-dot). `css/clocks.css`
+  / `css/landing.css` — page-specific styles for those two pages.
+- `js/shared.js` — cross-page utilities, loaded by all three pages: the
+  back-to-top button, the header brand's live-status dot, and
+  `faceImg()`/`facePath()`/`formatDate()` (moved out of `app.js` once the
+  landing page also needed them). `js/app.js` — Timeline page logic, still
+  the only thing that knows how to render the full 52-version DOM.
+  `js/glow-config.js` — release-glow ray tuning knobs, kept as `.js` not
+  JSON since it applies its own values as CSS custom properties.
+  `js/clocks.js` — Server Clocks logic. `js/landing.js` — landing page
+  logic. Neither depends on `app.js` or on each other.
+- `data/*.json` — plain JSON, no comments/trailing commas — semantics
+  documented below since JSON can't hold comments.
+- `assets/faces/<name>.png`, `assets/namecards/<name>.jpg`,
+  `assets/elements/<element>.svg`, `assets/regions/<region>.jpg`,
+  `assets/backgrounds/server-clocks.webp`, `assets/fonts/zh-cn.ttf`.
 
-Everything under `data/` is plain JSON (no comments, no trailing commas, no
-executable code) — it used to be `.js` files defining global `var`s so a
-`<script src>` tag could load them without needing a server (`fetch()` on
-`file://` is CORS-blocked, `<script>` isn't). Converted to real `.json` +
-`fetch()` on 2026-08-21 once local dev had already moved to `npm run dev`,
-which made that constraint moot. The semantics documented below (what
-`rateDown`/`preexisting`/`filler`/`label` mean) live only in this file now,
-not in code comments, since JSON can't hold comments.
+## Landing page (`index.html` / `js/landing.js` / `css/landing.css`)
 
-## How it works
+Built 2026-08-24, once the site had enough real pages (Timeline + Server
+Clocks) that a directory made sense — see "Multi-page architecture" below
+for why that timing mattered. `index.html` no longer *is* the Timeline; it's
+a lightweight page of its own, and the header brand link now points here
+from every page instead of self-linking. Deliberately has no `.page-nav`
+entry for itself — there's nothing to navigate *to* from the page you're
+already on, and clicking the wordmark already goes here from anywhere.
 
-The site renders as a single continuous **vertical timeline**: one line down
-the left with a big gradient "chapter" bubble per major version (1, 2, 3...)
-and a smaller bubble per patch (1.0, 1.1...), each patch's phases rendered as
-horizontal glassmorphic cards to the right. This replaced an earlier
-two-table (5★/4★) layout on 2026-08-21 — if you see references to tables,
-`sortByT`/`sortByMR`, or a `script.js` (not `js/app.js`) in git history or
-old conversation context, that's the pre-redesign version. The vertical
-line's color (`--line` custom property, currently a lavender `#6e5a94`) is a
-deliberate style choice tying into the existing `--four` (purple, 4-star)
-accent color already used everywhere else (glows, badges, gradients) — see
-"Design decisions" below if changing it again.
+**Spotlight card**: shows whichever phase of the latest `data.json` entry is
+currently running, computed rather than hand-maintained:
+- Phase length confirmed at **21 days** (cross-checked, not the 20 I'd
+  half-remembered) via a source giving exact dates for 7.0 that matched our
+  own verified data exactly (Aug 12 → Sep 1 Phase 1, Sep 2 → Sep 22 Phase 2).
+  `getCurrentPhaseIndex()` in `landing.js` uses `version.date + 21×N days`
+  to pick the phase.
+- **Deliberately only needs to be right for the live version**, not all 52
+  historical ones — historical phases don't have a "current phase" concept
+  at all, they just render on the Timeline as-is. That's what makes this
+  cheap: the formula only has to hold for whichever version is live *right
+  now*, and the irregular historical versions (2.7's delay, 3.0–3.2's
+  shortened cycles, any 3-phase version) don't need to be retroactively
+  researched. If a *future* version turns out irregular, that's a one-off
+  fix at that time, not a blocker now — same philosophy as the update-card
+  estimate and the live-ripple heuristic.
+- Release-vs-rerun status (the same "Release"/"Rerun N" badges the Timeline
+  shows) needed a real per-character appearance count, but pulling in
+  `app.js`'s `characterIndex` would mean rendering the entire timeline just
+  to get it (see "Multi-page architecture" below — that's flagged as
+  unbuilt for exactly this reason). Fix: `countAppearancesThrough()` scans
+  `data.json` only up to the current version/phase for just the handful of
+  characters actually shown here — same *correctness*, without needing the
+  full historical index or `app.js` at all.
+- Background reuses the Timeline's per-version region-art recipe, but reads
+  the *current* version's region from `version-notes.json` dynamically
+  rather than hardcoding today's region (Snezhnaya) — otherwise it'd go
+  stale the moment a new region drops, same mistake the update-card
+  override file already got rejected for.
 
-- `data/data.json` — one entry per game version, each with a `banner` array
-  of phases (2 phases per version normally, occasionally 3 — see "filler
-  phases" below), each phase has `"5"` (5-star chars) and `"4"` (4-star
-  chars) arrays of display-name strings. Keep entries as plain strings here;
-  exceptional facts belong in `character-notes.json`, not inline (this was a
-  deliberate refactor away from inline annotation objects because they made
-  the file hard to scan and easy to mis-place). Each entry also has a `date`
-  (real-world launch date, `"YYYY-MM-DD"`, all 52 versions verified — see
-  "Data accuracy note" below) and, for the 6 versions with one, a
-  `chronicled` object (see "Chronicled Wish banners" below).
-- `data/character-notes.json` — lookup table consulted at render time,
-  keyed by character name:
-  - `{ "rateDown": true }` marks a 5-star that isn't truly exclusive/limited
-    (already obtainable via the standard rate-down pool — e.g. Tighnari,
-    Dehya, Mizuki, Keqing).
-  - `{ "preexisting": true }` marks a character who already existed before
-    their first *tracked* banner appearance, so that appearance isn't a
-    real "Release" (mainly the 11 characters who were part of the 1.0
-    launch roster but didn't get a featured banner slot until later — see
-    the 2026-08-21 research below). The character panel shows a note for
-    these — currently: *"Already in the game at launch — these appearances
-    are technically reruns, not a debut."* ("technically" is deliberate —
-    the owner felt "rerun" was slightly imprecise for a character that
-    never had a tracked debut to rerun, but preferred keeping the familiar
-    term over inventing a new one.)
-- `data/phase-notes.json` — lookup table keyed as `"<version>-<phase#>"`:
-  `{ "filler": true }` marks a phase as a minor/padding banner rather than
-  a major content drop (currently just `"1.3-2"`, Keqing's phase — a short
-  banner inserted before Hu Tao's, reportedly because Hu Tao's
-  funeral-parlor theme landing near Chinese New Year was considered poor
-  timing).
-  - Both this and `character-notes.json` are keyed once per fact (not per
-    occurrence), so `js/app.js` applies them automatically to the right
-    place (e.g. a character's first chronological appearance) regardless
-    of how `data.json` changes later.
-- `data/version-notes.json` — keyed by major version number (`"1"`–`"7"`):
-  `region` is shown as a subtitle under the big version title, `tagline`
-  names the Archon + their ideal, `label` overrides the numeral itself when
-  official branding diverges (used for version 6, which mihoyo calls
-  "Luna" I/II/III rather than "6.0"/"6.1"/"6.2"), and `bgImage` names the
-  file (without extension) in `assets/regions/` used for that version's
-  ambient background. Cross-checked against Genshin Wiki / Wikipedia /
-  Sportskeeda / Game8 on 2026-08-21.
-- `js/app.js` — `bootstrap()` fetches all five `data/*.json` files, groups
-  the banner history by major version, renders the timeline DOM, tracks
-  each character's appearance count to compute Release/Rerun N badges,
-  consults `character-notes.json`/`phase-notes.json` for the exceptions
-  above, and adds a flickering-ray glow (randomized angle/timing per ray,
-  tuned via `js/glow-config.js`) + full color to genuine releases
-  (reruns/preexisting characters are desaturated/dimmed by contrast).
-- `assets/faces/<name>.png` — filename convention: lowercase, spaces
-  stripped (e.g. "Hu Tao" → `hutao.png`, "Yun Jin" → `yunjin.png`).
-  `js/app.js` builds this path as `character.replace(/\s/g,"").toLowerCase()`.
-  Keep new characters' filenames lowercase to match. Same convention for
-  `assets/namecards/<name>.jpg`.
-- Character display names use short/common form for multi-title characters,
-  matching existing convention: "Shogun" (Raiden Shogun), "Ayaka"/"Ayato"
-  (Kamisato), "Kokomi" (Sangonomiya), "Yae" (Yae Miko), "Itto" (Arataki),
-  "Kazuha" (Kaedehara), "Sara" (Kujou), "Heizou" (Shikanoin), "Wanderer"
-  (Scaramouche).
+## Timeline page (`timeline.html` / `js/app.js`)
+
+Vertical timeline: a line down the left, a gradient bubble per major
+version, a smaller bubble per patch, phases as glassmorphic cards. `--line`
+(lavender `#6e5a94`) deliberately ties into the `--four` purple accent.
+
+**`data/data.json`** — one entry per version, `banner` array of phases
+(usually 2, occasionally 3), each phase has `"5"`/`"4"` arrays of
+display-name strings. Keep entries as plain strings — exceptional facts go
+in the notes files below, not inline. Each entry has a verified real-world
+`date` (`YYYY-MM-DD` — see "Data accuracy note") and, for 6 versions, a
+`chronicled` object.
+
+**`data/character-notes.json`** (keyed by character name):
+- `{"rateDown": true}` — 5-star obtainable via the standard rate-down pool,
+  not truly limited (e.g. Tighnari, Dehya, Mizuki, Keqing).
+- `{"preexisting": true}` — character existed before their first *tracked*
+  banner (the 11 characters in the 1.0 launch roster without a featured
+  slot until later). Panel note: *"Already in the game at launch — these
+  appearances are technically reruns, not a debut."*
+
+**`data/phase-notes.json`** (keyed `"<version>-<phase#>"`): `{"filler":
+true}` marks a minor/padding phase (currently only `"1.3-2"`, Keqing's —
+inserted before Hu Tao's funeral-parlor-themed banner to avoid landing near
+Chinese New Year).
+
+Both notes files are keyed once per fact, not per occurrence — `app.js`
+applies them wherever relevant regardless of how `data.json` changes.
+
+**`data/version-notes.json`** (keyed by major version `"1"`–`"7"`): `region`
+(subtitle), `tagline` (Archon + ideal), `label` (overrides the numeral — v6
+is "Luna" I/II/III), `bgImage` (region background filename).
+
+**Asset filenames**: lowercase, spaces stripped
+(`character.replace(/\s/g,"").toLowerCase()`) for faces/namecards.
+**Display names**: short form for multi-title characters — Shogun,
+Ayaka/Ayato, Kokomi, Yae, Itto, Kazuha, Sara, Heizou, Wanderer.
 
 ### Character detail panel
+Click any avatar → side drawer (desktop) / bottom sheet (mobile). Appearance
+rows jump to their timeline card via `jumpToCard()` without closing the
+panel. Desktop nudges `.timeline-root` via `transform: translateX(300px)`
+(not margin — see gotcha #1) so a jumped-to card isn't hidden behind the
+drawer.
 
-Clicking any character avatar (in a timeline card, or a search result — see
-below) opens a side drawer on desktop / bottom sheet on mobile
-(`#charPanel` + `#charPanelBackdrop`) showing that character's full
-appearance history, rate-down/preexisting notes, a namecard-based header
-background, and an element-watermark content background. Each appearance
-row's version label (e.g. "2.6 — Phase 1") is clickable — it scrolls the
-timeline to and briefly highlights that exact card via `jumpToCard()`,
-*without* closing the panel. On desktop, opening the panel also nudges the
-whole timeline sideways (`body.panel-open .timeline-root{transform:
-translateX(300px)}`) so a jumped-to card isn't hidden behind the still-open
-380px-wide drawer; mobile doesn't need this since the panel is a bottom
-sheet there. The dimmed backdrop behind the panel is a real, intentional UX
-element (not a bug) — see "CSS/animation gotchas" below for an incident where
-it was briefly (and wrongly) suspected of being the cause of an unrelated
-rendering bug.
+Mobile drag-to-dismiss: Pointer Events (not separate touch/mouse handlers)
+drive 1:1 finger tracking via inline `transform`; on release the existing
+open/close CSS transition finishes the motion. Hit area is much bigger
+(28px tall, full width) than the visible pill (36×4px) since a 4px target
+isn't realistically grabbable on touch.
 
 ### Chronicled Wish banners
-
-6 major versions include a `chronicled` field in their `data.json` entry —
-real historical re-releases of an older limited banner as a single combined
-"Chronicled Wish" pool, rendered as an extra, distinctly-styled card
-(`--chronicled` accent color) inserted after the relevant phase. Researched
-and dated on 2026-08-21/22; the 5-star row for these uses plain CSS
-flex-wrap (`max-width` cap + `flex-wrap: wrap`) rather than a manual
-JS-computed row split — flexbox already centers each wrapped line
-independently, which turned out to give the desired "3-3, break to 3-3-2 if
-tight" behavior for free without needing precise row-math.
+6 versions have a `chronicled` field → an extra `--chronicled`-accented card
+after the relevant phase. The 5-star row uses plain CSS flex-wrap rather
+than manual row-splitting — gives the desired "3-3, break to 3-3-2" for
+free.
 
 ### Ambient region background
-
-Added 2026-08-22. A fixed, full-viewport background
-(`#regionBgA`/`#regionBgB`, two layers for crossfading) shows a photo of the
-current major version's region, tinted dark for legibility, and crossfades
-(1.6s opacity transition) as you scroll between major-version sections —
-driven by the same `IntersectionObserver` (`navObserver` in `js/app.js`)
-that already tracked the active section for the side nav dots. Region art
-sourced from Fandom's MediaWiki API
-(`api.php?action=query&titles=<Region>&prop=pageimages&piprop=original`),
-which returns clean official promotional screenshots and — usefully —
-bypasses the HTTP 402 block that direct page-render fetches of
-`genshin-impact.fandom.com` otherwise hit. `bgImage` in `version-notes.json`
-names the file per major version.
-
-**Load-bearing detail**: the starfield-dot + dark base background that used
-to live on `.timeline-root` now lives on `<body>` instead
-(`css/style.css`), *not* on `.timeline-root`. This isn't a style
-preference — it's required for the region background to render correctly at
-all. See "CSS/animation gotchas" below.
+`#regionBgA`/`#regionBgB` (two layers, crossfade 1.6s) driven by the same
+`IntersectionObserver` that tracks the side-nav dots. **Load-bearing**: the
+starfield/dark background lives on `<body>`, not `.timeline-root` —
+required for correct paint order (see gotcha #2).
 
 ### Character search
+Sticky pill icon, expands to a text input on hover/focus (`width`
+transition — see gotcha #1 for why not `clip-path`). Filters
+`characterIndex` whitespace-insensitively (strip spaces from both query and
+name before comparing, map matches back onto the original string). Sorted
+"starts with" before "contains." Mouse and keyboard navigation drive the
+same `activeIndex`/`.is-active` state, so there's exactly one visual
+"selected" row.
 
-Added 2026-08-22. A small pill icon (pure CSS-drawn magnifying glass, no
-emoji/font glyph — those didn't reliably render) sits `position: sticky;
-top: 12px` right below the header, so it starts at rest just under the
-header and "catches up" to pin at the screen's top-right corner once you've
-scrolled far enough that the header (which is *not* sticky — see below)
-scrolls out of view. Hovering or focusing it expands it (plain `width`
-transition, not `clip-path` — see "CSS/animation gotchas") into a text
-input that live-filters `characterIndex` (the same lookup the character
-panel uses) as you type:
-- Matching is **whitespace-insensitive on both sides** (query and name) —
-  typing "lanyan" matches "Lan Yan" — implemented by stripping spaces
-  before comparing, then mapping matched indices back onto the original
-  (spaced) string for correct highlighting.
-- Results are sorted "starts with query" before "contains query elsewhere",
-  alphabetical within each tier.
-- Every occurrence of the matched substring in each name is highlighted
-  (gold, `--five`), not just the first — e.g. both "ra"s in "Kirara" light
-  up for a query of "ra".
-- Each result shows a small face-icon thumbnail (`.char-search-avatar`,
-  reusing the same `faceImg()` helper and asset path as everywhere else —
-  deliberately *not* the existing `.char-face-sm` class, since that one
-  carries rarity-ring/desaturation styling tied to release/rerun semantics
-  that doesn't apply to a plain search result).
-- Navigable via mouse (click/hover) or keyboard (↑/↓ + Enter) — both drive
-  the *same* `activeIndex` state and the *same* `.is-active` CSS class, so
-  there's exactly one visual "selected" row regardless of input method
-  (there used to be two independent mechanisms — CSS `:hover` plus a
-  separate keyboard-driven class — which could both light up different rows
-  at once; fixed by routing mouse `mouseenter`/`mouseleave` through the same
-  `activeIndex`/`applyActiveClass()` functions the keyboard uses, and
-  deleting the CSS `:hover` rule entirely).
-- Selecting a result (click, or Enter) opens that character's panel via the
-  existing `openCharPanel()` and "flushes" the search: clears the input,
-  clears/hides the results list, and blurs the input so the bar collapses.
-  The results dropdown's own visibility is gated on `.char-search:hover` /
-  `.char-search:focus-within` (not just "are there matches") specifically
-  so it can't get stranded open after the bar itself has collapsed.
+### Release-glow rays
+`buildRays()` renders `count` absolutely-positioned ray divs per release
+character (4/5★, 8/4★) — 540 total across the un-virtualized 52-version
+timeline. **Fix**: `content-visibility: auto` on `.rays-wrap` specifically
+(not `.vt-block` or any layout-height-contributing ancestor — `.rays-wrap`
+is `position:absolute` so it never affects the `offsetTop` chains
+`jumpToCard()` depends on). Cut frame time from ~36ms to ~22-28ms.
+
+Rejected (don't re-attempt): a single `repeating-conic-gradient` per
+character measured *slower* despite fewer DOM nodes, and couldn't preserve
+independent per-ray flicker. Two orbiting dots were performance-neutral but
+looked worse.
+
+Two cosmetic fixes: ray angles use stratified sampling (one random angle
+per 360°/count arc) to avoid clustering; the gradient has a solid plateau
+(0–18%) before fading, since `filter: blur()` was softening the intended
+peak at the base edge.
+
+### Header & page nav
+`.site-brand` is a plain gradient-text `<a>` (not `<h1>`), no tagline
+(dropped — content speaks for itself), and always links to `index.html`
+(the landing page) regardless of which page it's on — not self-referential.
+A small `#brandLiveDot` ripples next to it when the tracked data is live
+(same rule as the Timeline's `.is-live` ripple, computed independently in
+`shared.js` since the dot needs to work on every page). `.page-nav` links
+to Timeline and Server Clocks only — the landing page deliberately has no
+nav entry for itself. Active gets a gold underline. Per-page framing lives
+in each page's own body content, not the shared header.
+
+### Live "current version" indicator
+Pulsing ripple on the most recently *launched* `data.json` entry's patch
+marker, but only if its `date` is within 42 days of today — so a
+stale/behind dataset stops confidently claiming an old version is live
+rather than showing it forever. Real patch lengths vary (see "Data accuracy
+note"), so this can be off by a few days around historical-exception
+patches — accepted, not worth a per-version override for a cosmetic
+indicator.
+
+"Most recently launched" is deliberately not just `data[data.length-1]` —
+`init()` walks backward from the end for the last entry whose `date` isn't
+in the future, since a version can be pre-staged in `data.json` ahead of
+its official date (announced but not live yet). Same edge case, same fix
+pattern, as the Server Clocks update-card below — both independently need
+to distinguish "the last entry" from "the last *launched* entry."
+
+## Server Clocks page (`clocks.html` / `js/clocks.js` / `css/clocks.css`)
+
+Fully independent of `app.js`. Background: single static image
+(`assets/backgrounds/server-clocks.webp` — Fandom served WebP despite the
+`.png` source URL), same blur/dark-tint recipe as the region background, no
+crossfade since there's only one image.
+
+**Server facts** (researched via game8.co/Sportskeeda, cross-checked): 4
+genuinely separate servers — America (UTC-5), Europe (UTC+1), Asia (UTC+8),
+TW/HK/MO (UTC+8, shares Asia's offset but is a distinct server). Daily
+reset: 4:00 AM each server's own time, independently (4 clocks).
+Version-update maintenance: **one shared real-world instant** for all
+servers at once, 06:00 China Standard Time — one clock, not four.
+
+- Reset/maintenance math uses fixed-offset arithmetic (`nextServerReset()`,
+  `cstDateToUtcInstant()`), deliberately not `Intl` timezone lookups — no
+  real IANA zone stays pinned at a fixed offset forever (DST), unlike these
+  synthetic server offsets.
+- Next-update estimate = last known version's launch instant + 42 days,
+  anchored to 06:00 CST (not midnight UTC — that drifted the day-count by
+  up to 8 hours). No manually-maintained "confirmed date" override field —
+  prototyped and deliberately rejected same-day, since it would recreate
+  the manual-upkeep burden that made the site fall 17 versions behind once
+  (see "Ideas discussed for future work"). Badge reads "Estimated" →
+  "Overdue" (counts up instead of freezing at zero) once the 42-day window
+  passes with no new version in `data.json`.
+- Weekday strip (7 letters, Mon-first) marks the current in-game day, which
+  flips at the 4am reset, not midnight. Colors deliberately avoid
+  `--four`/`--five` (the site's star-rarity colors) since no weekday
+  actually outranks another — the six regular days share one neutral
+  (`--line`), only Sunday (every domain open) gets its own (`--five`).
+- Detected viewer timezone shown once near the top (`Intl.DateTimeFormat`
+  with `timeZoneName`), e.g. "PDT (UTC-7)", since every clock says "your
+  time."
+- Ring/bar fill-in: both start at their "empty" CSS value and only animate
+  to the real value once each card's entrance animation finishes
+  (`animationend`) — setting the real value synchronously on build (the
+  original approach) never triggers a CSS transition, since there's no
+  intervening paint of the empty state. `prefers-reduced-motion` skips the
+  wait and sets values immediately.
+- Cross-document View Transitions (`@view-transition{navigation:auto}` in
+  `style.css`) animate between `index.html`↔`clocks.html` navigations with
+  zero JS/router — why the site didn't need to merge into an SPA for
+  smooth page transitions.
+- Same stacking-context bug as gotcha #2 bit `.clocks-intro`/section
+  headings here too (fixed via `position:relative;z-index:1` on
+  `.clocks-root`) — can hit *any* plain text on a page with a fixed
+  full-viewport background, not just the spots already patched.
+
+Not yet built: weekly reset (Monday 4am, per-server like daily reset — 4
+more clocks; likely worth combining into the existing daily card per server
+rather than a separate 8-card section) and Spiral Abyss reset (16th of each
+month, 4am server time).
 
 ## Design decisions
+- Header is `position: relative`, not `sticky` — deliberate, so it doesn't
+  occupy permanent viewport space.
+- `--line` is lavender, chosen over slate-grey/bronze/icy-blue options to
+  tie into `--four`.
 
-- **Header is not sticky.** `.site-header` is `position: relative`, not
-  `position: sticky` — it scrolls away normally with the rest of the page.
-  This was a deliberate reversal after the header was *made* sticky earlier
-  in the project's history; the owner wanted the header to only occupy
-  space near the top of the page, not take up a fixed slice of the viewport
-  forever. If you see old context (or your own instincts) assuming the
-  header stays pinned, that assumption is stale.
-- **`--line` (vertical timeline connector) is lavender (`#6e5a94`).**
-  Chosen 2026-08-22 over a muted slate-grey to tie into the existing
-  `--four` purple accent, after mocking up ~5 options (bronze/gold,
-  icy-blue, brighter-neutral, lavender) and letting the owner pick from
-  side-by-side screenshots.
+## CSS/animation gotchas
+1. **Animate only `transform`/`opacity`.** Anything else (`width`,
+   `margin`, `background-attachment:fixed`) forces main-thread layout every
+   frame. Bit the panel nudge (`margin-left`→`transform`), the
+   region-background reveal (stray `background-attachment:fixed`), and the
+   search bar (tried `clip-path`, reverted for an unrelated
+   intermittent-snap issue). An element with no prior `will-change` can
+   also show a one-off "cold start" dropped frame on its first transition.
+2. **`position:fixed` vs. a plain element's background — paint order isn't
+   DOM order, until a `transform` changes that.** A non-transformed
+   element's background paints *below* a `position:fixed` sibling
+   regardless of DOM order; the moment it gets a `transform` (even
+   conditionally), it's promoted into its own stacking context and can
+   paint *above* instead. Bit the region-bg (invisible from a stray
+   `z-index:-1`), the footer disappearing behind it (fixed via
+   `position:relative;z-index:1`), and the panel-open nudge transform
+   promoting `.timeline-root` above the region-bg. **Rule**: never put a
+   background that must stay under the region layer on an element that
+   might ever receive a `transform` — put it on `<body>`.
+3. **`position:sticky`** is the right tool for "docks below X, then sticks
+   to the viewport edge" — no scroll listener needed. Give the sticky
+   wrapper `height:0;overflow:visible` so it doesn't also push content
+   down.
+4. **`overflow:hidden` on `<body>` doesn't stop touch-scroll chaining if
+   `<html>` is the real scroll owner** — `html{overflow-x:hidden}` with no
+   explicit `overflow-y` computes `overflow-y:auto` per spec, making
+   `<html>` the scrolling box. Lock `panel-open` on both
+   `documentElement` and `body`. Verify touch fixes via real CDP
+   `Input.dispatchTouchEvent`, not synthetic `TouchEvent` (doesn't drive
+   Chromium's real touch pipeline).
+5. **`background-clip:text` gradients size to the element's box, not the
+   rendered text** — short strings only reveal a sliver of the gradient
+   unless the element is `display:inline-block` so its box shrinks to its
+   content.
+6. **`<svg>` has `overflow:hidden` by default**, clipping anything past its
+   viewBox — including `filter:drop-shadow()` glow on a child near the
+   edge. Set `overflow:visible` on the `<svg>` itself.
 
-## CSS/animation gotchas (read before touching layout or transitions)
+## Art provenance
 
-Two recurring classes of bug came up repeatedly enough this project that
-they're worth calling out explicitly, since both are easy to reintroduce
-without noticing until something looks visually wrong.
+**Quick reference** (details/gotchas for each below):
+| Asset | Source | Endpoint / file pattern |
+|---|---|---|
+| `assets/faces/*.png` | enka.network | `UI_AvatarIcon_*`, codenames via `store/characters.json` |
+| `assets/namecards/*.jpg` | enka.network | `UI_NameCardPic_<code>_P.jpg` via `store/gi/namecards.json` — **separate codename system from faces** |
+| `assets/elements/*.svg` | Fandom MediaWiki API | `File:Element_<Name>.svg` |
+| `assets/regions/*.jpg` | Fandom MediaWiki API | `pageimages` on the region's wiki page |
+| `assets/backgrounds/server-clocks.webp` | Fandom (direct file) | one-off, not a per-character pattern |
+| `assets/splash/*.webp` | Fandom MediaWiki API | `File:<Name>_Wish.png` — **not** `Card.png`/`Game.png`/`Full Wish.png`, see below |
 
-**1. Animate only `transform` and `opacity`.** Any other animated CSS
-property (`width`, `margin`, `top`/`left`, `background-attachment: fixed`,
-etc.) forces the browser through layout/paint on the main thread every
-frame, instead of letting the compositor handle it — which is what causes
-an animation to look "capped at 60fps" or janky on a high-refresh-rate
-display even though nothing is explicitly limiting it. This bit the project
-multiple times: the character-panel "nudge" (originally `margin-left`,
-fixed to `transform: translateX`), the region-background reveal (an
-accidentally-added `background-attachment: fixed` on `body` reintroduced
-scroll jank and had to be removed), and the search bar's expand animation
-(tried converting `width` to `clip-path` for exactly this reason — it *did*
-measure as smoothly interpolating, but was reverted anyway per the owner's
-call after running into a separate, harder-to-diagnose intermittent-snap
-issue; the original `width`-based version was restored). Default to
-`transform`/`opacity` for new animations from the start rather than fixing
-it after the fact. Relatedly: an element that's *about to* animate but
-doesn't have `will-change` set can pay a one-time "cold start" layer-
-promotion cost on its first transition after being idle, which can look
-like a dropped/instant frame even for an otherwise-correct `transform`/
-`opacity` transition — this is a real, separate cause worth checking before
-assuming the transition mechanism itself is broken.
+Face icons: enka.network `UI_AvatarIcon_*` datamine assets, codenames
+resolved via enka's public `store/characters.json`/`store/loc.json` (often
+don't match display names — e.g. Raiden Shogun → `Shougun`, Yanfei →
+`Feiyan`). Namecards use a **separate** codename system (Kirara's avatar
+codename is `Momoka`, namecard codename is `Kirara`) via
+`store/gi/namecards.json`. Element watermarks: Fandom's MediaWiki API (enka
+was missing Cryo). Region backgrounds: same Fandom API family
+(`pageimages`), bypasses the HTTP 402 block on direct fandom.com page
+fetches.
 
-**2. `position: fixed` background layers vs. a plain (non-positioned)
-element's own background — painting order is not what you'd guess.** A
-non-positioned, non-transformed element's own `background` paints *below* a
-`position: fixed` sibling with `z-index: auto`, regardless of DOM order —
-but the moment that same element gets an actual `transform` applied (even
-conditionally, e.g. only while some class is toggled on), it gets promoted
-into its own stacking context and its background can suddenly paint *above*
-that fixed sibling instead, because now DOM order (not paint-tier) breaks
-the tie. This caused three separate, real bugs while building the region
-background feature: the background was invisible at first (a leftover
-`z-index: -1` was pulling it below `<body>`'s own opaque canvas paint —
-fixed by removing the `z-index`), the site footer disappeared behind it
-(the footer had no `position`/`transform` of its own — fixed by giving it
-`position: relative; z-index: 1`), and — the subtlest one — opening the
-character panel made the entire region background flash to solid black,
-because the panel-open "nudge" transform on `.timeline-root` promoted
-*that* element (which at the time carried the dark starfield background)
-into a stacking context that suddenly out-ranked the region background.
-**Fix, and the rule going forward**: don't put a background that needs to
-stay visually "under" the region-background layer on any element that might
-ever receive a `transform` for unrelated reasons — put it on `<body>`
-instead, whose background is always the page's root canvas paint and is
-unaffected by transforms happening elsewhere in the tree.
+**Landing page splash art** (`assets/splash/<name>.webp`): also Fandom, but
+a *different* file per character than any of the above — `File:<Name>_Wish.png`
+(not `Character <Name> Full Wish.png` — similar name, different asset, see
+below). This is the actual in-game wish-reveal art (dynamic pose,
+transparent alpha background — confirmed via `ffprobe` showing `yuva420p`)
+and, unlike everything else tried, is **genuinely pixel-uniform**: every
+character checked (7+, including 4-stars) is exactly 2048x1024, since it's
+HoYoverse's own fixed-size UI template rather than independently-composed
+promotional art. `object-fit: contain` is still used rather than `cover` —
+a uniform canvas doesn't guarantee a uniform *pose* within it, so contain
+remains the safe choice — but with the box ratio matching the source
+exactly there's effectively no letterboxing in practice.
 
-**3. `position: sticky` is the right tool for "docks below X, then sticks to
-the viewport edge once X scrolls away"** — no scroll-listener JS needed. The
-search icon uses exactly this: it's a normal-flow sibling immediately after
-the header with `position: sticky; top: 12px`, so its resting position is
-naturally "right after the header" and it automatically locks to `top: 12px`
-once scrolling would carry it above that line. The one trick needed to keep
-it from also pushing page content down: the sticky wrapper itself has
-`height: 0; overflow: visible`, so the actually-visible child can render at
-its natural size without the (zero-height) sticky wrapper occupying real
-layout space.
+Took four tries to land on, kept here so they aren't re-attempted:
+`File:<Name> Card.png` bakes the gacha-pull card frame and "GENSHIN IMPACT"
+logo into the image itself (not croppable away with CSS); `File:Character
+<Name> Game.png` is a plain standing in-game render on a flat backdrop, not
+real splash art; `File:Character <Name> Full Wish.png` *is* real splash art
+(same dynamic-pose style as the one that stuck) but not uniformly sized
+across characters (checked: ~1.3:1, not pixel-identical) — easy to confuse
+with `<Name>_Wish.png` since both are "Wish"-named and visually similar,
+but only the latter is on the fixed template. Honey Hunter World
+(`honeyhunterworld.com`) hosts a fourth style — a tight cropped close-up
+used for the actual in-game pull reveal animation — but blocks
+hotlinking/scraping (403), so it was never a usable source regardless of
+how it looked.
 
-## Face icon / namecard / element art provenance
-
-All face icons are sourced from enka.network's official `UI_AvatarIcon_*`
-datamine assets (256×256, plain white background around the bust, uniform
-across every character as of 2026-08-21). The correct `UI_AvatarIcon_*`
-codename per character (which often doesn't match the display name, e.g.
-Raiden Shogun → `Shougun`, Yanfei → `Feiyan`, Noelle → `Noel`) was resolved
-via EnkaNetwork's public API-docs data (`store/characters.json` +
-`store/loc.json` on GitHub), not guessed — each character's `SideIconName`
-with `Side_` stripped gives the front-icon codename, and `NameTextMapHash`
-resolved against the English loc table gives the display name to match
-against.
-
-**Namecards use a *separate* codename system from avatar icons** — e.g.
-Kirara's avatar codename is `Momoka` but her namecard codename is `Kirara`;
-Yae Miko's namecard codename is `Yae1`, not `Yae`. Resolved via enka's
-`store/gi/namecards.json` (`UI_NameCardPic_<code>_P.jpg` entries),
-cross-referenced against the roster by substring/prefix matching; one
-character (Sandrone → `MarionetteNew`) needed a manual lookup via her
-narrative alias appearing in the namecards.json `Icon` strings.
-
-**Element watermark SVGs** came from Fandom's MediaWiki API
-(`titles=File:Element_<Name>.svg&prop=imageinfo&iiprop=url`) rather than
-enka, which only had 6 of the 7 elements as small raster PNGs (missing
-Cryo) — switching to Fandom's vector SVGs for all 7 also improved quality
-(crisp at any size vs. blurry 64×64 raster).
-
-**Region backgrounds** — see "Ambient region background" above for the
-Fandom `pageimages` sourcing method; same API family, different endpoint.
-
-This is all useful precedent if new characters/regions need art sourced the
-same way in the future — don't re-derive codenames by guessing, they often
-don't match the display name.
+Don't re-derive codenames by guessing for future characters/regions — they
+often don't match the display name.
 
 ## Data accuracy note
+Verified 5.3–7.0 by cross-referencing game8.co/gamewith.net/etc. against
+each other (a single AI-summarized fetch of an aggregator page produced
+garbled version numbers — don't trust that alone). One moderate-confidence
+item: 6.2 Phase 2's 4-star trio (Iansan, Chevreuse, Gaming), confirmed
+twice via game8.co but not a third source. 7.0 Phase 2's 4-star trio is
+intentionally empty (not yet officially revealed as of last update). 7.1
+deliberately not added — was still beta-leak territory with no datamined
+icons.
 
-`data.json` (then `data.js`, before the JSON conversion — see above) was
-caught up from version 5.3 to 7.0 on 2026-08-21 by cross-
-referencing game8.co, gamewith.net, and several other outlets against each
-other (a naive single-source AI fetch of game8's aggregate history page
-produced garbled/mismatched version numbers — don't trust a single
-AI-summarized fetch of an aggregator page for this kind of data; cross-check
-at least two independent outlets per phase). One phase has moderate rather
-than high confidence: **6.2 Phase 2's 4-star trio (Iansan, Chevreuse,
-Gaming)** — confirmed twice via game8.co but not independently verified via a
-third outlet.
+1.0 launch roster (confirmed): Barbara, Fischl, Xiangling, Noelle, Sucrose,
+Xingqiu, Beidou, Ningguang, Chongyun, Razor, Bennett. Genuine within-1.X
+debuts: Diona (1.1, despite being easy to assume launch roster), Xinyan
+(1.1), Rosaria (1.4), Yanfei (1.5).
 
-**7.0 Phase 2's 4-star trio is intentionally empty** (`"4": []`) as of
-2026-08-21 — the 5-star lineup (Flins/Ineffa reruns) is confirmed via
-game8.co and allthings.how, but the 4-stars hadn't been officially revealed
-yet at time of writing (even game8's dedicated banner page still showed
-"???" placeholders). Fill this in once announced; `js/app.js` already
-renders an empty `"4"` array gracefully (no divider/group shown). 7.1
-(Vesna, Vodyanitsa) was deliberately *not* added — as of 2026-08-21 it's
-still beta-leak territory rather than an official announcement, and neither
-character has datamined icon assets on enka.network yet, so there's no way
-to source icons the same verified way as the rest of this file.
-
-Separately, on 2026-08-21 the 1.X-version 4-star roster was researched to
-determine genuine debuts vs. characters already in the 1.0 launch roster
-(needed for the `preexisting` flags above) — cross-checked via joytify.com,
-gamerant.com, thegamer.com, and inverse.com. Confirmed 1.0 launch roster:
-Barbara, Fischl, Xiangling, Noelle, Sucrose, Xingqiu, Beidou, Ningguang,
-Chongyun, Razor, Bennett. Confirmed genuine within-1.X debuts: Diona (1.1),
-Xinyan (1.1), Rosaria (1.4), Yanfei (1.5) — notably, Diona was *not* part of
-the 1.0 launch roster despite easily being assumed to be one.
-
-**All 52 versions (1.0–7.0) now have a verified real-world launch `date`**
-(added 2026-08-21/22). Not a naive "every version is exactly 42 days"
-formula — there's one genuine historical exception: **2.7 was delayed ~20
-days** (originally scheduled May 10 2022, launched May 31 2022) due to the
-Shanghai COVID lockdown, the first-ever schedule delay in the game's
-history. **3.0, 3.1, and 3.2 each ran 35 days instead of 42** (7 days
-short × 3 = 21 days) to recover that delay by the time of 3.3. Both facts
-came from the owner's own memory and were verified against a full
-Fandom-sourced 52-row date table, cross-checking version-to-version gaps
-for anomalies — none found beyond the two above plus one unrelated 44-day
-gap between 1.0 and 1.1.
+All 52 versions have a verified real launch `date` — not a naive "every 42
+days" formula. Two real exceptions: **2.7 delayed ~20 days** (Shanghai
+COVID lockdown, May 10→31 2022), **3.0–3.2 each ran 35 days** (7 short × 3)
+to recover that delay by 3.3.
 
 ## Ideas discussed for future work (not started)
+- Weapon banners aren't tracked (character banners only).
+- No personal pull-tracking or stats view (longest drought, most-reran
+  character, release-cadence chart).
+- The manual per-patch update process (hand-editing `data.json` +
+  hand-sourcing art) is why the site fell 17 versions behind once — worth a
+  scripted/automated data pipeline if picking this up as a project.
+- Multi-page candidates, roughly by "reuses existing data with least new
+  work": **Stats/analytics** (pure computation over existing data) →
+  **Character profile pages** (dedicated shareable URLs) → **Region/lore
+  explorer** (browse by nation; real gap: no character→region mapping
+  exists yet — `character-elements.json` is element, not nation; needs a
+  new `character-regions.json` with an explicit `"Unaffiliated"` sentinel
+  for characters like Skirk, not omission) → **"On this day"** page (free
+  now that every version has a real date).
+- Server Clocks (built) was the differentiator second page; Region/lore
+  explorer is the likely third.
 
-- Weapon banners aren't tracked at all currently — only character banners.
-- No personal pull-tracking (mark banners you actually pulled on) or stats
-  view (longest drought, most-reran character, genuine-release vs.
-  rate-down/filler ratio over time, release-cadence chart).
-- The manual per-patch update process (hand-editing `data.json` + hand-sourcing
-  each new character's face crop, namecard, and element) is *why* the site
-  fell 17 versions behind once before — if picking a next project, consider
-  fixing that pipeline (e.g. scripted/automated pull from a maintained data
-  source) rather than relying on repeating the manual catch-up. See "Face
-  icon / namecard / element art provenance" above for what a script would
-  need to replicate.
-- 2026-08-22 brainstorm, in response to "we have all this data, what else
-  could we build with it" — restructuring into a multi-page site (this
-  timeline becoming just one page/view among several) was the direction
-  that resonated most, with these as candidate additional pages, roughly in
-  order of "reuses existing data with least new work":
-  - **Stats/analytics page** — most-reran character, longest drought
-    between two specific reruns, release-cadence charts. Pure computation
-    over the now-complete `data.json` + dates, no new data needed.
-  - **Character profile pages** — each character gets a real, dedicated,
-    shareable URL (not just a side panel), reusing the same namecard/
-    element/appearance-history data the panel already has.
-  - **Region/lore explorer** — browse by nation instead of by time, using
-    the region art + taglines already sourced for the ambient background
-    feature, cross-referenced against `character-elements.json`.
-  - **"On this day" page** — "N years ago today, version X launched with
-    Y" — essentially free now that every version has a verified real date.
-  - Search (character name, live filter/highlight, keyboard nav) was also
-    on this list as of the last update but has since been built — see
-    "Character search" above.
+## Multi-page architecture
+Separate physical HTML pages (not a JS router/SPA) — zero-build, Netlify
+serves multi-page static sites with no config. Smooth transitions between
+pages come from the native cross-document View Transitions API, not from
+merging into an SPA (see Server Clocks section).
+
+`css/clocks.css` + `js/clocks.js` are the first realization of the "shared
+base + page-specific stylesheet/script" split — `app.js` itself hasn't been
+split into shared-utilities-vs-timeline-specific yet, since no page has
+needed to reuse its helpers (`faceImg()`, `characterIndex` building, etc.)
+so far. Do that split when a page actually needs it (e.g. Character profile
+pages).
+
+Header is duplicated per page (not templated) — fine at 2-4 pages, not
+worth the machinery. `data.json` (12.3KB total) isn't worth splitting
+per-version for lazy-loading at current size — revisit only at a 10-20x
+size increase.

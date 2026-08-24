@@ -1,19 +1,8 @@
-var t1v2 = new Date().getTime();
-
 var characterIndex = {};
 var characterNotes = {};
 var phaseNotes = {};
 var versionMeta = {};
 var characterElements = {};
-
-function facePath(character) {
-	return `assets/faces/${character.replace(/\s/g, "").toLowerCase()}.png`;
-}
-
-function formatDate(isoDate) {
-	let d = new Date(isoDate + "T00:00:00");
-	return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
 
 function groupByMajor(data) {
 	let groups = [];
@@ -28,15 +17,6 @@ function groupByMajor(data) {
 		byMajor[major].versions.push(entry);
 	}
 	return groups;
-}
-
-function faceImg(character, className) {
-	let img = document.createElement("img");
-	img.className = className;
-	img.src = facePath(character);
-	img.alt = character;
-	img.loading = "lazy";
-	return img;
 }
 
 function buildRays(count, colorVar) {
@@ -612,7 +592,6 @@ function buildVersionNav(groups) {
 		let target = document.getElementById(a.dataset.target);
 		let top = target.offsetTop - 12;
 		window.scrollTo({ top, behavior: "smooth" });
-		history.pushState(null, "", `#${a.dataset.target}`);
 	});
 }
 
@@ -622,9 +601,22 @@ function init(data) {
 	let root = document.getElementById("timelineRoot");
 	let majorBlocks = [];
 	let LIVE_WINDOW_DAYS = 42;
-	let lastEntry = data[data.length - 1];
-	let daysSinceLastEntry = (Date.now() - new Date(lastEntry.date + "T00:00:00").getTime()) / 86400000;
-	let lastVersion = (daysSinceLastEntry >= 0 && daysSinceLastEntry <= LIVE_WINDOW_DAYS) ? lastEntry.version : null;
+	let now = Date.now();
+	// data.json's last entry isn't always the currently-live version — it can be
+	// pre-staged ahead of its official date once announced, same edge case the
+	// Server Clocks update estimate handles. Walk backward for the last entry
+	// that's actually launched rather than assuming the array's last item is it.
+	let launchedEntry = null;
+	for (let i = data.length - 1; i >= 0; i--) {
+		if (new Date(data[i].date + "T00:00:00").getTime() <= now) {
+			launchedEntry = data[i];
+			break;
+		}
+	}
+	let daysSinceLastEntry = launchedEntry
+		? (now - new Date(launchedEntry.date + "T00:00:00").getTime()) / 86400000
+		: Infinity;
+	let lastVersion = (launchedEntry && daysSinceLastEntry <= LIVE_WINDOW_DAYS) ? launchedEntry.version : null;
 
 	groups.forEach(group => {
 		let block = buildVersionBlock(group, charCount, lastVersion);
@@ -697,9 +689,6 @@ async function bootstrap() {
 		init(data);
 		initCharPanel();
 		initSearch();
-
-		let t2v2 = new Date().getTime();
-		document.getElementById("loadTime").innerHTML = `Loading Time - ${t2v2 - t1v2}ms`;
 	} catch (err) {
 		console.error(err);
 		document.getElementById("timelineRoot").textContent = "Failed to load banner data — please refresh the page.";
