@@ -22,56 +22,156 @@
 .landing-spotlight-heading{font-size: 22px; font-weight: bold; color: var(--text); margin-top: 12px;}
 .landing-spotlight-sub{font-size: 12.5px; color: var(--text-dim); margin-top: 4px;}
 
-/* ---------- 5-star poster cards — transparent-cutout wish splash art ---------- */
-/* Fandom's "<Name>_Wish.png" — the actual in-game wish-reveal art, and
-   genuinely uniform: every character checked (7+ so far, including 4-stars)
-   is exactly 2048x1024, since it's HoYoverse's own fixed-size UI template,
-   not just visually similar promotional art. object-fit:contain still used
-   (not cover) since a uniform *canvas* doesn't guarantee a uniform *pose* —
-   some characters sit closer to their canvas edges than others — but with
-   the box ratio now matching the source exactly there's effectively no
-   letterboxing in practice. The card gets the same glass treatment as
-   everything else on the site so the art has a consistent frame regardless
-   of its own colors. */
-.spotlight-posters{
-	display: flex; flex-wrap: wrap; justify-content: center; gap: 20px;
-	margin-top: 28px;
-}
-.spotlight-poster{
-	width: 430px; max-width: 100%; padding: 14px 14px 16px;
+/* ---------- 5-star banner strip — one shared card, not two posters ---------- */
+/* Fandom's "<Name>_Wish.png" splash art (see splashPath() in landing.js) has
+   a real transparent-alpha cutout, which is what makes this layout work:
+   both characters sit directly on one shared glow wash instead of being
+   boxed into their own sub-panels, so they read as one banner rather than
+   two disconnected cards. Glow color per character comes from --el-a/--el-b,
+   set inline in JS (data-driven per element) rather than fixed in CSS. */
+.spotlight-banner{
+	position: relative; z-index: 0; overflow: hidden;
+	width: 100%; max-width: 960px; margin: 28px auto 0;
+	padding: 32px 22px 22px;
 	background-color: var(--glass); border: 1px solid var(--glass-border);
 	border-radius: var(--radius-lg);
 	backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 	box-shadow: 0 14px 40px rgba(0,0,0,0.4);
-	transition: background-color 0.25s, border-color 0.25s;
-	text-align: center;
 }
-.spotlight-poster:hover{
-	background-color: var(--glass-hover); border-color: var(--glass-border-hover);
+/* Corner watermarks — top-left for the left/first character, bottom-right
+   for the right/second one. Anchored to fixed corners rather than vertically
+   centered so the same rule works whether the figures sit side by side
+   (desktop) or stacked in one column (mobile) — no separate mobile
+   override needed, unlike the old edge-centered version. Bled off the
+   left/right edge (clipped by the card's own overflow:hidden) but kept a
+   real distance from the top/bottom edge rather than bleeding off those too.
+   z-index:-1 needs .spotlight-banner's own z-index:0 above to stay
+   contained to this card instead of escaping into the page's stacking
+   context.
+   top:/bottom: alone anchors the box's EDGE, not the icon's visual center —
+   since the box (220-320px) is nearly as tall as the banner itself, that
+   left most of the icon hanging past the middle instead of near the corner.
+   The extra ±50% in the transform corrects for the box's own half-height,
+   so the offset below is the icon's actual center distance from the
+   top/bottom edge, not the box edge. */
+.spotlight-banner::before, .spotlight-banner::after{
+	content: ""; position: absolute; z-index: -1; pointer-events: none;
+	width: 220px; height: 220px;
+	background-repeat: no-repeat; background-position: center; background-size: contain;
+	opacity: 0.16;
 }
-/* Cropped tighter than the source's actual 2:1 canvas (see splashPath() in
-   landing.js) — safe to do since the character is always centered on that
-   canvas with room to spare on both sides, so cover here just trims empty
-   space instead of cutting anything that matters. */
-.spotlight-poster-img-wrap{
-	aspect-ratio: 1.4 / 1;
-	display: flex; align-items: center; justify-content: center;
-	overflow: hidden; border-radius: calc(var(--radius-lg) - 6px);
+.spotlight-banner::before{top: 70px; left: 0; transform: translate(-40%, -50%); background-image: var(--el-icon-a, none);}
+.spotlight-banner::after{bottom: 70px; right: 0; transform: translate(40%, 50%); background-image: var(--el-icon-b, none);}
+@media (min-width: 600px){
+	.spotlight-banner::before, .spotlight-banner::after{width: 320px; height: 320px;}
+	.spotlight-banner::before{top: 90px;}
+	.spotlight-banner::after{bottom: 90px;}
 }
-.spotlight-poster-img{width: 100%; height: 100%; object-fit: cover; object-position: center center; display: block;}
-.spotlight-poster-img.is-fallback{width: auto; height: auto; max-width: 40%; max-height: 80%; object-fit: contain;}
-.spotlight-poster-label{
+.spotlight-banner-glow{
+	position: absolute; inset: 0; z-index: 0; pointer-events: none;
+	background:
+		radial-gradient(circle at 20% 15%, var(--el-a, var(--five-glow)) 0%, transparent 55%),
+		radial-gradient(circle at 80% 85%, var(--el-b, var(--four-glow)) 0%, transparent 55%);
+	opacity: 0.55;
+}
+.spotlight-banner-figures{
+	position: relative; z-index: 1;
+	display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end;
+}
+.spotlight-figure{
+	flex: 1 1 200px; max-width: 440px; padding: 0 16px;
+	display: flex; flex-direction: column; align-items: center;
+}
+/* Only meaningful once the two figures actually sit side by side — below
+   this they wrap into a single column and a left border reads as a stray
+   line rather than a divider. Matches the 600px breakpoint the rest of this
+   page's layout switches use. */
+@media (min-width: 600px){
+	.spotlight-banner-figures.has-two .spotlight-figure + .spotlight-figure{
+		border-left: 1px solid var(--glass-border);
+	}
+}
+/* cover, not contain — the source's 2:1 canvas has a lot of empty margin on
+   either side of the character (see splashPath() in landing.js), so a
+   contain-fit box was mostly showing blank space. Cropping tighter than the
+   canvas is safe since the character is always centered with room to spare
+   on both sides. */
+.spotlight-figure-img{
+	width: 100%; aspect-ratio: 1.3 / 1; object-fit: cover; object-position: center; display: block;
+	filter: drop-shadow(0 10px 18px rgba(0,0,0,0.5));
+}
+.spotlight-figure-img.is-fallback{width: auto; height: 96px; object-fit: contain;}
+.spotlight-figure-label{
+	position: relative; z-index: 1;
 	display: flex; flex-direction: column; align-items: center; gap: 6px;
-	margin-top: 10px;
+	margin-top: -22px;
 }
-.spotlight-poster-name{font-size: 15px; font-weight: bold; color: var(--text);}
+/* Overlapping the art on purpose — reads as a poster title instead of a
+   caption. The shadow (not a background box) is what keeps it legible
+   against whatever's directly behind it, since that varies by character. */
+.spotlight-figure-name{
+	font-size: 15px; font-weight: bold; color: var(--text);
+	text-shadow: 0 2px 6px rgba(0,0,0,0.85), 0 0 16px rgba(0,0,0,0.6);
+}
+.spotlight-figure-tags{display: flex; align-items: center; gap: 8px;}
 
-/* ---------- 4-star supporting row — plain face icons, no card art ---------- */
-.spotlight-fourstars{
-	display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 26px;
-	margin-top: 26px;
+/* ---------- 4-star mini cards — same card language as the banner above ---------- */
+.spotlight-fourcards{
+	display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;
+	margin-top: 24px;
 }
-.spotlight-fourstar-unit{display: flex; align-items: center; gap: 8px;}
+.spotlight-fourcard{
+	position: relative; z-index: 0;
+	width: 92px; padding: 12px 6px 10px;
+	display: flex; flex-direction: column; align-items: center; gap: 8px;
+	background-color: var(--glass); border: 1px solid var(--glass-border);
+	border-radius: var(--radius-md);
+	overflow: hidden;
+	backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+	transition: background-color 0.25s, border-color 0.25s;
+}
+.spotlight-fourcard:hover{background-color: var(--glass-hover); border-color: var(--glass-border-hover);}
+/* Dedicated layer for the watermark so it can use real CSS opacity — a
+   z-index below the card's own painted background/border (see z-index:0 +
+   position:relative above, which contains this to just this card) but above
+   nothing else, so it never competes with the face/name in front of it. */
+.spotlight-fourcard::before{
+	content: ""; position: absolute; inset: 0; z-index: -2;
+	background-image: var(--el-icon, none);
+	background-repeat: no-repeat; background-position: center;
+	background-size: 118px 118px;
+	opacity: 0.16; pointer-events: none;
+}
+/* Same idea as .spotlight-banner-glow, one color instead of two — sits
+   above the icon watermark but below the face/name, same layering order
+   as the banner (icon, then glow, then content). */
+.spotlight-fourcard::after{
+	content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+	background: radial-gradient(circle at 50% 100%, var(--el-glow, transparent) 0%, transparent 100%);
+	opacity: 0.5;
+}
+.spotlight-fourcard-avatar-wrap{position: relative;}
+.spotlight-fourcard-face{
+	width: 40px; height: 40px; border-radius: 50%; object-fit: contain;
+	background-color: rgba(255,255,255,0.06);
+	box-shadow: 0 0 0 1px var(--glass-border-hover);
+	filter: grayscale(28%) brightness(0.9);
+	transition: filter 0.25s, box-shadow 0.25s;
+}
+.spotlight-fourcard.is-release .spotlight-fourcard-face{
+	filter: none;
+	box-shadow: 0 0 0 2px var(--el, var(--four)), 0 0 10px 2px var(--el-glow, var(--four-glow));
+}
+.spotlight-fourcard-name{
+	font-size: 11.5px; color: var(--text-dim); text-align: center; line-height: 1.25;
+	transition: color 0.25s;
+}
+.spotlight-fourcard-name.is-release{color: var(--text); font-weight: bold;}
+
+@media (min-width: 600px){
+	.spotlight-fourcard{width: 106px;}
+	.spotlight-fourcard::before{background-size: 135px 135px;}
+}
 
 .landing-links{
 	display: grid; grid-template-columns: 1fr; gap: 14px;
