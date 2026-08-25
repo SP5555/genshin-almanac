@@ -74,6 +74,10 @@ function buildSpotlightFigure(character, data, versionIdx, phaseIdx, notes) {
 	img.src = splashPath(character);
 	img.alt = character;
 	img.loading = "lazy";
+	// Otherwise the browser's native "drag to save image" gesture hijacks the
+	// carousel's own pointer-drag sequence, firing pointercancel instead of
+	// pointerup partway through.
+	img.draggable = false;
 	// Not every featured character has splash art downloaded yet — fall back
 	// to the square face icon (already sourced for all of them) rather than
 	// showing a broken image.
@@ -105,41 +109,364 @@ function buildSpotlightFigure(character, data, versionIdx, phaseIdx, notes) {
 	return figure;
 }
 
+const CAROUSEL_INTERVAL_MS = 5000;
+const CAROUSEL_SETTLE_MS = 320;
+const CAROUSEL_MAX_BLUR_PX = 10;
+// How dark an off-center slot gets at dist >= 1 — a literal "spotlight
+// swinging away" dim, layered on top of the existing blur/fade/opacity.
+const CAROUSEL_MIN_BRIGHTNESS = 0.1;
+// position-units are "how many carousel widths of drag" — 1.0 = exactly one
+// full slide over. Velocity below FLING_MIN is treated as a plain release
+// (snap immediately); above it, momentum keeps going and decays by
+// FRICTION_PER_MS every millisecond until it drops below MOMENTUM_STOP.
+const CAROUSEL_FLING_MIN_VELOCITY = 0.0006;
+const CAROUSEL_MOMENTUM_STOP_VELOCITY = 0.00006;
+const CAROUSEL_FRICTION_PER_MS = 0.9955;
+// Only pointer samples from within this many ms of "now" count toward the
+// release-velocity estimate — see the pointermove/endDrag handlers below.
+const CAROUSEL_VELOCITY_WINDOW_MS = 100;
+
 // One shared card instead of two separate posters, so both 5-stars read as
-// belonging to the same banner rather than two disconnected boxes. The glow
-// wash is tinted per element (via --el-a/--el-b, set inline since it's
-// data-driven) and the splash art's own alpha cutout sits directly on it —
-// no sub-panel around each character.
+// belonging to the same banner rather than two disconnected boxes. Only one
+// character shows at a time (carousel, dot nav below) — with two figures
+// competing for the same width, showing one at a time is what lets it
+// render bigger. The glow wash and corner watermark crossfade to track
+// whichever character is currently nearest center, not both at once — see
+// applyActiveElement() below.
 function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elements) {
 	let banner = document.createElement("div");
-	banner.className = "spotlight-banner" + (fiveStars.length > 1 ? " has-two" : "");
+	banner.className = "spotlight-banner";
 
-	let glow = document.createElement("div");
-	glow.className = "spotlight-banner-glow";
-	banner.appendChild(glow);
+	// Two-layer A/B crossfade for both the glow wash and the corner
+	// watermark — same technique as #regionBgA/#regionBgB in app.js's
+	// setRegionBackground(): write the new value to whichever layer is
+	// currently inactive, toggle is-active on both, let the CSS opacity
+	// transition handle the rest. A plain custom property swap can't be
+	// smoothly transitioned by the browser on its own, which is what made
+	// the old single-layer version snap instantly.
+	let glowA = document.createElement("div");
+	glowA.className = "spotlight-banner-glow";
+	let glowB = document.createElement("div");
+	glowB.className = "spotlight-banner-glow";
+	banner.append(glowA, glowB);
 
-	let glowColors = fiveStars.map(c => (ELEMENT_COLORS[elements[c]] || {}).glow).filter(Boolean);
-	if (glowColors[0]) banner.style.setProperty("--el-a", glowColors[0]);
-	// With only one 5-star, mirror --el-a into --el-b instead of falling back
-	// to the site's default purple glow — a single-color wash reads as
-	// intentional, a color that doesn't belong to either character doesn't.
-	if (glowColors[1] || glowColors[0]) banner.style.setProperty("--el-b", glowColors[1] || glowColors[0]);
+	// One A/B pair per icon POSITION — exploring top-left + bottom-right
+	// right now (see the conversation), so each pair gets its own position
+	// modifier class but all pairs always show the same element in lockstep.
+	let makeIconPair = extraClass => {
+		let a = document.createElement("div");
+		a.className = "spotlight-banner-icon" + (extraClass ? " " + extraClass : "");
+		let b = document.createElement("div");
+		b.className = "spotlight-banner-icon" + (extraClass ? " " + extraClass : "");
+		banner.append(a, b);
+		return { a, b };
+	};
+	let iconPairs = [makeIconPair(), makeIconPair("is-bottom-right")];
 
-	// Same mirroring for the two edge-watermark icons (see .spotlight-banner
-	// ::before/::after) — left watermark for the left-side character, right
-	// for the right-side one, same element on both sides when there's only
-	// one. Path is relative to css/landing.css, not the page — see the
-	// --el-icon note on the 4-star cards for why.
-	let iconUrls = fiveStars.map(c => elements[c] ? `url(../assets/elements/${elements[c].toLowerCase()}.svg)` : null).filter(Boolean);
-	if (iconUrls[0]) banner.style.setProperty("--el-icon-a", iconUrls[0]);
-	if (iconUrls[1] || iconUrls[0]) banner.style.setProperty("--el-icon-b", iconUrls[1] || iconUrls[0]);
+	let activeLayer = "A";
+	let currentElementChar = null;
+	let applyActiveElement = character => {
+		// render() calls this on every single frame during a drag or
+		// momentum coast, not just when baseIndex actually changes — without
+		// this guard, every one of those frames would re-toggle the A/B
+		// layers, restarting (and so interrupting) the opacity transition
+		// before it ever gets to finish, which is what made it look like an
+		// instant snap while dragging even though the auto-timer's
+		// once-per-settle calls faded smoothly.
+		if (character === currentElementChar) return;
+		currentElementChar = character;
+		let element = elements[character];
+		let colors = ELEMENT_COLORS[element];
+		if (!colors) return;
+		let nextGlow = activeLayer === "A" ? glowB : glowA;
+		let prevGlow = activeLayer === "A" ? glowA : glowB;
+		nextGlow.style.background = `radial-gradient(circle at 30% 20%, ${colors.glow} 0%, transparent 60%)`;
+		nextGlow.classList.add("is-active");
+		prevGlow.classList.remove("is-active");
 
-	let figures = document.createElement("div");
-	figures.className = "spotlight-banner-figures" + (fiveStars.length > 1 ? " has-two" : "");
-	fiveStars.forEach(character => {
-		figures.appendChild(buildSpotlightFigure(character, data, versionIdx, phaseIdx, notes));
+		iconPairs.forEach(pair => {
+			let nextIcon = activeLayer === "A" ? pair.b : pair.a;
+			let prevIcon = activeLayer === "A" ? pair.a : pair.b;
+			nextIcon.style.backgroundImage = `url(assets/elements/${element.toLowerCase()}.svg)`;
+			nextIcon.classList.add("is-active");
+			prevIcon.classList.remove("is-active");
+		});
+
+		activeLayer = activeLayer === "A" ? "B" : "A";
+	};
+	applyActiveElement(fiveStars[0]);
+
+	let carousel = document.createElement("div");
+	carousel.className = "spotlight-carousel";
+	banner.appendChild(carousel);
+
+	if (fiveStars.length === 1) {
+		carousel.appendChild(buildSpotlightFigure(fiveStars[0], data, versionIdx, phaseIdx, notes));
+		return banner;
+	}
+	carousel.classList.add("is-interactive");
+
+	let n = fiveStars.length;
+	let normalize = i => ((i % n) + n) % n;
+
+	let dots = document.createElement("div");
+	dots.className = "spotlight-dots";
+	let dotEls = fiveStars.map((character, i) => {
+		let dot = document.createElement("button");
+		dot.type = "button";
+		dot.className = "spotlight-dot" + (i === 0 ? " is-active" : "");
+		dot.setAttribute("aria-label", `Show ${character}`);
+		dots.appendChild(dot);
+		return dot;
 	});
-	banner.appendChild(figures);
+	banner.appendChild(dots);
+
+	// Three FIXED-ROLE slots — prev(-1), center(0), next(+1) — each a real,
+	// independent DOM element, rather than one element per character. With
+	// only 2 characters, the "other" one needs two separate on-screen
+	// instances (one resting on each side), so reversing direction mid-drag
+	// just means the OTHER instance starts sliding in — no single shared
+	// element ever has to jump from one side to the other. A slot's content
+	// only gets reassigned in resolveRotation() below, at the exact moment
+	// it's the farthest slot and therefore guaranteed fully hidden — never
+	// mid-transition.
+	let slots = [-1, 0, 1].map(offset => {
+		let el = document.createElement("div");
+		el.className = "spotlight-figure";
+		carousel.appendChild(el);
+		return { offset, el, character: undefined };
+	});
+	let baseIndex = 0;
+	// Continuous drag/settle offset, relative to baseIndex — kept within
+	// roughly [-1, 1] at all times by resolveRotation(), never allowed to
+	// drift to large magnitudes the way a single global position did before.
+	let position = 0;
+	// One shared rAF handle for whichever animation loop is currently
+	// driving `position` — momentum coast or a settle sweep. The two are
+	// mutually exclusive by construction (starting either one stops both
+	// first), so there's never a reason to track them separately.
+	let animationRAF = null;
+	let advanceTimer = null;
+
+	let assign = slot => {
+		let character = fiveStars[normalize(baseIndex + slot.offset)];
+		if (slot.character === character) return;
+		slot.character = character;
+		let fresh = buildSpotlightFigure(character, data, versionIdx, phaseIdx, notes);
+		slot.el.replaceChildren(...fresh.childNodes);
+	};
+	slots.forEach(assign);
+
+	let getSlotPx = () => carousel.getBoundingClientRect().width || 1;
+	let render = () => {
+		slots.forEach(slot => {
+			let diff = slot.offset - position;
+			let dist = Math.abs(diff);
+			// Reaches full dim by dist 0.5, not 1 — matching opacity's falloff
+			// meant it only got noticeably darker right as it was already
+			// nearly invisible from fading out. Ramping twice as fast makes
+			// the dim itself the visible part of the transition.
+			let brightness = 1 - Math.min(1, dist * 2) * (1 - CAROUSEL_MIN_BRIGHTNESS);
+			slot.el.style.transform = `translateX(${diff * getSlotPx()}px)`;
+			slot.el.style.opacity = String(Math.max(0, 1 - dist));
+			slot.el.style.filter = `blur(${Math.min(CAROUSEL_MAX_BLUR_PX, dist * CAROUSEL_MAX_BLUR_PX * 1.4)}px) brightness(${brightness})`;
+			slot.el.classList.toggle("is-active", slot.offset === 0);
+		});
+		dotEls.forEach((d, i) => d.classList.toggle("is-active", i === baseIndex));
+		applyActiveElement(fiveStars[baseIndex]);
+	};
+
+	// Whenever `position` has drifted a full step away from baseIndex,
+	// rotate roles instead of re-deriving each slot's side from scratch.
+	// Recycles whichever slot is CURRENTLY farthest (always safely
+	// invisible — dist >= 1.5 at the moment this triggers, since it only
+	// fires once position crosses ±0.5) into the newly-needed role and
+	// gives it fresh content. The other two slots just get relabeled: same
+	// DOM element, same continuous transform, no jump, no content swap.
+	let resolveRotation = () => {
+		while (Math.round(position) !== 0) {
+			let step = position > 0 ? 1 : -1;
+			baseIndex = normalize(baseIndex + step);
+			position -= step;
+			if (step > 0) slots.push(slots.shift());
+			else slots.unshift(slots.pop());
+			slots.forEach((slot, i) => { slot.offset = i - 1; });
+			slots.forEach(assign);
+		}
+	};
+
+	let stopAnimation = () => {
+		if (animationRAF !== null) cancelAnimationFrame(animationRAF);
+		animationRAF = null;
+	};
+	// The one clean eased move to an exact resting position — always a
+	// continuous JS-driven sweep (position updated as a per-frame delta,
+	// same incremental pattern the drag/momentum code already uses, which
+	// composes correctly with resolveRotation()), never a CSS transition.
+	// A CSS transition only animates cleanly toward ONE target; an earlier
+	// version used one for single-character moves and chained several for
+	// multi-character jumps — technically correct (every character got
+	// painted) but each chained hop eased to a dead stop before the next
+	// one re-accelerated from rest, reading as a stutter at every character
+	// passed through. One continuous eased curve across the full distance,
+	// used for every case including a plain 1-character or drift-only
+	// move, has no such seams.
+	// `steps` is how many characters forward (or back, if negative) to
+	// move from wherever we currently are; 0 just corrects any leftover
+	// drag/momentum drift back to whichever character is already nearest
+	// (used for a plain drag release with no fling).
+	let settle = (steps = 0) => {
+		stopAnimation();
+		let start = position;
+		let distance = Math.round(position) + steps - start;
+		if (distance === 0) { resolveRotation(); render(); return; }
+		let duration = CAROUSEL_SETTLE_MS * (0.5 + Math.abs(steps) * 0.5);
+		let startTime = performance.now();
+		let prevEased = 0;
+		let frame = now => {
+			let t = Math.min(1, (now - startTime) / duration);
+			let eased = 1 - Math.pow(1 - t, 3);
+			position += (eased - prevEased) * distance;
+			prevEased = eased;
+			resolveRotation();
+			render();
+			animationRAF = t < 1 ? requestAnimationFrame(frame) : null;
+		};
+		animationRAF = requestAnimationFrame(frame);
+	};
+	// Shortest signed step count from baseIndex to targetIndex, so a dot
+	// click always takes the short way around instead of spinning through
+	// every character in between.
+	let goTo = targetIndex => {
+		let raw = normalize(targetIndex - baseIndex);
+		settle(raw > n / 2 ? raw - n : raw);
+	};
+
+	let startAutoAdvance = () => {
+		// Idempotent, not just paired with stopAutoAdvance — mouseleave and
+		// endDrag can each independently decide "we should be running now"
+		// without knowing the other already started a timer, so this has to
+		// self-correct rather than assume exactly one is active.
+		clearInterval(advanceTimer);
+		advanceTimer = setInterval(() => settle(1), CAROUSEL_INTERVAL_MS);
+	};
+	let stopAutoAdvance = () => clearInterval(advanceTimer);
+
+	dotEls.forEach((dot, i) => dot.addEventListener("click", () => {
+		stopAutoAdvance();
+		goTo(i);
+		startAutoAdvance();
+	}));
+	// Pause on hover so a reader mid-look at one character doesn't have it
+	// swapped out from under them.
+	banner.addEventListener("mouseenter", stopAutoAdvance);
+	banner.addEventListener("mouseleave", startAutoAdvance);
+
+	let runMomentum = velocity => {
+		let last = performance.now();
+		let step = now => {
+			let dt = now - last;
+			last = now;
+			position += velocity * dt;
+			velocity *= Math.pow(CAROUSEL_FRICTION_PER_MS, dt);
+			resolveRotation();
+			render();
+			if (Math.abs(velocity) > CAROUSEL_MOMENTUM_STOP_VELOCITY) {
+				animationRAF = requestAnimationFrame(step);
+			} else {
+				animationRAF = null;
+				settle();
+				startAutoAdvance();
+			}
+		};
+		animationRAF = requestAnimationFrame(step);
+	};
+
+	// Pointer Events (not separate touch/mouse handlers) drive both
+	// touch-swipe and mouse-drag from the same code — same convention as the
+	// mobile char-panel drag-to-dismiss in app.js. touch-action:pan-y in CSS
+	// keeps vertical page scroll native while this handles the horizontal
+	// gesture itself.
+	let dragging = false;
+	let lastPointerX = 0;
+	let velocityHistory = [];
+	// A stale sample (pointer held still before something reads the
+	// history, so no pointermove refreshed it) shouldn't count toward a
+	// velocity estimate — used by both pointermove (to bound the array's
+	// growth) and endDrag (to size up the release velocity).
+	let pruneVelocityHistory = now => {
+		while (velocityHistory.length > 1 && now - velocityHistory[0].t > CAROUSEL_VELOCITY_WINDOW_MS) velocityHistory.shift();
+	};
+
+	carousel.addEventListener("pointerdown", e => {
+		stopAutoAdvance();
+		stopAnimation();
+		carousel.classList.add("is-dragging");
+		// Capture so pointermove/pointerup still fire on this element even if
+		// the drag continues outside the carousel's bounds.
+		carousel.setPointerCapture(e.pointerId);
+		dragging = true;
+		lastPointerX = e.clientX;
+		velocityHistory = [{ x: e.clientX, t: performance.now() }];
+	});
+	carousel.addEventListener("pointermove", e => {
+		if (!dragging) return;
+		// 1:1 tracking: dragging by dx px moves the active figure by exactly
+		// dx px, since dx/slotPx position-units * slotPx px = dx.
+		let dx = e.clientX - lastPointerX;
+		lastPointerX = e.clientX;
+		position -= dx / getSlotPx();
+		resolveRotation();
+		render();
+		let now = performance.now();
+		velocityHistory.push({ x: e.clientX, t: now });
+		// Time-windowed, not just capped at N samples — a fast drag that then
+		// pauses before release would otherwise leave only old, fast-motion
+		// samples in the array with nothing newer to push them out, so
+		// release velocity would still read as fast even though the pointer
+		// had already stopped moving.
+		pruneVelocityHistory(now);
+	});
+	let endDrag = () => {
+		if (!dragging) return;
+		dragging = false;
+		carousel.classList.remove("is-dragging");
+
+		let now = performance.now();
+		pruneVelocityHistory(now);
+		let velocity = 0;
+		// A stale last sample (pointer held still before release, so no
+		// pointermove refreshed it) means there's no recent motion to
+		// measure — treat that as a plain release, not a fling.
+		let stillFresh = velocityHistory.length >= 2 && now - velocityHistory[velocityHistory.length - 1].t < CAROUSEL_VELOCITY_WINDOW_MS;
+		if (stillFresh) {
+			let first = velocityHistory[0];
+			let last = velocityHistory[velocityHistory.length - 1];
+			let dt = last.t - first.t;
+			// px/ms -> position-units/ms, sign matches the drag convention
+			// used in pointermove above.
+			if (dt > 0) velocity = -((last.x - first.x) / dt) / getSlotPx();
+		}
+		if (Math.abs(velocity) > CAROUSEL_FLING_MIN_VELOCITY) {
+			runMomentum(velocity);
+		} else {
+			settle();
+			startAutoAdvance();
+		}
+	};
+	carousel.addEventListener("pointerup", endDrag);
+	carousel.addEventListener("pointercancel", endDrag);
+
+	render();
+	// This first render happens before `banner` is attached to the document
+	// (the caller inserts it after this function returns), so getSlotPx()
+	// falls back to 1px here instead of the real width — invisible for now
+	// since inactive slots are opacity:0 regardless, but it leaves their
+	// resting transform at the wrong pixel value. Re-render once actually
+	// attached so the very first interaction animates in from the correct
+	// off-to-the-side position instead of fading in place.
+	requestAnimationFrame(render);
+	startAutoAdvance();
 
 	return banner;
 }

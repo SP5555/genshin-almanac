@@ -32,71 +32,121 @@
 .spotlight-banner{
 	position: relative; z-index: 0; overflow: hidden;
 	width: 100%; max-width: 960px; margin: 28px auto 0;
-	padding: 32px 22px 22px;
+	/* Tighter side padding than desktop — on a narrow viewport this is the
+	   difference between the splash art actually filling the available
+	   width or not, since .spotlight-figure below is already width:100% of
+	   whatever room this leaves it. */
+	padding: 22px 12px;
 	background-color: var(--glass); border: 1px solid var(--glass-border);
 	border-radius: var(--radius-lg);
 	backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 	box-shadow: 0 14px 40px rgba(0,0,0,0.4);
 }
-/* Corner watermarks — top-left for the left/first character, bottom-right
-   for the right/second one. Anchored to fixed corners rather than vertically
-   centered so the same rule works whether the figures sit side by side
-   (desktop) or stacked in one column (mobile) — no separate mobile
-   override needed, unlike the old edge-centered version. Bled off the
-   left/right edge (clipped by the card's own overflow:hidden) but kept a
-   real distance from the top/bottom edge rather than bleeding off those too.
-   z-index:-1 needs .spotlight-banner's own z-index:0 above to stay
-   contained to this card instead of escaping into the page's stacking
-   context.
-   top:/bottom: alone anchors the box's EDGE, not the icon's visual center —
-   since the box (220-320px) is nearly as tall as the banner itself, that
-   left most of the icon hanging past the middle instead of near the corner.
-   The extra ±50% in the transform corrects for the box's own half-height,
-   so the offset below is the icon's actual center distance from the
-   top/bottom edge, not the box edge. */
-.spotlight-banner::before, .spotlight-banner::after{
-	content: ""; position: absolute; z-index: -1; pointer-events: none;
+@media (min-width: 600px){
+	.spotlight-banner{padding: 22px;}
+}
+/* Corner watermark and glow wash both crossfade between characters via a
+   two-layer A/B pattern — same technique as #regionBgA/#regionBgB in
+   app.js's setRegionBackground(): two persistent real elements, write the
+   new color/image to whichever one is currently inactive, toggle
+   is-active on both, and let the opacity transition below do the rest.
+   Plain custom-property values (--el-glow/--el-icon) can't be transitioned
+   by the browser on their own — this sidesteps that entirely rather than
+   relying on it.
+   z-index:-1/0 need .spotlight-banner's own z-index:0 to stay contained to
+   this card instead of escaping into the page's stacking context.
+   top: alone anchors the box's EDGE, not the icon's visual center — since
+   the box (220-320px) is nearly as tall as the banner itself, that left
+   most of the icon hanging past the middle instead of near the corner. The
+   extra -50% in the transform corrects for the box's own half-height, so
+   the offset below is the icon's actual center distance from the top edge,
+   not the box edge. */
+.spotlight-banner-icon{
+	position: absolute; z-index: -1; pointer-events: none;
+	top: 70px; left: 0; transform: translate(-40%, -50%);
 	width: 220px; height: 220px;
 	background-repeat: no-repeat; background-position: center; background-size: contain;
-	opacity: 0.16;
+	opacity: 0; transition: opacity 0.4s ease;
 }
-.spotlight-banner::before{top: 70px; left: 0; transform: translate(-40%, -50%); background-image: var(--el-icon-a, none);}
-.spotlight-banner::after{bottom: 70px; right: 0; transform: translate(40%, 50%); background-image: var(--el-icon-b, none);}
+.spotlight-banner-icon.is-active{opacity: 0.16;}
+/* Second icon at the opposite corner — mirrors the top-left positioning
+   math exactly (bottom/right instead of top/left, transform signs
+   flipped). Tried one big centered icon instead (behind the splash art)
+   but it mostly disappeared under the character art itself, since the
+   pose leaves little empty space in the middle — the corners actually use
+   the negative space the art leaves free. */
+.spotlight-banner-icon.is-bottom-right{
+	top: auto; left: auto; bottom: 70px; right: 0; transform: translate(40%, 50%);
+}
 @media (min-width: 600px){
-	.spotlight-banner::before, .spotlight-banner::after{width: 320px; height: 320px;}
-	.spotlight-banner::before{top: 90px;}
-	.spotlight-banner::after{bottom: 90px;}
+	.spotlight-banner-icon{width: 320px; height: 320px; top: 90px;}
+	.spotlight-banner-icon.is-bottom-right{top: auto; bottom: 90px;}
 }
 .spotlight-banner-glow{
 	position: absolute; inset: 0; z-index: 0; pointer-events: none;
-	background:
-		radial-gradient(circle at 20% 15%, var(--el-a, var(--five-glow)) 0%, transparent 55%),
-		radial-gradient(circle at 80% 85%, var(--el-b, var(--four-glow)) 0%, transparent 55%);
-	opacity: 0.55;
+	opacity: 0; transition: opacity 0.4s ease;
 }
-.spotlight-banner-figures{
+.spotlight-banner-glow.is-active{opacity: 0.55;}
+/* All figures share one grid cell (stacked, not side by side) so only the
+   active one shows at a time — a display:grid with every child on the same
+   row/column sizes itself to the tallest occupant automatically, without
+   needing to measure or guess a fixed height for absolutely-positioned
+   layers. Only one character showing at once means it can render much
+   bigger than the old side-by-side layout allowed. */
+.spotlight-carousel{
 	position: relative; z-index: 1;
-	display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end;
+	display: grid; grid-template-columns: 1fr;
 }
+/* Only added when there's more than one figure to drag between — a single-
+   5-star phase has no carousel behavior wired up at all (see
+   buildSpotlightBanner's early return in landing.js), so a grab cursor
+   there would advertise an interaction that doesn't exist. */
+.spotlight-carousel.is-interactive{
+	/* pan-y: let vertical page scroll happen natively on touch, while JS
+	   handles horizontal drag/swipe itself instead of the browser treating
+	   it as a scroll gesture. */
+	touch-action: pan-y;
+	cursor: grab;
+	user-select: none;
+}
+.spotlight-carousel.is-interactive.is-dragging{cursor: grabbing;}
+/* transform/opacity/filter are ALWAYS driven from JS per frame here (see
+   buildSpotlightBanner in landing.js) — drag, momentum coast, and the
+   settle-to-rest sweep alike — never a CSS transition. No transition
+   property is set on this element at all. */
 .spotlight-figure{
-	flex: 1 1 200px; max-width: 440px; padding: 0 16px;
+	grid-column: 1; grid-row: 1; justify-self: center;
+	width: 100%; max-width: 680px; padding: 0 6px;
 	display: flex; flex-direction: column; align-items: center;
 }
-/* Only meaningful once the two figures actually sit side by side — below
-   this they wrap into a single column and a left border reads as a stray
-   line rather than a divider. Matches the 600px breakpoint the rest of this
-   page's layout switches use. */
+.spotlight-figure.is-active{z-index: 1;}
 @media (min-width: 600px){
-	.spotlight-banner-figures.has-two .spotlight-figure + .spotlight-figure{
-		border-left: 1px solid var(--glass-border);
-	}
+	.spotlight-figure{padding: 0 16px;}
 }
+.spotlight-dots{
+	position: relative; z-index: 1;
+	display: flex; justify-content: center; gap: 8px;
+	margin-top: 14px;
+}
+.spotlight-dot{
+	width: 8px; height: 8px; padding: 0; border: none; border-radius: 50%;
+	background-color: var(--glass-border-hover); cursor: pointer;
+	transition: background-color 0.25s, transform 0.25s;
+}
+.spotlight-dot:hover{background-color: var(--text-dim);}
+.spotlight-dot.is-active{background-color: var(--five); transform: scale(1.3);}
 /* cover, not contain — the source's 2:1 canvas has a lot of empty margin on
    either side of the character (see splashPath() in landing.js), so a
    contain-fit box was mostly showing blank space. Cropping tighter than the
    canvas is safe since the character is always centered with room to spare
    on both sides. */
 .spotlight-figure-img{
+	/* Tried 1.25 (taller box) to reclaim the height the label overlap below
+	   frees up, but a taller box means object-fit:cover has to crop MORE off
+	   the sides to fill it (fixed 2:1 source canvas) — visibly cut into
+	   wingtips/spike-tips that 1.3 was keeping clear. Kept at 1.3; the
+	   banner just ends up a little shorter now instead, which is the
+	   better trade than cropping the art. */
 	width: 100%; aspect-ratio: 1.3 / 1; object-fit: cover; object-position: center; display: block;
 	filter: drop-shadow(0 10px 18px rgba(0,0,0,0.5));
 }
@@ -104,7 +154,13 @@
 .spotlight-figure-label{
 	position: relative; z-index: 1;
 	display: flex; flex-direction: column; align-items: center; gap: 6px;
-	margin-top: -22px;
+	/* -43px, not -22px — the label's own natural height (name + gap + tags),
+	   so the WHOLE label sits inside the image's box instead of just the
+	   name. Previously only the name overlapped and the tag row spilled
+	   ~21px past the image's bottom edge into otherwise-empty space; pulling
+	   the whole label up reclaims that height for the image itself instead
+	   (see .spotlight-figure-img's aspect-ratio). */
+	margin-top: -43px;
 }
 /* Overlapping the art on purpose — reads as a poster title instead of a
    caption. The shadow (not a background box) is what keeps it legible
@@ -114,6 +170,23 @@
 	text-shadow: 0 2px 6px rgba(0,0,0,0.85), 0 0 16px rgba(0,0,0,0.6);
 }
 .spotlight-figure-tags{display: flex; align-items: center; gap: 8px;}
+/* .rerun-tag/.rate-down-tag's shared defaults (in style.css) are tuned for
+   sitting on the Timeline's flat glass card background — a faint
+   rgba(255,255,255,0.08) pill with dim text reads fine there, but
+   disappears against busy/bright splash art here. is-first ("Release")
+   already has a solid --five background so it's excluded — :not(.is-first)
+   isn't optional here: .rerun-tag and .rerun-tag.is-first both carry the
+   same 2-class specificity as this selector, so without it this rule loads
+   after style.css's and silently wins the tie, wiping out the gold
+   "Release" styling too. */
+.spotlight-figure-tags .rerun-tag:not(.is-first){
+	background-color: rgba(10,10,16,0.6); color: var(--text);
+	backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+.spotlight-figure-tags .rate-down-tag{
+	background-color: rgba(10,10,16,0.6); color: var(--text-dim);
+	backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
 
 /* ---------- 4-star mini cards — same card language as the banner above ---------- */
 .spotlight-fourcards{
