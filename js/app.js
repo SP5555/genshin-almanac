@@ -3,6 +3,7 @@ var characterNotes = {};
 var phaseNotes = {};
 var versionMeta = {};
 var characterElements = {};
+var characterAliases = {};
 
 function groupByMajor(data) {
 	let groups = [];
@@ -384,6 +385,30 @@ function highlightMatches(name, strippedQuery) {
 	return frag;
 }
 
+function strip(s) {
+	return s.toLowerCase().replace(/\s+/g, "");
+}
+
+// Ranks a character's match against the query into 4 tiers so primary-name
+// matches always outrank alias matches, not just whichever string happened
+// to start with the query: 0 = name starts with query, 1 = name contains
+// it, 2 = an alias starts with it, 3 = an alias only contains it. `key` is
+// the matched string (name, or the best-matching alias) used to alphabetize
+// within a tier.
+function matchInfo(name, strippedQuery) {
+	let nameStripped = strip(name);
+	if (nameStripped.includes(strippedQuery)) {
+		return { tier: nameStripped.startsWith(strippedQuery) ? 0 : 1, key: nameStripped };
+	}
+	let matches = (characterAliases[name] || [])
+		.map(strip)
+		.filter(a => a.includes(strippedQuery));
+	if (matches.length === 0) return null;
+	let starts = matches.filter(a => a.startsWith(strippedQuery));
+	let pool = (starts.length ? starts : matches).sort();
+	return { tier: starts.length ? 2 : 3, key: pool[0] };
+}
+
 function initSearch() {
 	let input = document.getElementById("charSearchInput");
 	let results = document.getElementById("charSearchResults");
@@ -420,23 +445,41 @@ function initSearch() {
 		if (!strippedQuery) return;
 
 		currentMatches = Object.keys(characterIndex)
-			.filter(name => name.toLowerCase().replace(/\s+/g, "").includes(strippedQuery))
+			.map(name => ({ name, info: matchInfo(name, strippedQuery) }))
+			.filter(x => x.info)
 			.sort((a, b) => {
-				let aLower = a.toLowerCase(), bLower = b.toLowerCase();
-				let aStarts = aLower.replace(/\s+/g, "").startsWith(strippedQuery);
-				let bStarts = bLower.replace(/\s+/g, "").startsWith(strippedQuery);
-				if (aStarts !== bStarts) return aStarts ? -1 : 1;
-				return aLower.localeCompare(bLower);
-			});
+				if (a.info.tier !== b.info.tier) return a.info.tier - b.info.tier;
+				if (a.info.key !== b.info.key) return a.info.key.localeCompare(b.info.key);
+				return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+			})
+			.map(x => x.name);
 		if (currentMatches.length === 0) return;
 
 		currentMatches.forEach((name, i) => {
 			let item = document.createElement("div");
 			item.className = "char-search-result";
 			item.appendChild(faceImg(name, "char-search-avatar"));
+
+			let textWrap = document.createElement("div");
+			textWrap.className = "char-search-result-text";
+
 			let nameWrap = document.createElement("span");
+			nameWrap.className = "char-search-name";
 			nameWrap.appendChild(highlightMatches(name, strippedQuery));
-			item.appendChild(nameWrap);
+			textWrap.appendChild(nameWrap);
+
+			let aliases = (characterAliases[name] || []).filter(a => strip(a).includes(strippedQuery));
+			if (aliases.length) {
+				let aliasWrap = document.createElement("span");
+				aliasWrap.className = "char-search-alias";
+				aliases.forEach((alias, idx) => {
+					if (idx > 0) aliasWrap.appendChild(document.createTextNode(", "));
+					aliasWrap.appendChild(highlightMatches(alias, strippedQuery));
+				});
+				textWrap.appendChild(aliasWrap);
+			}
+
+			item.appendChild(textWrap);
 			item.addEventListener("click", () => selectResult(name));
 			item.addEventListener("mouseenter", () => {
 				activeIndex = i;
@@ -674,17 +717,19 @@ async function loadJSON(path) {
 
 async function bootstrap() {
 	try {
-		let [data, notes, phases, versions, elements] = await Promise.all([
+		let [data, notes, phases, versions, elements, aliases] = await Promise.all([
 			loadJSON("data/data.json"),
 			loadJSON("data/character-notes.json"),
 			loadJSON("data/phase-notes.json"),
 			loadJSON("data/version-notes.json"),
-			loadJSON("data/character-elements.json")
+			loadJSON("data/character-elements.json"),
+			loadJSON("data/character-aliases.json")
 		]);
 		characterNotes = notes;
 		phaseNotes = phases;
 		versionMeta = versions;
 		characterElements = elements;
+		characterAliases = aliases;
 
 		init(data);
 		initCharPanel();

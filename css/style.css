@@ -133,11 +133,14 @@ body::-webkit-scrollbar{display: none;}
 .page-nav-link{
 	font-size: 13px; font-weight: bold; letter-spacing: 0.3px;
 	color: var(--text-dim); text-decoration: none;
-	padding-bottom: 3px; border-bottom: 2px solid transparent;
-	transition: color 0.2s, border-color 0.2s;
+	padding: 5px 12px; border-radius: var(--radius-full);
+	transition: color 0.2s, background-color 0.2s, box-shadow 0.2s;
 }
 .page-nav-link:hover{color: var(--text);}
-.page-nav-link.is-active{color: var(--five); border-bottom-color: var(--five);}
+.page-nav-link.is-active{
+	color: var(--five); background-color: var(--glass-hover);
+	box-shadow: 0 0 10px -2px var(--five-glow);
+}
 @media (min-width: 600px){
 	.site-header{padding: 16px 0;}
 	.site-header-inner{flex-direction: row; align-items: center; gap: 28px;}
@@ -259,10 +262,33 @@ body::-webkit-scrollbar{display: none;}
 	width: 24px; height: 24px; border-radius: 50%; object-fit: contain; flex-shrink: 0;
 	background-color: rgba(255,255,255,0.06);
 }
+.char-search-result-text{
+	display: flex; flex-direction: column; gap: 1px; min-width: 0;
+}
+.char-search-alias{font-size: 11px; color: var(--text-dim);}
 .char-search-match{color: var(--five); font-weight: bold;}
 .char-search-result.is-active{background-color: var(--glass-hover);}
 
 /* ---------- timeline root ---------- */
+@keyframes timeline-intro-reveal{
+	from{opacity: 0; transform: translateY(16px);}
+	to{opacity: 1; transform: translateY(0);}
+}
+.timeline-intro{
+	padding: 36px 0 4px 0; text-align: center;
+	animation: timeline-intro-reveal 0.6s ease both;
+}
+.timeline-title{
+	font-size: 28px; font-weight: bold; letter-spacing: 0.5px;
+	background: linear-gradient(90deg, var(--five), var(--four));
+	-webkit-background-clip: text; background-clip: text; color: transparent;
+	display: inline-block;
+}
+.timeline-subtitle{font-size: 13px; color: var(--text-dim); max-width: 480px; margin: 10px auto 0; line-height: 1.5;}
+@media (prefers-reduced-motion: reduce){
+	.timeline-intro{animation: none;}
+}
+
 .timeline-root{
 	padding: 20px 0 60px 0;
 	transition: transform 0.4s ease;
