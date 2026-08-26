@@ -69,6 +69,11 @@ function buildSpotlightFigure(character, data, versionIdx, phaseIdx, notes) {
 	let figure = document.createElement("div");
 	figure.className = "spotlight-figure";
 
+	// See .spotlight-figure-img-wrap in landing.css for why this wrapper
+	// exists — it reserves the height, the <img> inside bleeds past its
+	// sides on purpose instead of being cropped to fit.
+	let imgWrap = document.createElement("div");
+	imgWrap.className = "spotlight-figure-img-wrap";
 	let img = document.createElement("img");
 	img.className = "spotlight-figure-img";
 	img.src = splashPath(character);
@@ -82,7 +87,8 @@ function buildSpotlightFigure(character, data, versionIdx, phaseIdx, notes) {
 	// to the square face icon (already sourced for all of them) rather than
 	// showing a broken image.
 	img.onerror = () => { img.onerror = null; img.src = facePath(character); img.classList.add("is-fallback"); };
-	figure.appendChild(img);
+	imgWrap.appendChild(img);
+	figure.appendChild(imgWrap);
 
 	let label = document.createElement("div");
 	label.className = "spotlight-figure-label";
@@ -111,10 +117,13 @@ function buildSpotlightFigure(character, data, versionIdx, phaseIdx, notes) {
 
 const CAROUSEL_INTERVAL_MS = 5000;
 const CAROUSEL_SETTLE_MS = 320;
-const CAROUSEL_MAX_BLUR_PX = 10;
 // How dark an off-center slot gets at dist >= 1 — a literal "spotlight
-// swinging away" dim, layered on top of the existing blur/fade/opacity.
+// swinging away" dim, layered on top of the existing fade/tilt.
 const CAROUSEL_MIN_BRIGHTNESS = 0.1;
+// Max 3D tilt (deg) a slot reaches, pivoting around its own center (see
+// .spotlight-carousel's `perspective` in landing.css) — a card turning away
+// in real depth rather than just sliding flat.
+const CAROUSEL_MAX_TILT_DEG = 38;
 // position-units are "how many carousel widths of drag" — 1.0 = exactly one
 // full slide over. Velocity below FLING_MIN is treated as a plain release
 // (snap immediately); above it, momentum keeps going and decays by
@@ -267,9 +276,17 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 			// nearly invisible from fading out. Ramping twice as fast makes
 			// the dim itself the visible part of the transition.
 			let brightness = 1 - Math.min(1, dist * 2) * (1 - CAROUSEL_MIN_BRIGHTNESS);
-			slot.el.style.transform = `translateX(${diff * getSlotPx()}px)`;
+			// Same "reach full effect by dist 0.4, not 1" fix as brightness
+			// above, for the same reason — ramping the tilt all the way to
+			// dist 1 meant it only got visibly large right as opacity had
+			// already faded the card out, so it never read as depth. The
+			// resting (fully off-center) card is invisible either way, so
+			// front-loading this doesn't cost anything there.
+			let tiltFraction = Math.max(-1, Math.min(1, diff / 0.4));
+			let tilt = tiltFraction * CAROUSEL_MAX_TILT_DEG;
+			slot.el.style.transform = `translateX(${diff * getSlotPx()}px) rotateY(${-tilt}deg)`;
 			slot.el.style.opacity = String(Math.max(0, 1 - dist));
-			slot.el.style.filter = `blur(${Math.min(CAROUSEL_MAX_BLUR_PX, dist * CAROUSEL_MAX_BLUR_PX * 1.4)}px) brightness(${brightness})`;
+			slot.el.style.filter = `brightness(${brightness})`;
 			slot.el.classList.toggle("is-active", slot.offset === 0);
 		});
 		dotEls.forEach((d, i) => d.classList.toggle("is-active", i === baseIndex));
