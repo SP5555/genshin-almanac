@@ -31,23 +31,37 @@
         <p class="landing-tagline">Everything dated, everything tracked — because nobody else kept score.</p>
       </section>
 
-      <section class="landing-spotlight">
+      <section class="landing-spotlight-intro">
         <div class="landing-spotlight-label">Now Live</div>
         <h2 class="landing-spotlight-heading" id="spotlightHeading">Loading…</h2>
         <p class="landing-spotlight-sub" id="spotlightSub"></p>
-        <div id="spotlightCard"></div>
       </section>
 
-      <section class="landing-links">
-        <a href="timeline.html" class="landing-link-card">
-          <span class="landing-link-title">Full Timeline</span>
-          <span class="landing-link-desc">Every banner from version 1.0 to today, with full character history.</span>
-        </a>
-        <a href="clocks.html" class="landing-link-card">
-          <span class="landing-link-title">Server Clocks</span>
-          <span class="landing-link-desc">Daily reset countdowns and the next update estimate, in your time zone.</span>
-        </a>
-      </section>
+      <div class="landing-columns">
+
+        <section class="landing-spotlight">
+          <div id="spotlightCard"></div>
+        </section>
+
+        <aside class="landing-sidebar">
+          <section class="landing-trivia">
+            <div class="landing-trivia-label">Did You Know?</div>
+            <div id="triviaTicker"></div>
+          </section>
+
+          <section class="landing-links">
+            <a href="timeline.html" class="landing-link-card">
+              <span class="landing-link-title">Full Timeline<span class="landing-link-arrow" aria-hidden="true">›</span></span>
+              <span class="landing-link-desc">Every banner from version 1.0 to today, with full character history.</span>
+            </a>
+            <a href="clocks.html" class="landing-link-card">
+              <span class="landing-link-title">Server Clocks<span class="landing-link-arrow" aria-hidden="true">›</span></span>
+              <span class="landing-link-desc">Daily reset countdowns and the next update estimate, in your time zone.</span>
+            </a>
+          </section>
+        </aside>
+
+      </div>
 
     </div>
   </main>

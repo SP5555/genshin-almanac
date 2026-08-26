@@ -528,6 +528,213 @@ function buildSpotlightFourCard(character, data, versionIdx, phaseIdx, notes, el
 	return card;
 }
 
+const TRIVIA_INTERVAL_MS = 6000;
+
+function formatMonthDayYear(dateStr) {
+	return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+// data.json only has ~52 launch dates spread across 365 possible days, so a
+// strict "exact date match" would be empty on ~86% of days (checked against
+// the real data). Instead this always surfaces the nearest anniversary —
+// past and future — falling back to a real "on this day" card on the rare
+// day one lands exactly (e.g. 1.0 and 3.1 both launched on Sep 28, in
+// different years).
+function getAnniversaryCards(data, versionMeta, now) {
+	let year = now.getFullYear();
+	// Normalized to local midnight — thisCycle is always midnight too, so
+	// diffing against the raw now() (with its time-of-day) would round the
+	// day count up or down depending on what time it is when the page loads.
+	let today = new Date(year, now.getMonth(), now.getDate());
+	let best = { past: null, future: null };
+	for (let entry of data) {
+		let launch = new Date(entry.date + "T00:00:00");
+		let thisCycle = new Date(year, launch.getMonth(), launch.getDate());
+		let diffDays = Math.round((thisCycle - today) / 86400000);
+		if (diffDays <= 0) {
+			// Ties (two versions sharing a month-day) break toward whichever
+			// real occurrence is chronologically closest to now.
+			if (!best.past || diffDays > best.past.diffDays ||
+				(diffDays === best.past.diffDays && Math.abs(year - launch.getFullYear()) < Math.abs(year - best.past.launch.getFullYear()))) {
+				best.past = { entry, launch, diffDays };
+			}
+		} else {
+			if (!best.future || diffDays < best.future.diffDays ||
+				(diffDays === best.future.diffDays && Math.abs(year - launch.getFullYear()) < Math.abs(year - best.future.launch.getFullYear()))) {
+				best.future = { entry, launch, diffDays };
+			}
+		}
+	}
+
+	let region = entry => (versionMeta[entry.version.split(".")[0]] || {}).region || "";
+
+	if (best.past && best.past.diffDays === 0) {
+		let { entry, launch } = best.past;
+		return [`🎉 On this day in ${launch.getFullYear()}, version ${entry.version} (${region(entry)}) launched!`];
+	}
+
+	let cards = [];
+	if (best.past) {
+		let { entry, diffDays } = best.past;
+		let daysAgo = -diffDays;
+		cards.push(`${daysAgo} day${daysAgo === 1 ? "" : "s"} ago — version ${entry.version} (${region(entry)}) launched on ${formatMonthDayYear(entry.date)}.`);
+	}
+	if (best.future) {
+		let { entry, diffDays } = best.future;
+		cards.push(`Coming up in ${diffDays} day${diffDays === 1 ? "" : "s"} on the calendar — version ${entry.version} (${region(entry)}) launched on ${formatMonthDayYear(entry.date)}.`);
+	}
+	return cards;
+}
+
+function shuffle(arr) {
+	let result = arr.slice();
+	for (let i = result.length - 1; i > 0; i--) {
+		let j = Math.floor(Math.random() * (i + 1));
+		[result[i], result[j]] = [result[j], result[i]];
+	}
+	return result;
+}
+
+function sampleTrivia(pool, n) {
+	return shuffle(pool).slice(0, n);
+}
+
+function buildTriviaTicker(cards) {
+	let wrap = document.createElement("div");
+	wrap.className = "trivia-ticker";
+
+	let textEl = document.createElement("p");
+	textEl.className = "trivia-text";
+	textEl.setAttribute("aria-live", "polite");
+
+	let dots = document.createElement("div");
+	dots.className = "trivia-dots";
+	let dotEls = cards.map((_, i) => {
+		let dot = document.createElement("button");
+		dot.type = "button";
+		dot.className = "trivia-dot" + (i === 0 ? " is-active" : "");
+		dot.setAttribute("aria-label", `Show fact ${i + 1}`);
+		dots.appendChild(dot);
+		return dot;
+	});
+
+	// No point animating a countdown for a state that never advances — also
+	// keeps the bar from implying auto-advance is happening when reduced
+	// motion has actually turned it off.
+	let autoAdvanceEnabled = cards.length > 1 && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+	let progress = null;
+	let progressFill = null;
+	if (autoAdvanceEnabled) {
+		progress = document.createElement("div");
+		progress.className = "trivia-progress";
+		progressFill = document.createElement("div");
+		progressFill.className = "trivia-progress-fill";
+		progressFill.style.animationDuration = TRIVIA_INTERVAL_MS + "ms";
+		progress.appendChild(progressFill);
+	}
+
+	function resetProgress() {
+		if (!progressFill) return;
+		progressFill.classList.remove("is-animating");
+		void progressFill.offsetWidth; // force reflow so the restart below actually restarts the animation
+		progressFill.classList.add("is-animating");
+	}
+
+	let activeIndex = 0;
+	let timer = null;
+	// How much of the current card's on-screen time is left before it
+	// auto-advances, and when the currently-running countdown last (re)started
+	// — together these let stopAuto()/startAuto() pause and resume the *real*
+	// advance timing to match what the CSS progress bar visually does on
+	// hover (animation-play-state:paused freezes and later resumes from
+	// wherever it was, rather than restarting a full interval), instead of
+	// the bar reading "done" while the actual switch is still a full
+	// TRIVIA_INTERVAL_MS away.
+	let remainingMs = TRIVIA_INTERVAL_MS;
+	let segmentStart = null;
+
+	function render(index) {
+		// Locks the box at its current rendered height before the swap, then
+		// measures the new content's natural height (with height:auto, so
+		// min-height still applies as a floor) and animates to that — CSS
+		// can't transition to/from "auto" on its own, so this "flip" pair of
+		// forced-reflow reads is what gives the transition real start/end
+		// pixel values to animate between.
+		let startHeight = textEl.getBoundingClientRect().height;
+		textEl.style.height = startHeight + "px";
+		textEl.classList.add("is-fading");
+		setTimeout(() => {
+			textEl.textContent = cards[index];
+			textEl.style.height = "auto";
+			let endHeight = textEl.getBoundingClientRect().height;
+			textEl.style.height = startHeight + "px";
+			textEl.offsetHeight; // force reflow so the revert above commits before animating
+			textEl.style.height = endHeight + "px";
+			textEl.classList.remove("is-fading");
+		}, 200);
+		dotEls.forEach((d, i) => d.classList.toggle("is-active", i === index));
+		resetProgress();
+	}
+
+	function goTo(i) {
+		activeIndex = (i + cards.length) % cards.length;
+		remainingMs = TRIVIA_INTERVAL_MS;
+		render(activeIndex);
+	}
+
+	// Idempotent (always clears first) since hover and dot-clicks can both
+	// call this independently without knowing whether a timer is running —
+	// same pattern as the spotlight carousel's startAutoAdvance. Guarded by
+	// autoAdvanceEnabled (not just cards.length) so a dot click can't
+	// accidentally re-enable the timer when reduced motion turned it off.
+	// Uses a single setTimeout for whatever time is actually left (not a
+	// fixed-period setInterval) so pausing partway through and resuming
+	// continues the same countdown instead of restarting it.
+	function startAuto() {
+		clearTimeout(timer);
+		if (!autoAdvanceEnabled) return;
+		segmentStart = Date.now();
+		// goTo() resets remainingMs to a full TRIVIA_INTERVAL_MS for the new
+		// card, so re-calling startAuto() right after it schedules the next
+		// full-length segment — this is what keeps auto-advance repeating
+		// indefinitely, same as the old setInterval version did on its own.
+		timer = setTimeout(() => { goTo(activeIndex + 1); startAuto(); }, remainingMs);
+	}
+	function stopAuto() {
+		clearTimeout(timer);
+		if (segmentStart !== null) {
+			remainingMs = Math.max(0, remainingMs - (Date.now() - segmentStart));
+			segmentStart = null;
+		}
+	}
+
+	dotEls.forEach((dot, i) => dot.addEventListener("click", () => {
+		stopAuto();
+		goTo(i);
+		startAuto();
+	}));
+
+	// Paused by hovering the whole .landing-trivia card (including the "Did
+	// You Know?" label), not just wrap/.trivia-ticker itself — that's a
+	// static element already in index.html, present before this ever
+	// builds, so it's safe to grab by selector rather than needing wrap to
+	// already be inserted into the DOM.
+	let section = document.querySelector(".landing-trivia");
+	section.addEventListener("mouseenter", stopAuto);
+	section.addEventListener("mouseleave", startAuto);
+
+	wrap.appendChild(textEl);
+	if (cards.length > 1) wrap.appendChild(dots);
+	if (progress) wrap.appendChild(progress);
+	textEl.textContent = cards[0];
+
+	startAuto();
+	if (progressFill) progressFill.classList.add("is-animating");
+
+	return wrap;
+}
+
 function buildSpotlight(data, versionIdx, phaseIdx, notes, elements) {
 	let entry = data[versionIdx];
 	let phase = entry.banner[phaseIdx];
@@ -558,20 +765,23 @@ function buildSpotlight(data, versionIdx, phaseIdx, notes, elements) {
 
 async function bootstrapLanding() {
 	try {
-		let [dataRes, notesRes, versionRes, elementsRes] = await Promise.all([
+		let [dataRes, notesRes, versionRes, elementsRes, triviaRes] = await Promise.all([
 			fetch("data/data.json"),
 			fetch("data/character-notes.json"),
 			fetch("data/version-notes.json"),
 			fetch("data/character-elements.json"),
+			fetch("data/trivia.json"),
 		]);
 		if (!dataRes.ok) throw new Error(`Failed to load data.json: ${dataRes.status}`);
 		if (!notesRes.ok) throw new Error(`Failed to load character-notes.json: ${notesRes.status}`);
 		if (!versionRes.ok) throw new Error(`Failed to load version-notes.json: ${versionRes.status}`);
 		if (!elementsRes.ok) throw new Error(`Failed to load character-elements.json: ${elementsRes.status}`);
+		if (!triviaRes.ok) throw new Error(`Failed to load trivia.json: ${triviaRes.status}`);
 		let data = await dataRes.json();
 		let notes = await notesRes.json();
 		let versionMeta = await versionRes.json();
 		let elements = await elementsRes.json();
+		let triviaPool = await triviaRes.json();
 
 		let versionIdx = data.length - 1;
 		let entry = data[versionIdx];
@@ -580,6 +790,9 @@ async function bootstrapLanding() {
 		document.getElementById("spotlightHeading").textContent = `Version ${entry.version} — Phase ${phaseIdx + 1}`;
 		document.getElementById("spotlightSub").textContent = `Live since ${formatDate(entry.date)}`;
 		document.getElementById("spotlightCard").replaceWith(buildSpotlight(data, versionIdx, phaseIdx, notes, elements));
+
+		let triviaCards = shuffle([...getAnniversaryCards(data, versionMeta, new Date()), ...sampleTrivia(triviaPool, 3)]);
+		document.getElementById("triviaTicker").replaceWith(buildTriviaTicker(triviaCards));
 
 		// Same background recipe as the Timeline's per-version region art (see
 		// setRegionBackground() in app.js) — always the *current* region rather

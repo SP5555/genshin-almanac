@@ -43,6 +43,8 @@ they can't tell you.
 - `assets/faces/<name>.png`, `assets/namecards/<name>.jpg`,
   `assets/elements/<element>.svg`, `assets/regions/<region>.jpg`,
   `assets/backgrounds/server-clocks.webp`, `assets/fonts/zh-cn.ttf`.
+- `scripts/validate-data.js` (`npm run validate`) — cross-checks the
+  `data/*.json` files against each other; see "Data validation" below.
 
 ## Landing page (`index.html` / `js/landing.js` / `css/landing.css`)
 
@@ -83,6 +85,83 @@ currently running, computed rather than hand-maintained:
   rather than hardcoding today's region (Snezhnaya) — otherwise it'd go
   stale the moment a new region drops, same mistake the update-card
   override file already got rejected for.
+
+### Spotlight carousel
+Physics-driven, drag/momentum/3D-tilt — deliberately heavier than every
+other interactive bit on this page (see "Trivia ticker" below for the
+opposite call). Fixed 3-slot ring buffer (prev/center/next) rather than one
+DOM node per character — needed because a 2-character banner has the same
+character visible on both sides at once, which breaks any "which side does
+this go on" logic; content reassignment only happens inside
+`resolveRotation()` the instant a slot is fully offscreen (`dist ≥ 1.5`).
+Multi-step jumps (e.g. dot-clicking 2 characters over) run as **one**
+continuous rAF sweep, not chained CSS transitions — chaining caused a
+visible dead-stop at the midpoint character before re-accelerating.
+3D tilt (`perspective` + `rotateY`) reaches full magnitude by `dist:0.4`,
+not `dist:1` — ramping linearly to `dist:1` meant it only got visibly large
+right as opacity had already faded the card to nothing, so it never read
+as depth (same "front-load the effect" fix applied to the brightness dim).
+Splash art: `object-fit` (cover or contain) always clips to its own box, no
+matter what an ancestor's `overflow` says — to get cover's exact scale
+*without* the crop, the `<img>` is absolutely positioned inside a
+fixed-aspect-ratio wrapper, sized by height alone (width left to its
+natural 2:1 ratio) so it bleeds past the wrapper's sides symmetrically,
+clipped only by `.spotlight-banner` itself. Must be `position:absolute`,
+not a flex child sized by `height:100%` — a flex child's percentage height
+resolving against a purely `aspect-ratio`-derived container height is
+circular (the container's content-size pass sees the image's raw 1024px
+intrinsic height before `aspect-ratio` constrains it), inflating the
+wrapper to the wrong size.
+
+### Trivia ticker
+Deliberately the *lightweight* opposite of the spotlight carousel above —
+plain text, no drag physics, auto-advance/dots/pause-on-hover only. Cards
+come from two sources: real version-anniversary facts (computed) and a
+hand-written pool in `data/trivia.json` (flat string array, 3 sampled per
+load), shuffled together so an anniversary card doesn't always lead.
+- **Anniversaries are nearest-match, not exact-date** — checked the real
+  spread first: 52 versions land on only 51 of 365 possible month-days, so
+  a strict "today" match would be empty ~86% of the time. Always shows the
+  nearest past *and* nearest future launch anniversary instead, collapsing
+  to a single "🎉 on this day" card on the rare exact hit (this does
+  happen — 1.0 and 3.1 both launched on Sep 28, different years; ties
+  break toward whichever occurrence is chronologically closest to today).
+- **Auto-advance timer uses `setTimeout` + a tracked `remainingMs`, not
+  `setInterval`** — needed so pausing partway through and resuming
+  continues the same countdown (matching what the progress bar's CSS
+  `animation-play-state:paused` already does natively) instead of
+  restarting a full interval. Real bug hit here: the fired timeout must
+  reschedule itself (`goTo(...); startAuto();`) or auto-advance silently
+  stops repeating after the first cycle and the pause/resume bookkeeping
+  (`segmentStart`) goes stale, causing wildly wrong resume timing.
+- Progress bar's `animation-duration` is set inline from `TRIVIA_INTERVAL_MS`
+  rather than duplicated as a CSS value, and pausing is scoped to hovering
+  the *entire* `.landing-trivia` card (including the label), not just the
+  inner ticker — otherwise hovering the "Did You Know?" text wouldn't
+  actually pause anything despite visually highlighting.
+- Skips auto-advance entirely (dots still work) under
+  `prefers-reduced-motion`, and the progress bar isn't even built in that
+  case — showing a filling bar for a state that never advances would be
+  misleading.
+
+### Sidebar layout (desktop)
+Below 900px, everything is single-column exactly as it always was — no
+behavior differs. At ≥900px, `.landing-columns` becomes a flex row: the
+spotlight carousel (`flex:1`) on the left, a 320px sidebar (trivia ticker +
+link cards, stacked) on the right. The spotlight's own label/heading/sub
+text was pulled *out* of that column entirely into a full-width
+`.landing-spotlight-intro` above the split — only the carousel itself is
+the "left column" content.
+
+Link cards get a distinct hover language from the other three glass cards
+here (spotlight banner / 4-star cards / trivia) since they're the only
+ones that are actually clickable navigation: gold border + glow on hover,
+plus a **permanently visible** gold chevron (not hover-only) — hover
+doesn't exist on mobile at all, so the always-on chevron is what actually
+signals "this navigates" there; the chevron additionally "breathes" on
+hover, gated behind `@media (hover:hover) and (prefers-reduced-motion:
+no-preference)` since a touch device's post-tap "sticky hover" state could
+otherwise leave a looping animation visibly stuck on.
 
 ## Timeline page (`timeline.html` / `js/app.js`)
 
@@ -151,10 +230,25 @@ required for correct paint order (see gotcha #2).
 Sticky pill icon, expands to a text input on hover/focus (`width`
 transition — see gotcha #1 for why not `clip-path`). Filters
 `characterIndex` whitespace-insensitively (strip spaces from both query and
-name before comparing, map matches back onto the original string). Sorted
-"starts with" before "contains." Mouse and keyboard navigation drive the
-same `activeIndex`/`.is-active` state, so there's exactly one visual
-"selected" row.
+name before comparing, map matches back onto the original string). Mouse
+and keyboard navigation drive the same `activeIndex`/`.is-active` state, so
+there's exactly one visual "selected" row.
+
+**Alternate names** (`data/character-aliases.json`, keyed by canonical
+name → array of aliases, e.g. `"Tartaglia": ["Childe"]`): matches rank in
+four tiers — name-starts-with, name-contains, alias-starts-with,
+alias-contains — so a real name match always outranks an alias match
+rather than the two competing on equal footing. The result row's alias
+subtitle only shows whichever alias *actually matched the query*, not the
+character's full alias list — a character with several aliases (there are
+a few) would otherwise dump all of them under every result regardless of
+relevance.
+
+### Timeline intro
+`.timeline-intro` (title + one-line subtitle, mirrors Server Clocks'
+`.clocks-intro`) was added purely for cross-page consistency once the site
+had enough pages that Timeline being the only one without any framing text
+started to stand out.
 
 ### Release-glow rays
 `buildRays()` renders `count` absolutely-positioned ray divs per release
@@ -182,8 +276,11 @@ A small `#brandLiveDot` ripples next to it when the tracked data is live
 (same rule as the Timeline's `.is-live` ripple, computed independently in
 `shared.js` since the dot needs to work on every page). `.page-nav` links
 to Timeline and Server Clocks only — the landing page deliberately has no
-nav entry for itself. Active gets a gold underline. Per-page framing lives
-in each page's own body content, not the shared header.
+nav entry for itself. Active is a glass pill + soft gold glow (not an
+underline) — the pill's padding lives on the base `.page-nav-link` rule,
+not just `.is-active`, so every link occupies the same box regardless of
+which one is active and the nav's total width never shifts. Per-page
+framing lives in each page's own body content, not the shared header.
 
 ### Live "current version" indicator
 Pulsing ripple on the most recently *launched* `data.json` entry's patch
@@ -298,6 +395,19 @@ month, 4am server time).
 6. **`<svg>` has `overflow:hidden` by default**, clipping anything past its
    viewBox — including `filter:drop-shadow()` glow on a child near the
    edge. Set `overflow:visible` on the `<svg>` itself.
+7. **Multiple `backdrop-filter:blur()` elements on one page can visibly
+   "bleed"/ghost onto each other** in Chrome — reported as a faint white
+   gradient flashing across the unrelated 4-star cards whenever hovering a
+   landing link card, only at desktop widths where both sit in the same
+   flex-row layout. Not reproducible in headless/software-rendered
+   Chromium (this needs real GPU compositing), so treat it as a real class
+   of bug even without being able to see it locally. Fix: `isolation:
+   isolate` on the blurred elements so each composites independently
+   instead of sharing a backdrop bitmap with layout siblings; also make
+   sure any property that changes on `:hover` (e.g. `box-shadow`) is in
+   the element's `transition` list rather than popping in instantly, since
+   an abrupt style change is what seems to trigger the shared-bitmap
+   recompute in the first place.
 
 ## Art provenance
 
@@ -351,6 +461,18 @@ how it looked.
 Don't re-derive codenames by guessing for future characters/regions — they
 often don't match the display name.
 
+## Data validation
+`npm run validate` (`scripts/validate-data.js`) derives the canonical
+character/phase set from `data.json` (including `chronicled` entries, not
+just `banner[]` — an earlier ad-hoc check that forgot `chronicled` produced
+false positives) and cross-checks it against `character-notes.json`,
+`character-elements.json`, `character-aliases.json`, and `phase-notes.json`:
+orphaned keys, characters missing an element (or an element with no
+matching `assets/elements/*.svg`), alias strings reused across two
+characters, stale `phase-notes` keys, and missing face/namecard art (which
+fail *silently* in the UI — neither has an `onerror` fallback). Not wired
+into CI yet, so it only catches things when someone remembers to run it.
+
 ## Data accuracy note
 Verified 5.3–7.0 by cross-referencing game8.co/gamewith.net/etc. against
 each other (a single AI-summarized fetch of an aggregator page produced
@@ -384,10 +506,13 @@ to recover that delay by 3.3.
   explorer** (browse by nation; real gap: no character→region mapping
   exists yet — `character-elements.json` is element, not nation; needs a
   new `character-regions.json` with an explicit `"Unaffiliated"` sentinel
-  for characters like Skirk, not omission) → **"On this day"** page (free
-  now that every version has a real date).
-- Server Clocks (built) was the differentiator second page; Region/lore
-  explorer is the likely third.
+  for characters like Skirk, not omission).
+- "On this day" — the *concept* is now partly built as the landing trivia
+  ticker's anniversary cards (see "Trivia ticker" above), not a standalone
+  page. A dedicated page would need the same nearest-match handling (only
+  51/365 days have an exact hit).
+- Server Clocks (built) and the trivia ticker were the differentiators so
+  far; Region/lore explorer is the likely next page.
 
 ## Multi-page architecture
 Separate physical HTML pages (not a JS router/SPA) — zero-build, Netlify
