@@ -534,10 +534,13 @@ Verified 5.3–7.0 by cross-referencing game8.co/gamewith.net/etc. against
 each other (a single AI-summarized fetch of an aggregator page produced
 garbled version numbers — don't trust that alone). One moderate-confidence
 item: 6.2 Phase 2's 4-star trio (Iansan, Chevreuse, Gaming), confirmed
-twice via game8.co but not a third source. 7.0 Phase 2's 4-star trio is
-intentionally empty (not yet officially revealed as of last update). 7.1
-deliberately not added — was still beta-leak territory with no datamined
-icons.
+twice via game8.co but not a third source. 7.0 Phase 2's 4-star trio
+(Aino, Iansan, Lan Yan) was added once officially revealed — splash art
+sourced ahead of the phase's actual Sep 2, 2026 start (21 days after the
+Aug 12 launch, per `PHASE_LENGTH_DAYS`) so the landing page has real art
+instead of the face-icon fallback the moment `getCurrentPhaseIndex()`
+flips over, with no other code change needed. 7.1 deliberately not added
+— was still beta-leak territory with no datamined icons.
 
 1.0 launch roster (confirmed): Barbara, Fischl, Xiangling, Noelle, Sucrose,
 Xingqiu, Beidou, Ningguang, Chongyun, Razor, Bennett. Genuine within-1.X
