@@ -623,6 +623,8 @@ function buildTriviaTicker(cards) {
 	// motion has actually turned it off.
 	let autoAdvanceEnabled = cards.length > 1 && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+	let activeIndex = 0;
+
 	let progress = null;
 	let progressFill = null;
 	if (autoAdvanceEnabled) {
@@ -631,6 +633,13 @@ function buildTriviaTicker(cards) {
 		progressFill = document.createElement("div");
 		progressFill.className = "trivia-progress-fill";
 		progressFill.style.animationDuration = TRIVIA_INTERVAL_MS + "ms";
+		// The progress bar's own CSS animation *is* the auto-advance timer —
+		// advancing exactly when it visually finishes, rather than tracking
+		// elapsed/remaining time by hand in JS. That also makes pausing
+		// trivially correct: animation-play-state:paused (toggled by
+		// setPaused() below) is a real browser-native pause/resume, so the
+		// bar and the actual advance timing can never disagree.
+		progressFill.addEventListener("animationend", () => goTo(activeIndex + 1));
 		progress.appendChild(progressFill);
 	}
 
@@ -641,18 +650,9 @@ function buildTriviaTicker(cards) {
 		progressFill.classList.add("is-animating");
 	}
 
-	let activeIndex = 0;
-	let timer = null;
-	// How much of the current card's on-screen time is left before it
-	// auto-advances, and when the currently-running countdown last (re)started
-	// — together these let stopAuto()/startAuto() pause and resume the *real*
-	// advance timing to match what the CSS progress bar visually does on
-	// hover (animation-play-state:paused freezes and later resumes from
-	// wherever it was, rather than restarting a full interval), instead of
-	// the bar reading "done" while the actual switch is still a full
-	// TRIVIA_INTERVAL_MS away.
-	let remainingMs = TRIVIA_INTERVAL_MS;
-	let segmentStart = null;
+	function setPaused(paused) {
+		if (progressFill) progressFill.classList.toggle("is-paused", paused);
+	}
 
 	function render(index) {
 		// Locks the box at its current rendered height before the swap, then
@@ -679,58 +679,31 @@ function buildTriviaTicker(cards) {
 
 	function goTo(i) {
 		activeIndex = (i + cards.length) % cards.length;
-		remainingMs = TRIVIA_INTERVAL_MS;
 		render(activeIndex);
 	}
 
-	// Idempotent (always clears first) since hover and dot-clicks can both
-	// call this independently without knowing whether a timer is running —
-	// same pattern as the spotlight carousel's startAutoAdvance. Guarded by
-	// autoAdvanceEnabled (not just cards.length) so a dot click can't
-	// accidentally re-enable the timer when reduced motion turned it off.
-	// Uses a single setTimeout for whatever time is actually left (not a
-	// fixed-period setInterval) so pausing partway through and resuming
-	// continues the same countdown instead of restarting it.
-	function startAuto() {
-		clearTimeout(timer);
-		if (!autoAdvanceEnabled) return;
-		segmentStart = Date.now();
-		// goTo() resets remainingMs to a full TRIVIA_INTERVAL_MS for the new
-		// card, so re-calling startAuto() right after it schedules the next
-		// full-length segment — this is what keeps auto-advance repeating
-		// indefinitely, same as the old setInterval version did on its own.
-		timer = setTimeout(() => { goTo(activeIndex + 1); startAuto(); }, remainingMs);
-	}
-	function stopAuto() {
-		clearTimeout(timer);
-		if (segmentStart !== null) {
-			remainingMs = Math.max(0, remainingMs - (Date.now() - segmentStart));
-			segmentStart = null;
-		}
-	}
+	dotEls.forEach((dot, i) => dot.addEventListener("click", () => goTo(i)));
 
-	dotEls.forEach((dot, i) => dot.addEventListener("click", () => {
-		stopAuto();
-		goTo(i);
-		startAuto();
-	}));
-
-	// Paused by hovering the whole .landing-trivia card (including the "Did
-	// You Know?" label), not just wrap/.trivia-ticker itself — that's a
-	// static element already in index.html, present before this ever
-	// builds, so it's safe to grab by selector rather than needing wrap to
-	// already be inserted into the DOM.
+	// Pausing tracks whichever signal actually means "the user is engaged
+	// with this card" for the current input method. Real hover on devices
+	// that have it; on touch (no hover to leave) a mouseenter/mouseleave
+	// pair would pause on tap and then never get a matching leave to
+	// resume — so instead, pause exactly when the most recent click
+	// anywhere on the page landed inside .landing-trivia (including a dot,
+	// including the label), and resume the moment a click lands outside it.
 	let section = document.querySelector(".landing-trivia");
-	section.addEventListener("mouseenter", stopAuto);
-	section.addEventListener("mouseleave", startAuto);
+	if (window.matchMedia("(hover: hover)").matches) {
+		section.addEventListener("mouseenter", () => setPaused(true));
+		section.addEventListener("mouseleave", () => setPaused(false));
+	} else {
+		document.addEventListener("click", e => setPaused(section.contains(e.target)));
+	}
 
 	wrap.appendChild(textEl);
 	if (cards.length > 1) wrap.appendChild(dots);
 	if (progress) wrap.appendChild(progress);
 	textEl.textContent = cards[0];
-
-	startAuto();
-	if (progressFill) progressFill.classList.add("is-animating");
+	resetProgress();
 
 	return wrap;
 }

@@ -344,7 +344,12 @@
 	from{width: 0%;}
 	to{width: 100%;}
 }
-.landing-trivia:hover .trivia-progress-fill.is-animating{animation-play-state: paused;}
+/* Driven by a JS class (toggled in lockstep with the real stopAuto/startAuto
+   timer state), not :hover directly — a tap on mobile leaves :hover "stuck"
+   on with no matching mouseleave, which would make the bar look paused
+   while the real timer (correctly resumed by the dot's own click handler)
+   keeps running underneath it. */
+.trivia-progress-fill.is-paused{animation-play-state: paused;}
 
 .landing-links{
 	display: grid; grid-template-columns: 1fr; gap: 14px;

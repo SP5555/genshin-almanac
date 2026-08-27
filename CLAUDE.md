@@ -126,19 +126,28 @@ load), shuffled together so an anniversary card doesn't always lead.
   to a single "🎉 on this day" card on the rare exact hit (this does
   happen — 1.0 and 3.1 both launched on Sep 28, different years; ties
   break toward whichever occurrence is chronologically closest to today).
-- **Auto-advance timer uses `setTimeout` + a tracked `remainingMs`, not
-  `setInterval`** — needed so pausing partway through and resuming
-  continues the same countdown (matching what the progress bar's CSS
-  `animation-play-state:paused` already does natively) instead of
-  restarting a full interval. Real bug hit here: the fired timeout must
-  reschedule itself (`goTo(...); startAuto();`) or auto-advance silently
-  stops repeating after the first cycle and the pause/resume bookkeeping
-  (`segmentStart`) goes stale, causing wildly wrong resume timing.
-- Progress bar's `animation-duration` is set inline from `TRIVIA_INTERVAL_MS`
-  rather than duplicated as a CSS value, and pausing is scoped to hovering
-  the *entire* `.landing-trivia` card (including the label), not just the
-  inner ticker — otherwise hovering the "Did You Know?" text wouldn't
-  actually pause anything despite visually highlighting.
+- **The progress bar's own CSS animation *is* the auto-advance timer** —
+  its `animationend` event triggers `goTo()`, rather than tracking
+  elapsed/remaining time by hand in JS (`animation-duration` set inline
+  from `TRIVIA_INTERVAL_MS`, matched to a `resetProgress()` helper that
+  restarts it — remove `.is-animating`, force a reflow, re-add it). An
+  earlier hand-rolled `setTimeout`+`remainingMs` version tried to replicate
+  what the browser already does for free when you pause/resume a CSS
+  animation, and was strictly more bug-prone for it (a real bug: the fired
+  timeout not rescheduling itself broke repeat entirely) — worth remembering
+  before reaching for manual timer math again for anything already backed
+  by a pausable CSS animation.
+- **Pausing is a single `setPaused(bool)` that toggles one class**
+  (`animation-play-state:paused`), driven by whichever signal means "the
+  user is engaged with this card" for the current input method — real
+  `mouseenter`/`mouseleave` on hover-capable devices (`matchMedia
+  "(hover:hover)"`), or, on touch, whether the most recent click *anywhere
+  on the page* landed inside `.landing-trivia` (a document-level click
+  listener checking `.contains()`). Touch has no real hover to leave, so a
+  mouseenter/mouseleave pair there pauses on tap and never un-pauses;
+  "last click was inside this card" is the mobile-appropriate substitute,
+  and it naturally covers the whole card (including the label and the
+  dots) for free, not just one sub-element.
 - Skips auto-advance entirely (dots still work) under
   `prefers-reduced-motion`, and the progress bar isn't even built in that
   case — showing a filling bar for a state that never advances would be
