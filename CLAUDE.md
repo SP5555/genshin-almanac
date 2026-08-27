@@ -39,7 +39,10 @@ they can't tell you.
   `js/clocks.js` — Server Clocks logic. `js/landing.js` — landing page
   logic. Neither depends on `app.js` or on each other.
 - `data/*.json` — plain JSON, no comments/trailing commas — semantics
-  documented below since JSON can't hold comments.
+  documented below since JSON can't hold comments. `data/SOURCES.md` — art
+  asset sourcing reference (APIs, file patterns, codenames), split out so
+  it's only loaded when actually sourcing new art — see "Art provenance"
+  below.
 - `assets/faces/<name>.png`, `assets/namecards/<name>.jpg`,
   `assets/elements/<element>.svg`, `assets/regions/<region>.jpg`,
   `assets/backgrounds/server-clocks.webp`, `assets/fonts/zh-cn.ttf`.
@@ -113,6 +116,62 @@ circular (the container's content-size pass sees the image's raw 1024px
 intrinsic height before `aspect-ratio` constrains it), inflating the
 wrapper to the wrong size.
 
+**4-star mini cards** (below the carousel) use the same splash art + the
+same crop technique (now squared to `aspect-ratio:1/1` — the existing
+"sized by height, centered, clipped by the card's own overflow:hidden"
+approach already behaves exactly like `object-fit:cover` once the box gets
+narrower than the source's 2:1 ratio, so squaring it up needed no new
+technique, just the one ratio number) — real art instead of a circular
+face icon, still clearly secondary by scale alone. Release-vs-rerun is the
+tag text only (`Release`/`Rerun N`, same convention the 5-star figures
+use), not a separate grayscale-filter/colored-ring distinction — one
+convention for that fact, not two.
+
+Cards are fluid width (`flex:1 1 45%` below 600px, `flex:1 1 0` at
+≥600px), not fixed pixels — deliberately spans the same full width as the
+carousel above it. The mobile "2 on top, 1 on bottom" fallback below 600px
+falls out of plain flexbox for free: `flex-basis:45%` fits two per row
+(grown to ~50% each), a third has no room and wraps alone. **The lone card
+is capped, not stretched**: `max-width:calc(50% - 6px)` (50% of the row,
+minus half the 12px gap — exactly what a card grows to when there ARE two
+per row) plus `margin:0 auto` keeps it the same size as its siblings,
+centered with empty space either side, instead of letting `flex-grow`
+blow it up to a full 100%-width row. That stretch was tried first and
+rejected: at 2x the width, the `aspect-ratio:1/1` image wrap scaled up
+with it, making that one character's art visibly bigger than the other
+two for no reason tied to the character itself. Checked the real
+distribution before relying on "usually exactly 3": 104 of ~110 phases in
+`data.json` (incl. `chronicled`) have exactly 3 four-stars; rarer counts
+(up to 13, chronicled banners) still wrap via the same `flex-wrap`. The
+element watermark's `background-size` is a percentage (`130% 130%`), not a
+fixed pixel value, for the same fluid-width reason.
+
+The name/tag label overlaps the art itself, reclaiming that height for the
+splash art instead of pushing the card taller — but as an
+`position:absolute; bottom:8px` overlay on `.spotlight-fourcard` itself,
+**not** the `.spotlight-figure-label` carousel's `margin-top:-Npx` trick.
+That negative-margin approach only overlaps correctly if the label is
+always the same height, and it isn't: preexisting-roster characters (e.g.
+Sucrose — see below) skip the tag entirely, so their label is just the
+name, shorter than the two-line name+tag case the margin was tuned for. A
+fixed negative margin sized for the tall case over-pulls the short case,
+which — since the label still sits in normal flex flow — shrinks that
+card's total height and clips the bottom of its own art (caught exactly
+this way: Sucrose's card came out 22px shorter than Alyosha's/Lynette's,
+with ~11px of her splash art cut off). Taking the label out of flow
+entirely with `position:absolute` sizes the card off the image wrap alone,
+so every card is identical regardless of that character's label height —
+worth remembering as the general fix whenever an overlapping caption's
+content length can vary (the carousel's `.spotlight-figure-label` has the
+same latent risk, just not yet hit live, since no currently-preexisting
+5-star lacks every tag). Text-shadow (not a background box) keeps the name
+legible against whatever's directly behind it, mirroring the figure name.
+
+Preexisting-roster characters (e.g. Sucrose) show no tag at all, same as
+on the carousel — calling their first tracked appearance "Release" would
+be wrong and a "Rerun N" count would be meaningless without knowing their
+real 1.0 debut, so the tag is omitted rather than shown incorrectly.
+
 ### Trivia ticker
 Deliberately the *lightweight* opposite of the spotlight carousel above —
 plain text, no drag physics, auto-advance/dots/pause-on-hover only. Cards
@@ -123,9 +182,43 @@ load), shuffled together so an anniversary card doesn't always lead.
   spread first: 52 versions land on only 51 of 365 possible month-days, so
   a strict "today" match would be empty ~86% of the time. Always shows the
   nearest past *and* nearest future launch anniversary instead, collapsing
-  to a single "🎉 on this day" card on the rare exact hit (this does
-  happen — 1.0 and 3.1 both launched on Sep 28, different years; ties
-  break toward whichever occurrence is chronologically closest to today).
+  to a single "on this day" card on the rare exact hit (this does happen
+  — 1.0 and 3.1 both launched on Sep 28, different years; ties break
+  toward whichever occurrence is chronologically closest to today). No
+  emoji — tried one (🎉) but it wasn't rendering for the user, so trivia
+  text is plain throughout.
+- **The past/future cards state years elapsed, not just the date** —
+  `"2 days ago — version 3.0 (Sumeru) marked 4 years since its Aug 24, 2022
+  launch."` The raw date alone made the reader do the math; stating the
+  age is the actually-interesting fact. This meant a version that launched
+  earlier in the *current* calendar year could win the "nearest past"
+  search (e.g. it released 3 days ago for real) and get worded as "marked
+  0 years since" — nonsense, since it hasn't had an anniversary yet. Fixed
+  at the search step, not the sentence: entries whose `launch.getFullYear()
+  === year` are skipped from the day-count buckets entirely (unless
+  `diffDays===0`, the genuine "launched today" case the exact-match branch
+  above already handles correctly), so the nearest-past/future search falls
+  through to the next real ≥1-year anniversary instead of ever selecting a
+  same-year entry to word awkwardly.
+- **Past/future cards append which characters debuted that version, when
+  any did** — `getDebuts()` checks every character (both rarities) via the
+  existing `countAppearancesThrough()` (===1 through that version's last
+  phase) and excludes `preexisting` characters, same distinction the
+  Release/Rerun tags already make. Originally 5-star-only (reasoning: 4-star
+  debuts happen almost every version, so including them would make nearly
+  every card verbose) — reverted to include both after the 5-star-only
+  version felt too sparse; 5-stars still lead the list (collected in a
+  separate pass, concatenated after) since they're still the more
+  headline-worthy fact, just no longer the only one mentioned. **The clause
+  is appended only when the list is non-empty** (`joinNames()`,
+  Oxford-comma "A", "A and B", "A, B, and C") — even counting both
+  rarities, some versions are still pure reruns of existing characters
+  (checked: 3.8 is the only one left with zero debuts of either rarity), so
+  forcing an "introducing" clause into every card would mean either an
+  empty one or a misleading one; omitting it for those versions is correct,
+  not a gap. Chronicled banners aren't scanned for debuts — by definition
+  they only ever bring back characters from an already-released region, so
+  a chronicled entry can never contain a genuine first appearance.
 - **The progress bar's own CSS animation *is* the auto-advance timer** —
   its `animationend` event triggers `goTo()`, rather than tracking
   elapsed/remaining time by hand in JS (`animation-duration` set inline
@@ -419,56 +512,10 @@ month, 4am server time).
    recompute in the first place.
 
 ## Art provenance
-
-**Quick reference** (details/gotchas for each below):
-| Asset | Source | Endpoint / file pattern |
-|---|---|---|
-| `assets/faces/*.png` | enka.network | `UI_AvatarIcon_*`, codenames via `store/characters.json` |
-| `assets/namecards/*.jpg` | enka.network | `UI_NameCardPic_<code>_P.jpg` via `store/gi/namecards.json` — **separate codename system from faces** |
-| `assets/elements/*.svg` | Fandom MediaWiki API | `File:Element_<Name>.svg` |
-| `assets/regions/*.jpg` | Fandom MediaWiki API | `pageimages` on the region's wiki page |
-| `assets/backgrounds/server-clocks.webp` | Fandom (direct file) | one-off, not a per-character pattern |
-| `assets/splash/*.webp` | Fandom MediaWiki API | `File:<Name>_Wish.png` — **not** `Card.png`/`Game.png`/`Full Wish.png`, see below |
-
-Face icons: enka.network `UI_AvatarIcon_*` datamine assets, codenames
-resolved via enka's public `store/characters.json`/`store/loc.json` (often
-don't match display names — e.g. Raiden Shogun → `Shougun`, Yanfei →
-`Feiyan`). Namecards use a **separate** codename system (Kirara's avatar
-codename is `Momoka`, namecard codename is `Kirara`) via
-`store/gi/namecards.json`. Element watermarks: Fandom's MediaWiki API (enka
-was missing Cryo). Region backgrounds: same Fandom API family
-(`pageimages`), bypasses the HTTP 402 block on direct fandom.com page
-fetches.
-
-**Landing page splash art** (`assets/splash/<name>.webp`): also Fandom, but
-a *different* file per character than any of the above — `File:<Name>_Wish.png`
-(not `Character <Name> Full Wish.png` — similar name, different asset, see
-below). This is the actual in-game wish-reveal art (dynamic pose,
-transparent alpha background — confirmed via `ffprobe` showing `yuva420p`)
-and, unlike everything else tried, is **genuinely pixel-uniform**: every
-character checked (7+, including 4-stars) is exactly 2048x1024, since it's
-HoYoverse's own fixed-size UI template rather than independently-composed
-promotional art. `object-fit: contain` is still used rather than `cover` —
-a uniform canvas doesn't guarantee a uniform *pose* within it, so contain
-remains the safe choice — but with the box ratio matching the source
-exactly there's effectively no letterboxing in practice.
-
-Took four tries to land on, kept here so they aren't re-attempted:
-`File:<Name> Card.png` bakes the gacha-pull card frame and "GENSHIN IMPACT"
-logo into the image itself (not croppable away with CSS); `File:Character
-<Name> Game.png` is a plain standing in-game render on a flat backdrop, not
-real splash art; `File:Character <Name> Full Wish.png` *is* real splash art
-(same dynamic-pose style as the one that stuck) but not uniformly sized
-across characters (checked: ~1.3:1, not pixel-identical) — easy to confuse
-with `<Name>_Wish.png` since both are "Wish"-named and visually similar,
-but only the latter is on the fixed template. Honey Hunter World
-(`honeyhunterworld.com`) hosts a fourth style — a tight cropped close-up
-used for the actual in-game pull reveal animation — but blocks
-hotlinking/scraping (403), so it was never a usable source regardless of
-how it looked.
-
-Don't re-derive codenames by guessing for future characters/regions — they
-often don't match the display name.
+Moved to `data/SOURCES.md` — API endpoints, file-naming patterns,
+codenames, and rejected asset sources (with why), kept out of this file so
+sourcing new art doesn't require loading all of CLAUDE.md. Read it before
+sourcing any new character/region art.
 
 ## Data validation
 `npm run validate` (`scripts/validate-data.js`) derives the canonical

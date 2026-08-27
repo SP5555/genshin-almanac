@@ -231,60 +231,117 @@
 
 /* ---------- 4-star mini cards — same card language as the banner above ---------- */
 .spotlight-fourcards{
-	display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;
-	margin-top: 24px;
+	display: flex; flex-wrap: wrap; gap: 12px;
+	margin-top: 12px;
 }
+/* Fluid, not fixed-width — fills the same width as the 5-star banner above
+   it. flex-basis:45% is what produces the mobile fallback: two cards fit a
+   row (each grown to ~50% by flex-grow), a third has no room left and
+   wraps alone — where flex-grow:1 with no sibling on that row then
+   stretches it to the full row width for free, no nth-child centering
+   hack needed. At >=600px, flex-basis:0 instead means three equal thirds
+   spanning the full row, matching how every other breakpoint on this page
+   already treats 600px as "no longer cramped mobile." */
+/* max-width (not just flex-basis) is what keeps a lone wrapped card from
+   blowing up: without it, a third card alone on its own row has nothing to
+   share the row with, so flex-grow stretches it to 100% — doubling its
+   width, and with it the aspect-ratio:1/1 image wrap's size, making that
+   one card's art visibly bigger than its siblings'. calc(50% - 6px)
+   matches exactly what a card grows to when there ARE two per row (100%
+   split by two, minus half the 12px gap), so a lone card ends up the same
+   size either way; margin:0 auto then centers it in the freed-up space
+   instead of leaving it flush left with dead space beside it. */
 .spotlight-fourcard{
 	position: relative; z-index: 0; isolation: isolate;
-	width: 92px; padding: 12px 6px 10px;
-	display: flex; flex-direction: column; align-items: center; gap: 8px;
+	flex: 1 1 45%;
+	max-width: calc(50% - 6px);
+	margin: 0 auto;
+	padding: 10px 8px;
+	display: flex; flex-direction: column; align-items: center;
 	background-color: var(--glass); border: 1px solid var(--glass-border);
 	border-radius: var(--radius-md);
 	overflow: hidden;
 	backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 	transition: background-color 0.25s, border-color 0.25s;
 }
+@media (min-width: 600px){
+	.spotlight-fourcard{flex: 1 1 0; max-width: none; margin: 0;}
+}
 .spotlight-fourcard:hover{background-color: var(--glass-hover); border-color: var(--glass-border-hover);}
 /* Dedicated layer for the watermark so it can use real CSS opacity — a
    z-index below the card's own painted background/border (see z-index:0 +
    position:relative above, which contains this to just this card) but above
-   nothing else, so it never competes with the face/name in front of it. */
+   nothing else, so it never competes with the splash art/name in front of
+   it. Kept exactly as its own faint background layer (not folded into an
+   explicit badge) to stay coherent with the 5-star banner's own
+   corner-icon watermark. */
 .spotlight-fourcard::before{
 	content: ""; position: absolute; inset: 0; z-index: -2;
 	background-image: var(--el-icon, none);
 	background-repeat: no-repeat; background-position: center;
-	background-size: 118px 118px;
+	/* Percentage, not a fixed pixel size — the card itself is fluid now
+	   (see .spotlight-fourcard's flex-basis above), so a fixed size would
+	   look proportionally tiny on a wide card and oversized on a narrow one. */
+	background-size: 130% 130%;
 	opacity: 0.16; pointer-events: none;
 }
 /* Same idea as .spotlight-banner-glow, one color instead of two — sits
-   above the icon watermark but below the face/name, same layering order
-   as the banner (icon, then glow, then content). */
+   above the icon watermark but below the splash art/name, same layering
+   order as the banner (icon, then glow, then content). */
 .spotlight-fourcard::after{
 	content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
 	background: radial-gradient(circle at 50% 100%, var(--el-glow, transparent) 0%, transparent 100%);
 	opacity: 0.5;
 }
-.spotlight-fourcard-avatar-wrap{position: relative;}
-.spotlight-fourcard-face{
-	width: 40px; height: 40px; border-radius: 50%; object-fit: contain;
-	background-color: rgba(255,255,255,0.06);
-	box-shadow: 0 0 0 1px var(--glass-border-hover);
-	filter: grayscale(28%) brightness(0.9);
-	transition: filter 0.25s, box-shadow 0.25s;
+/* Same crop-avoiding technique as .spotlight-figure-img-wrap/-img (see that
+   comment for the full reasoning) — same 1.3:1 ratio for visual
+   consistency with the banner above, just at a much smaller absolute
+   size. No separate overflow:hidden needed here — .spotlight-fourcard
+   already clips via its own overflow:hidden above. */
+.spotlight-fourcard-img-wrap{width: 100%; aspect-ratio: 1 / 1; position: relative;}
+.spotlight-fourcard-img{
+	position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+	height: 100%; width: auto; display: block;
+	filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
 }
-.spotlight-fourcard.is-release .spotlight-fourcard-face{
-	filter: none;
-	box-shadow: 0 0 0 2px var(--el, var(--four)), 0 0 10px 2px var(--el-glow, var(--four-glow));
+.spotlight-fourcard-img.is-fallback{top: 50%; height: 56px; transform: translate(-50%, -50%);}
+/* Absolutely positioned against .spotlight-fourcard (its nearest
+   position:relative ancestor), not a negative margin-top like
+   .spotlight-figure-label — a fixed negative margin only overlaps
+   correctly if the label is always the same height, which breaks the
+   moment a character has no tag at all (preexisting characters skip the
+   rerun-tag entirely, e.g. Sucrose): the label shrinks to just the name,
+   the same fixed -37px over-pulls it, and the flex column's total height
+   drops with it — visibly shrinking that one card and clipping the bottom
+   of its art. Taking the label out of flow entirely sizes the card off
+   the image wrap alone, so it's identical across every card regardless of
+   whether that character's label has a tag under the name or not. */
+/* Fixed height (not auto), matching the name+gap+tag content height —
+   otherwise a tagless label (preexisting characters skip the rerun-tag,
+   e.g. Sucrose) shrinks to just the name's own height, and since the box
+   is still bottom-anchored, that name ends up sitting lower than a name
+   that has a tag underneath it. Forcing the box to always be as tall as
+   the tag case means the name lands at the same top-of-box position
+   (default flex justify-content:flex-start) whether or not a tag follows
+   it — the empty space from a missing tag just stays inside the box. */
+.spotlight-fourcard-label{
+	position: absolute; left: 0; right: 0; bottom: 8px; z-index: 1;
+	height: 37px;
+	display: flex; flex-direction: column; align-items: center; gap: 4px;
 }
+/* Text-shadow instead of a background box, same as .spotlight-figure-name —
+   stays legible against whatever's directly behind it without hiding the art. */
 .spotlight-fourcard-name{
-	font-size: 11.5px; color: var(--text-dim); text-align: center; line-height: 1.25;
-	transition: color 0.25s;
+	font-size: 12px; font-weight: bold; color: var(--text); text-align: center;
+	text-shadow: 0 2px 6px rgba(0,0,0,0.85), 0 0 16px rgba(0,0,0,0.6);
 }
-.spotlight-fourcard-name.is-release{color: var(--text); font-weight: bold;}
-
-@media (min-width: 600px){
-	.spotlight-fourcard{width: 106px;}
-	.spotlight-fourcard::before{background-size: 135px 135px;}
+/* Same reasoning as .spotlight-figure-tags: the shared rerun-tag styling
+   (style.css) is tuned for the Timeline's flat glass cards and disappears
+   against art — same dark-pill override as the figure tags. is-first
+   ("Release") already has a solid --five background so it's excluded. */
+.spotlight-fourcard-label .rerun-tag:not(.is-first){
+	background-color: rgba(10,10,16,0.6); color: var(--text);
+	backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
 }
 
 /* ---------- trivia ticker ---------- */

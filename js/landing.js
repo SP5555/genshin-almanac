@@ -498,12 +498,11 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 function buildSpotlightFourCard(character, data, versionIdx, phaseIdx, notes, elements) {
 	let charNotes = notes[character] || {};
 	let count = countAppearancesThrough(data, versionIdx, phaseIdx, character);
-	let isRelease = !charNotes.preexisting && count === 1;
 	let element = elements[character];
 	let colors = ELEMENT_COLORS[element];
 
 	let card = document.createElement("div");
-	card.className = "spotlight-fourcard" + (isRelease ? " is-release" : "");
+	card.className = "spotlight-fourcard";
 	if (colors) {
 		card.style.setProperty("--el", colors.c);
 		card.style.setProperty("--el-glow", colors.glow);
@@ -515,15 +514,36 @@ function buildSpotlightFourCard(character, data, versionIdx, phaseIdx, notes, el
 		card.style.setProperty("--el-icon", `url(../assets/elements/${element.toLowerCase()}.svg)`);
 	}
 
-	let avatarWrap = document.createElement("div");
-	avatarWrap.className = "spotlight-fourcard-avatar-wrap";
-	avatarWrap.appendChild(faceImg(character, "spotlight-fourcard-face"));
-	card.appendChild(avatarWrap);
+	// Same splash art + fallback pattern as buildSpotlightFigure() — not
+	// every future 4-star will have art downloaded immediately, so this
+	// must degrade to the face icon rather than show a broken image.
+	let imgWrap = document.createElement("div");
+	imgWrap.className = "spotlight-fourcard-img-wrap";
+	let img = document.createElement("img");
+	img.className = "spotlight-fourcard-img";
+	img.src = splashPath(character);
+	img.alt = character;
+	img.loading = "lazy";
+	img.onerror = () => { img.onerror = null; img.src = facePath(character); img.classList.add("is-fallback"); };
+	imgWrap.appendChild(img);
+	card.appendChild(imgWrap);
 
+	let label = document.createElement("div");
+	label.className = "spotlight-fourcard-label";
 	let name = document.createElement("span");
-	name.className = "spotlight-fourcard-name" + (isRelease ? " is-release" : "");
+	name.className = "spotlight-fourcard-name";
 	name.textContent = character;
-	card.appendChild(name);
+	label.appendChild(name);
+	// Same tag mechanism as the 5-star figures (rerun-tag/is-first), rather
+	// than the old grayscale-filter + colored-ring distinction — one
+	// convention for "is this a release or a rerun" instead of two.
+	if (!charNotes.preexisting) {
+		let tag = document.createElement("span");
+		tag.className = "rerun-tag" + (count === 1 ? " is-first" : "");
+		tag.textContent = count === 1 ? "Release" : `Rerun ${count - 1}`;
+		label.appendChild(tag);
+	}
+	card.appendChild(label);
 
 	return card;
 }
@@ -534,13 +554,53 @@ function formatMonthDayYear(dateStr) {
 	return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+// Oxford-comma join for a short name list: "A", "A and B", "A, B, and C".
+function joinNames(names) {
+	if (names.length === 1) return names[0];
+	if (names.length === 2) return `${names[0]} and ${names[1]}`;
+	return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+}
+
+// 5-stars first, then 4-stars — both rarities debut here (reads more
+// immersive than headlining only the 5-star), but 5-star debuts are still
+// the more headline-worthy fact so they lead the list rather than being
+// interleaved in banner order. Plenty of versions still won't have any
+// debut at all (pure-rerun phases), which is fine — callers just omit the
+// clause rather than force an empty/awkward one.
+// Chronicled banners are deliberately not scanned here — by definition
+// they only ever bring back characters from an already-released region,
+// so they can never contain a genuine debut.
+function getDebuts(data, versionIdx, notes) {
+	let phases = data[versionIdx].banner;
+	let seen = new Set();
+	let fiveDebuts = [];
+	let fourDebuts = [];
+	for (let rarity of ["5", "4"]) {
+		let bucket = rarity === "5" ? fiveDebuts : fourDebuts;
+		for (let phase of phases) {
+			for (let name of phase[rarity]) {
+				if (seen.has(name)) continue;
+				seen.add(name);
+				// preexisting characters (the 1.0 launch roster) technically have a
+				// "first tracked appearance" too, but it isn't a real debut — same
+				// distinction the Release/Rerun tags already make.
+				if ((notes[name] || {}).preexisting) continue;
+				if (countAppearancesThrough(data, versionIdx, phases.length - 1, name) === 1) {
+					bucket.push(name);
+				}
+			}
+		}
+	}
+	return [...fiveDebuts, ...fourDebuts];
+}
+
 // data.json only has ~52 launch dates spread across 365 possible days, so a
 // strict "exact date match" would be empty on ~86% of days (checked against
 // the real data). Instead this always surfaces the nearest anniversary —
 // past and future — falling back to a real "on this day" card on the rare
 // day one lands exactly (e.g. 1.0 and 3.1 both launched on Sep 28, in
 // different years).
-function getAnniversaryCards(data, versionMeta, now) {
+function getAnniversaryCards(data, versionMeta, notes, now) {
 	let year = now.getFullYear();
 	// Normalized to local midnight — thisCycle is always midnight too, so
 	// diffing against the raw now() (with its time-of-day) would round the
@@ -551,6 +611,14 @@ function getAnniversaryCards(data, versionMeta, now) {
 		let launch = new Date(entry.date + "T00:00:00");
 		let thisCycle = new Date(year, launch.getMonth(), launch.getDate());
 		let diffDays = Math.round((thisCycle - today) / 86400000);
+		// A version that itself launched earlier this same year has no real
+		// anniversary yet — "N days ago" would just be describing its actual
+		// original launch, and "0 years since" reads as nonsense. Skip it from
+		// the day-count buckets and let the search fall through to the next
+		// real (>=1 year) anniversary instead. The diffDays===0 case below is
+		// exempt — a version launching exactly today is a genuine "on this
+		// day" moment, not an anniversary, so that one's fine as-is.
+		if (diffDays !== 0 && launch.getFullYear() === year) continue;
 		if (diffDays <= 0) {
 			// Ties (two versions sharing a month-day) break toward whichever
 			// real occurrence is chronologically closest to now.
@@ -570,18 +638,32 @@ function getAnniversaryCards(data, versionMeta, now) {
 
 	if (best.past && best.past.diffDays === 0) {
 		let { entry, launch } = best.past;
-		return [`🎉 On this day in ${launch.getFullYear()}, version ${entry.version} (${region(entry)}) launched!`];
+		return [`On this day in ${launch.getFullYear()}, version ${entry.version} (${region(entry)}) launched!`];
 	}
+
+	// Guaranteed >=1 by the same-year skip above, so no "0 years" case to
+	// guard against here.
+	let yearsSince = launch => year - launch.getFullYear();
+
+	// Appended only when the version actually had one — most versions are
+	// pure reruns of existing characters, so forcing this clause in every
+	// card would mean either an empty "introducing" or a misleading one.
+	let debutClause = entry => {
+		let debuts = getDebuts(data, data.indexOf(entry), notes);
+		return debuts.length ? `, introducing ${joinNames(debuts)}` : "";
+	};
 
 	let cards = [];
 	if (best.past) {
-		let { entry, diffDays } = best.past;
+		let { entry, diffDays, launch } = best.past;
 		let daysAgo = -diffDays;
-		cards.push(`${daysAgo} day${daysAgo === 1 ? "" : "s"} ago — version ${entry.version} (${region(entry)}) launched on ${formatMonthDayYear(entry.date)}.`);
+		let years = yearsSince(launch);
+		cards.push(`${daysAgo} day${daysAgo === 1 ? "" : "s"} ago — version ${entry.version} (${region(entry)}) marked ${years} year${years === 1 ? "" : "s"} since its ${formatMonthDayYear(entry.date)} launch${debutClause(entry)}.`);
 	}
 	if (best.future) {
-		let { entry, diffDays } = best.future;
-		cards.push(`Coming up in ${diffDays} day${diffDays === 1 ? "" : "s"} on the calendar — version ${entry.version} (${region(entry)}) launched on ${formatMonthDayYear(entry.date)}.`);
+		let { entry, diffDays, launch } = best.future;
+		let years = yearsSince(launch);
+		cards.push(`Coming up in ${diffDays} day${diffDays === 1 ? "" : "s"} — version ${entry.version} (${region(entry)}) will mark ${years} year${years === 1 ? "" : "s"} since its ${formatMonthDayYear(entry.date)} launch${debutClause(entry)}.`);
 	}
 	return cards;
 }
@@ -764,7 +846,7 @@ async function bootstrapLanding() {
 		document.getElementById("spotlightSub").textContent = `Live since ${formatDate(entry.date)}`;
 		document.getElementById("spotlightCard").replaceWith(buildSpotlight(data, versionIdx, phaseIdx, notes, elements));
 
-		let triviaCards = shuffle([...getAnniversaryCards(data, versionMeta, new Date()), ...sampleTrivia(triviaPool, 3)]);
+		let triviaCards = shuffle([...getAnniversaryCards(data, versionMeta, notes, new Date()), ...sampleTrivia(triviaPool, 3)]);
 		document.getElementById("triviaTicker").replaceWith(buildTriviaTicker(triviaCards));
 
 		// Same background recipe as the Timeline's per-version region art (see
