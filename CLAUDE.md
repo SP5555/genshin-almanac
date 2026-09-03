@@ -100,6 +100,12 @@ this go on" logic; content reassignment only happens inside
 Multi-step jumps (e.g. dot-clicking 2 characters over) run as **one**
 continuous rAF sweep, not chained CSS transitions — chaining caused a
 visible dead-stop at the midpoint character before re-accelerating.
+`settle()`'s eased curve (drives auto-advance, dot-clicks, and drag-release
+corrections alike) is a true ease-in-out cubic, not ease-out-only — the
+original `1 - (1-t)^3` snapped to full speed instantly and only decelerated
+into the stop, reading as an abrupt kick at the start of every
+programmatic move; symmetric slow-start/fast-middle/slow-stop feels calmer
+for a move nothing prompted.
 3D tilt (`perspective` + `rotateY`) reaches full magnitude by `dist:0.4`,
 not `dist:1` — ramping linearly to `dist:1` meant it only got visibly large
 right as opacity had already faded the card to nothing, so it never read
@@ -530,42 +536,30 @@ fail *silently* in the UI — neither has an `onerror` fallback). Not wired
 into CI yet, so it only catches things when someone remembers to run it.
 
 ## Data accuracy note
-Verified 5.3–7.0 by cross-referencing game8.co/gamewith.net/etc. against
-each other (a single AI-summarized fetch of an aggregator page produced
-garbled version numbers — don't trust that alone). One moderate-confidence
-item: 6.2 Phase 2's 4-star trio (Iansan, Chevreuse, Gaming), confirmed
-twice via game8.co but not a third source. 7.0 Phase 2's 4-star trio
-(Aino, Iansan, Lan Yan) was added once officially revealed — splash art
-sourced ahead of the phase's actual Sep 2, 2026 start (21 days after the
-Aug 12 launch, per `PHASE_LENGTH_DAYS`) so the landing page has real art
-instead of the face-icon fallback the moment `getCurrentPhaseIndex()`
-flips over, with no other code change needed. 7.1 deliberately not added
-— was still beta-leak territory with no datamined icons.
-
-1.0 launch roster (confirmed): Barbara, Fischl, Xiangling, Noelle, Sucrose,
-Xingqiu, Beidou, Ningguang, Chongyun, Razor, Bennett. Genuine within-1.X
-debuts: Diona (1.1, despite being easy to assume launch roster), Xinyan
-(1.1), Rosaria (1.4), Yanfei (1.5).
-
-All 52 versions have a verified real launch `date` — not a naive "every 42
-days" formula. Two real exceptions: **2.7 delayed ~20 days** (Shanghai
-COVID lockdown, May 10→31 2022), **3.0–3.2 each ran 35 days** (7 short × 3)
-to recover that delay by 3.3.
+Moved to `data/SOURCES.md` (same file as art provenance — both are only
+needed when actually adding new version/character data or art, not on
+every session) — how `data.json`'s dates/rosters were verified, confidence
+levels, and the 1.0 launch roster. Read it before adding a new version.
 
 ## Ideas discussed for future work (not started)
 - Weapon banners aren't tracked (character banners only).
 - No personal pull-tracking or stats view (longest drought, most-reran
-  character, release-cadence chart).
+  character, release-cadence chart) — **deliberately deprioritized**, not
+  just unbuilt: plenty of other Genshin sites already do plain stats
+  dashboards, and the data being there doesn't matter if the presentation
+  reads as generic. Only worth revisiting with a genuinely distinctive
+  presentation angle, not just "the numbers are interesting."
 - The manual per-patch update process (hand-editing `data.json` +
   hand-sourcing art) is why the site fell 17 versions behind once — worth a
   scripted/automated data pipeline if picking this up as a project.
-- Multi-page candidates, roughly by "reuses existing data with least new
-  work": **Stats/analytics** (pure computation over existing data) →
-  **Character profile pages** (dedicated shareable URLs) → **Region/lore
-  explorer** (browse by nation; real gap: no character→region mapping
-  exists yet — `character-elements.json` is element, not nation; needs a
-  new `character-regions.json` with an explicit `"Unaffiliated"` sentinel
-  for characters like Skirk, not omission).
+- Multi-page candidates: **Region/lore explorer** (browse by nation,
+  reusing the region-background/glow visual language already built for the
+  Timeline/landing pages) is the likely next page — real gap: no
+  character→region mapping exists yet (`character-elements.json` is
+  element, not nation; needs a new `character-regions.json` with an
+  explicit `"Unaffiliated"` sentinel for characters like Skirk, not
+  omission). **Character profile pages** (dedicated shareable URLs) are
+  the next-cheapest candidate after that.
 - "On this day" — the *concept* is now partly built as the landing trivia
   ticker's anniversary cards (see "Trivia ticker" above), not a standalone
   page. A dedicated page would need the same nearest-match handling (only

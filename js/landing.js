@@ -116,7 +116,7 @@ function buildSpotlightFigure(character, data, versionIdx, phaseIdx, notes) {
 }
 
 const CAROUSEL_INTERVAL_MS = 5000;
-const CAROUSEL_SETTLE_MS = 320;
+const CAROUSEL_SETTLE_MS = 1000;
 // How dark an off-center slot gets at dist >= 1 — a literal "spotlight
 // swinging away" dim, layered on top of the existing fade/tilt.
 const CAROUSEL_MIN_BRIGHTNESS = 0.1;
@@ -342,7 +342,13 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 		let prevEased = 0;
 		let frame = now => {
 			let t = Math.min(1, (now - startTime) / duration);
-			let eased = 1 - Math.pow(1 - t, 3);
+			// Ease-in-out cubic, not ease-out-only — the old curve snapped to
+			// full speed instantly and only decelerated into the stop, which
+			// reads as an abrupt kick at the very start of every auto-advance/
+			// dot-click/drag-correction move. Symmetric slow-start,
+			// fast-middle, slow-stop feels calmer for a move nothing prompted
+			// (mid cubic-bezier "ease-in-out" territory).
+			let eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 			position += (eased - prevEased) * distance;
 			prevEased = eased;
 			resolveRotation();
