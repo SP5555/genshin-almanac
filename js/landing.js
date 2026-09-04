@@ -62,20 +62,20 @@ function splashPath(character) {
 	return `assets/splash/${character.replace(/\s/g, "").toLowerCase()}.webp`;
 }
 
-function buildSpotlightFigure(character, data, versionIdx, phaseIdx, notes) {
+function buildSpotlightFiveCard(character, data, versionIdx, phaseIdx, notes) {
 	let charNotes = notes[character] || {};
 	let count = countAppearancesThrough(data, versionIdx, phaseIdx, character);
 
-	let figure = document.createElement("div");
-	figure.className = "spotlight-figure";
+	let card = document.createElement("div");
+	card.className = "spotlight-fivecard";
 
-	// See .spotlight-figure-img-wrap in landing.css for why this wrapper
+	// See .spotlight-fivecard-img-wrap in landing.css for why this wrapper
 	// exists — it reserves the height, the <img> inside bleeds past its
 	// sides on purpose instead of being cropped to fit.
 	let imgWrap = document.createElement("div");
-	imgWrap.className = "spotlight-figure-img-wrap";
+	imgWrap.className = "spotlight-fivecard-img-wrap";
 	let img = document.createElement("img");
-	img.className = "spotlight-figure-img";
+	img.className = "spotlight-fivecard-img";
 	img.src = splashPath(character);
 	img.alt = character;
 	img.loading = "lazy";
@@ -88,16 +88,16 @@ function buildSpotlightFigure(character, data, versionIdx, phaseIdx, notes) {
 	// showing a broken image.
 	img.onerror = () => { img.onerror = null; img.src = facePath(character); img.classList.add("is-fallback"); };
 	imgWrap.appendChild(img);
-	figure.appendChild(imgWrap);
+	card.appendChild(imgWrap);
 
 	let label = document.createElement("div");
-	label.className = "spotlight-figure-label";
+	label.className = "spotlight-fivecard-label";
 	let name = document.createElement("span");
-	name.className = "spotlight-figure-name";
+	name.className = "spotlight-fivecard-name";
 	name.textContent = character;
 	label.appendChild(name);
 	let tags = document.createElement("div");
-	tags.className = "spotlight-figure-tags";
+	tags.className = "spotlight-fivecard-tags";
 	if (!charNotes.preexisting) {
 		let tag = document.createElement("span");
 		tag.className = "rerun-tag" + (count === 1 ? " is-first" : "");
@@ -111,8 +111,8 @@ function buildSpotlightFigure(character, data, versionIdx, phaseIdx, notes) {
 		tags.appendChild(poolTag);
 	}
 	label.appendChild(tags);
-	figure.appendChild(label);
-	return figure;
+	card.appendChild(label);
+	return card;
 }
 
 const CAROUSEL_INTERVAL_MS = 5000;
@@ -137,7 +137,7 @@ const CAROUSEL_VELOCITY_WINDOW_MS = 100;
 
 // One shared card instead of two separate posters, so both 5-stars read as
 // belonging to the same banner rather than two disconnected boxes. Only one
-// character shows at a time (carousel, dot nav below) — with two figures
+// character shows at a time (carousel, dot nav below) — with two cards
 // competing for the same width, showing one at a time is what lets it
 // render bigger. The glow wash and corner watermark crossfade to track
 // whichever character is currently nearest center, not both at once — see
@@ -210,7 +210,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 	banner.appendChild(carousel);
 
 	if (fiveStars.length === 1) {
-		carousel.appendChild(buildSpotlightFigure(fiveStars[0], data, versionIdx, phaseIdx, notes));
+		carousel.appendChild(buildSpotlightFiveCard(fiveStars[0], data, versionIdx, phaseIdx, notes));
 		return banner;
 	}
 	carousel.classList.add("is-interactive");
@@ -241,7 +241,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 	// mid-transition.
 	let slots = [-1, 0, 1].map(offset => {
 		let el = document.createElement("div");
-		el.className = "spotlight-figure";
+		el.className = "spotlight-fivecard";
 		carousel.appendChild(el);
 		return { offset, el, character: undefined };
 	});
@@ -261,7 +261,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 		let character = fiveStars[normalize(baseIndex + slot.offset)];
 		if (slot.character === character) return;
 		slot.character = character;
-		let fresh = buildSpotlightFigure(character, data, versionIdx, phaseIdx, notes);
+		let fresh = buildSpotlightFiveCard(character, data, versionIdx, phaseIdx, notes);
 		slot.el.replaceChildren(...fresh.childNodes);
 	};
 	slots.forEach(assign);
@@ -434,7 +434,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 	});
 	carousel.addEventListener("pointermove", e => {
 		if (!dragging) return;
-		// 1:1 tracking: dragging by dx px moves the active figure by exactly
+		// 1:1 tracking: dragging by dx px moves the active card by exactly
 		// dx px, since dx/slotPx position-units * slotPx px = dx.
 		let dx = e.clientX - lastPointerX;
 		lastPointerX = e.clientX;
@@ -494,6 +494,159 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 	return banner;
 }
 
+// Reusable "spring toy" drag, not tied to any one component — `handleEl`
+// is the hit area (pointer events), `targetEl` is what actually moves.
+// Nothing happens on release except targetEl bouncing back to its resting
+// transform, unlike the carousel's drag (which actually navigates). See
+// CLAUDE.md's Spotlight carousel section for the full physics writeup:
+// why it's one continuous simulation rather than "snap during drag, spring
+// after release," the radial (not per-axis) rubber-band cap, the
+// underdamped tuning, and the time-dilation math behind the constants
+// below. Mouse-only: skipped entirely on pure-touch devices (matchMedia)
+// and double-checked per-event (pointerType), same reasoning as the
+// landing link-card chevron's hover:hover gate — a touch drag here would
+// fight the page's own vertical scroll, and the payoff (a tiny wobble)
+// isn't worth solving that.
+function attachSpringDrag(handleEl, targetEl, options = {}) {
+	if (!window.matchMedia("(hover: hover)").matches) return;
+	let {
+		maxPull = 26, stiffness = 0.0194, damping = 0.9327, rest = 0.4,
+		draggableClass = "is-spring-draggable", draggingClass = "is-dragging",
+		// Whatever transform targetEl already has (centering, etc.) is
+		// preserved underneath the spring offset. A fixed string can be
+		// passed for an element whose base transform is known upfront;
+		// left undefined (the default), it's read fresh via getComputedStyle
+		// at the *start of each drag* rather than once here at attach time —
+		// attach happens right after e.g. an <img>'s src is set, before it's
+		// actually loaded (or possibly fails over to a differently-
+		// positioned fallback), so reading it here would risk baking in a
+		// stale pre-load transform. By the time a user actually starts
+		// dragging, any such async state has long since settled.
+		getBaseTransform = () => {
+			let computed = getComputedStyle(targetEl).transform;
+			return computed === "none" ? "" : computed;
+		},
+	} = options;
+	let hasFixedBaseTransform = typeof options.baseTransform === "string";
+	let baseTransform = hasFixedBaseTransform ? options.baseTransform : "";
+
+	if (targetEl.tagName === "IMG") targetEl.draggable = false;
+
+	let dragging = false;
+	let startX = 0, startY = 0;
+	// targetX/Y is where the "pull" currently wants targetEl to be — the
+	// (capped) mouse offset while dragging, or (0,0) once released. x/y/vx/vy
+	// are targetEl's own simulated position/velocity, which never jumps
+	// straight to the target — it's always being accelerated toward
+	// wherever the target currently is. One continuous simulation for the
+	// entire gesture (start dragging -> still dragging -> released ->
+	// settled), not two separate phases: dragging never sets a position
+	// directly, it only ever moves the target the spring is chasing. That's
+	// what makes it visibly lag/trail behind the cursor while still being
+	// dragged, not just snap back once you let go.
+	let targetX = 0, targetY = 0;
+	let x = 0, y = 0, vx = 0, vy = 0;
+	let simRAF = null;
+	let savedTransition = null;
+
+	// Rubber-band on the pull's radial distance (iOS-scroll-bounce formula:
+	// approaches `maxPull` asymptotically, never exceeds it), not capped per
+	// axis — a per-axis cap would let a diagonal pull reach up to
+	// maxPull*sqrt(2) from center (both axes at their own cap
+	// simultaneously), which caps the *force* but not evenly in every
+	// direction. Scaling the original vector by the banded magnitude keeps
+	// its direction exact while bounding how far the mouse can pull
+	// regardless of how far it actually travels on a large monitor — the
+	// position itself is never clamped anywhere; this asymptotic ceiling on
+	// the target is the only bound in the whole simulation, and targetEl's
+	// actual position just happens to settle near it at equilibrium since
+	// nothing else is pulling on the spring.
+	let rubberBand = (dx, dy) => {
+		let dist = Math.hypot(dx, dy);
+		if (dist === 0) return [0, 0];
+		let banded = maxPull * (1 - 1 / (dist / maxPull + 1));
+		let scale = banded / dist;
+		return [dx * scale, dy * scale];
+	};
+
+	let setOffset = (px, py) => {
+		targetEl.style.transform = `${baseTransform} translate(${px}px, ${py}px)`;
+	};
+
+	// Any of targetEl's own `transform` transitions (e.g. a hover-zoom
+	// elsewhere) would otherwise ease every per-frame update this drives —
+	// read as input lag during the drag and a fought-over motion during the
+	// spring-back (bit the 4-star card exactly this way once — see
+	// CLAUDE.md). Saved/restored directly here rather than requiring every
+	// caller to hand-author a matching "kill the transition" CSS rule for
+	// whatever element they hand in.
+	let suspendTransition = () => {
+		savedTransition = targetEl.style.transition;
+		targetEl.style.transition = "none";
+	};
+	let restoreTransition = () => { targetEl.style.transition = savedTransition; savedTransition = null; };
+
+	// Semi-implicit Euler per frame, same hand-rolled-physics style as the
+	// carousel's momentum coast, not a closed-form solution. Keeps running
+	// past release (target snaps to (0,0) then) until targetEl is both
+	// close to center AND nearly stopped — checking dragging too would let
+	// a still-moving spring get cut off mid-motion the instant the pointer
+	// lifts.
+	let tick = () => {
+		let ax = stiffness * (targetX - x);
+		let ay = stiffness * (targetY - y);
+		vx = (vx + ax) * damping;
+		vy = (vy + ay) * damping;
+		x += vx; y += vy;
+		if (!dragging && Math.abs(x) < rest && Math.abs(y) < rest && Math.abs(vx) < rest && Math.abs(vy) < rest) {
+			simRAF = null;
+			// Cleared entirely (not set to the resolved baseTransform) when
+			// auto-detected, so a live CSS rule like translateX(-50%) keeps
+			// adapting if targetEl's size changes later — the resolved
+			// matrix baked in at drag-start would otherwise go stale after
+			// a resize. Only baked in when the caller passed a fixed
+			// baseTransform explicitly, since then there may be no CSS rule
+			// to fall back to at all.
+			targetEl.style.transform = hasFixedBaseTransform ? baseTransform : "";
+			restoreTransition();
+			return;
+		}
+		setOffset(x, y);
+		simRAF = requestAnimationFrame(tick);
+	};
+	let startSim = () => { if (simRAF === null) simRAF = requestAnimationFrame(tick); };
+
+	handleEl.classList.add(draggableClass);
+	handleEl.addEventListener("pointerdown", e => {
+		if (e.pointerType !== "mouse") return;
+		dragging = true;
+		startX = e.clientX; startY = e.clientY;
+		targetX = 0; targetY = 0;
+		// Re-derived on every drag start (not cached from attach time) — see
+		// getBaseTransform's own comment above for why.
+		if (!hasFixedBaseTransform) baseTransform = getBaseTransform();
+		handleEl.classList.add(draggingClass);
+		suspendTransition();
+		handleEl.setPointerCapture(e.pointerId);
+		startSim();
+	});
+	handleEl.addEventListener("pointermove", e => {
+		if (!dragging) return;
+		[targetX, targetY] = rubberBand(e.clientX - startX, e.clientY - startY);
+	});
+	let endDrag = () => {
+		if (!dragging) return;
+		dragging = false;
+		handleEl.classList.remove(draggingClass);
+		targetX = 0; targetY = 0;
+		// tick() is already running (started on pointerdown) and keeps
+		// going on its own — nothing else to kick off here, the target
+		// just moved back to center for it to chase.
+	};
+	handleEl.addEventListener("pointerup", endDrag);
+	handleEl.addEventListener("pointercancel", endDrag);
+}
+
 // Small "trading card" per 4-star — face icon, faint element-symbol
 // watermark, name — instead of a bare row of icons, so the supporting cast
 // gets the same card language as the 5-star banner rather than reading as
@@ -520,7 +673,7 @@ function buildSpotlightFourCard(character, data, versionIdx, phaseIdx, notes, el
 		card.style.setProperty("--el-icon", `url(../assets/elements/${element.toLowerCase()}.svg)`);
 	}
 
-	// Same splash art + fallback pattern as buildSpotlightFigure() — not
+	// Same splash art + fallback pattern as buildSpotlightFiveCard() — not
 	// every future 4-star will have art downloaded immediately, so this
 	// must degrade to the face icon rather than show a broken image.
 	let imgWrap = document.createElement("div");
@@ -533,6 +686,7 @@ function buildSpotlightFourCard(character, data, versionIdx, phaseIdx, notes, el
 	img.onerror = () => { img.onerror = null; img.src = facePath(character); img.classList.add("is-fallback"); };
 	imgWrap.appendChild(img);
 	card.appendChild(imgWrap);
+	attachSpringDrag(card, img);
 
 	let label = document.createElement("div");
 	label.className = "spotlight-fourcard-label";
@@ -540,7 +694,7 @@ function buildSpotlightFourCard(character, data, versionIdx, phaseIdx, notes, el
 	name.className = "spotlight-fourcard-name";
 	name.textContent = character;
 	label.appendChild(name);
-	// Same tag mechanism as the 5-star figures (rerun-tag/is-first), rather
+	// Same tag mechanism as the 5-star cards (rerun-tag/is-first), rather
 	// than the old grayscale-filter + colored-ring distinction — one
 	// convention for "is this a release or a rerun" instead of two.
 	if (!charNotes.preexisting) {

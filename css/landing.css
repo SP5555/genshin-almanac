@@ -55,7 +55,7 @@
 	width: 100%; max-width: 960px; margin: 28px auto 0;
 	/* Tighter side padding than desktop — on a narrow viewport this is the
 	   difference between the splash art actually filling the available
-	   width or not, since .spotlight-figure below is already width:100% of
+	   width or not, since .spotlight-fivecard below is already width:100% of
 	   whatever room this leaves it. */
 	padding: 22px 12px;
 	background-color: var(--glass); border: 1px solid var(--glass-border);
@@ -110,7 +110,7 @@
 	opacity: 0; transition: opacity 0.4s ease;
 }
 .spotlight-banner-glow.is-active{opacity: 0.55;}
-/* All figures share one grid cell (stacked, not side by side) so only the
+/* All cards share one grid cell (stacked, not side by side) so only the
    active one shows at a time — a display:grid with every child on the same
    row/column sizes itself to the tallest occupant automatically, without
    needing to measure or guess a fixed height for absolutely-positioned
@@ -124,7 +124,7 @@
 	   larger one would flatten it out. */
 	perspective: 1200px;
 }
-/* Only added when there's more than one figure to drag between — a single-
+/* Only added when there's more than one card to drag between — a single-
    5-star phase has no carousel behavior wired up at all (see
    buildSpotlightBanner's early return in landing.js), so a grab cursor
    there would advertise an interaction that doesn't exist. */
@@ -141,14 +141,14 @@
    buildSpotlightBanner in landing.js) — drag, momentum coast, and the
    settle-to-rest sweep alike — never a CSS transition. No transition
    property is set on this element at all. */
-.spotlight-figure{
+.spotlight-fivecard{
 	grid-column: 1; grid-row: 1; justify-self: center;
 	width: 100%; max-width: 680px; padding: 0 6px;
 	display: flex; flex-direction: column; align-items: center;
 }
-.spotlight-figure.is-active{z-index: 1;}
+.spotlight-fivecard.is-active{z-index: 1;}
 @media (min-width: 600px){
-	.spotlight-figure{padding: 0 16px;}
+	.spotlight-fivecard{padding: 0 16px;}
 }
 .spotlight-dots{
 	position: relative; z-index: 1;
@@ -182,17 +182,27 @@
    image's raw 1024px height instead of the intended ~498px. An absolutely
    positioned child is taken out of flow entirely, so it can never feed
    back into its container's own size — no circularity possible. */
-.spotlight-figure-img-wrap{
+.spotlight-fivecard-img-wrap{
 	width: 100%; aspect-ratio: 1.3 / 1;
 	position: relative;
 }
-.spotlight-figure-img{
+.spotlight-fivecard-img{
 	position: absolute; top: 0; left: 50%; transform: translateX(-50%);
 	height: 100%; width: auto; display: block;
 	filter: drop-shadow(0 10px 18px rgba(0,0,0,0.5));
+	transition: transform 0.35s ease;
 }
-.spotlight-figure-img.is-fallback{top: 50%; height: 96px; transform: translate(-50%, -50%);}
-.spotlight-figure-label{
+.spotlight-fivecard-img.is-fallback{top: 50%; height: 96px; transform: translate(-50%, -50%);}
+/* Zoom on hover — transform-only (compositor, not layout), and safely
+   clipped by .spotlight-banner's own overflow:hidden the same way the
+   image's normal off-wrap bleed already is, so scaling up never pokes
+   past the card's edge. Each variant's hover rule has to restate its own
+   base translate (centering) alongside the added scale() — a bare
+   `scale(1.08)` here would replace the base transform outright rather
+   than combining with it. */
+.spotlight-banner:hover .spotlight-fivecard-img{transform: translateX(-50%) scale(1.08);}
+.spotlight-banner:hover .spotlight-fivecard-img.is-fallback{transform: translate(-50%, -50%) scale(1.08);}
+.spotlight-fivecard-label{
 	position: relative; z-index: 1;
 	display: flex; flex-direction: column; align-items: center; gap: 6px;
 	/* -43px, not -22px — the label's own natural height (name + gap + tags),
@@ -200,17 +210,17 @@
 	   name. Previously only the name overlapped and the tag row spilled
 	   ~21px past the image's bottom edge into otherwise-empty space; pulling
 	   the whole label up reclaims that height for the image itself instead
-	   (see .spotlight-figure-img's aspect-ratio). */
+	   (see .spotlight-fivecard-img's aspect-ratio). */
 	margin-top: -43px;
 }
 /* Overlapping the art on purpose — reads as a poster title instead of a
    caption. The shadow (not a background box) is what keeps it legible
    against whatever's directly behind it, since that varies by character. */
-.spotlight-figure-name{
-	font-size: 15px; font-weight: bold; color: var(--text);
+.spotlight-fivecard-name{
+	font-size: 17px; font-weight: bold; color: var(--text);
 	text-shadow: 0 2px 6px rgba(0,0,0,0.85), 0 0 16px rgba(0,0,0,0.6);
 }
-.spotlight-figure-tags{display: flex; align-items: center; gap: 8px;}
+.spotlight-fivecard-tags{display: flex; align-items: center; gap: 8px;}
 /* .rerun-tag/.rate-down-tag's shared defaults (in style.css) are tuned for
    sitting on the Timeline's flat glass card background — a faint
    rgba(255,255,255,0.08) pill with dim text reads fine there, but
@@ -220,11 +230,11 @@
    same 2-class specificity as this selector, so without it this rule loads
    after style.css's and silently wins the tie, wiping out the gold
    "Release" styling too. */
-.spotlight-figure-tags .rerun-tag:not(.is-first){
+.spotlight-fivecard-tags .rerun-tag:not(.is-first){
 	background-color: rgba(10,10,16,0.6); color: var(--text);
 	backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
 }
-.spotlight-figure-tags .rate-down-tag{
+.spotlight-fivecard-tags .rate-down-tag{
 	background-color: rgba(10,10,16,0.6); color: var(--text-dim);
 	backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
 }
@@ -268,6 +278,12 @@
 	.spotlight-fourcard{flex: 1 1 0; max-width: none; margin: 0;}
 }
 .spotlight-fourcard:hover{background-color: var(--glass-hover); border-color: var(--glass-border-hover);}
+/* Purely decorative grab affordance for the spring-drag toy (see
+   attachSpringDrag() in landing.js) — added via JS, not unconditionally,
+   so touch devices (which never get the drag wired up at all) don't show
+   a grab cursor that's just noise there. */
+.spotlight-fourcard.is-spring-draggable{cursor: grab;}
+.spotlight-fourcard.is-spring-draggable.is-dragging{cursor: grabbing;}
 /* Dedicated layer for the watermark so it can use real CSS opacity — a
    z-index below the card's own painted background/border (see z-index:0 +
    position:relative above, which contains this to just this card) but above
@@ -293,7 +309,7 @@
 	background: radial-gradient(circle at 50% 100%, var(--el-glow, transparent) 0%, transparent 100%);
 	opacity: 0.5;
 }
-/* Same crop-avoiding technique as .spotlight-figure-img-wrap/-img (see that
+/* Same crop-avoiding technique as .spotlight-fivecard-img-wrap/-img (see that
    comment for the full reasoning) — same 1.3:1 ratio for visual
    consistency with the banner above, just at a much smaller absolute
    size. No separate overflow:hidden needed here — .spotlight-fourcard
@@ -303,11 +319,25 @@
 	position: absolute; top: 0; left: 50%; transform: translateX(-50%);
 	height: 100%; width: auto; display: block;
 	filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+	transition: transform 0.35s ease;
 }
 .spotlight-fourcard-img.is-fallback{top: 50%; height: 56px; transform: translate(-50%, -50%);}
+/* Same hover-zoom treatment as .spotlight-fivecard-img — see that comment
+   for the full reasoning. .spotlight-fourcard already clips via its own
+   overflow:hidden. */
+.spotlight-fourcard:hover .spotlight-fourcard-img{transform: translateX(-50%) scale(1.08);}
+.spotlight-fourcard:hover .spotlight-fourcard-img.is-fallback{transform: translate(-50%, -50%) scale(1.08);}
+/* The hover-zoom transition above would also apply to every OTHER change
+   to `transform` on this element — including attachSpringDrag()'s
+   per-pointermove updates and its per-frame spring-back rAF loop, both of
+   which need to move instantly/on their own physics, not get eased over
+   0.35s on top. attachSpringDrag() (landing.js) handles this itself by
+   saving/restoring the element's inline `transition` directly for the
+   whole drag+spring-back window, rather than requiring a CSS rule here to
+   know about it — nothing to declare on this side. */
 /* Absolutely positioned against .spotlight-fourcard (its nearest
    position:relative ancestor), not a negative margin-top like
-   .spotlight-figure-label — a fixed negative margin only overlaps
+   .spotlight-fivecard-label — a fixed negative margin only overlaps
    correctly if the label is always the same height, which breaks the
    moment a character has no tag at all (preexisting characters skip the
    rerun-tag entirely, e.g. Sucrose): the label shrinks to just the name,
@@ -329,15 +359,15 @@
 	height: 37px;
 	display: flex; flex-direction: column; align-items: center; gap: 4px;
 }
-/* Text-shadow instead of a background box, same as .spotlight-figure-name —
+/* Text-shadow instead of a background box, same as .spotlight-fivecard-name —
    stays legible against whatever's directly behind it without hiding the art. */
 .spotlight-fourcard-name{
-	font-size: 12px; font-weight: bold; color: var(--text); text-align: center;
+	font-size: 14px; font-weight: bold; color: var(--text); text-align: center;
 	text-shadow: 0 2px 6px rgba(0,0,0,0.85), 0 0 16px rgba(0,0,0,0.6);
 }
-/* Same reasoning as .spotlight-figure-tags: the shared rerun-tag styling
+/* Same reasoning as .spotlight-fivecard-tags: the shared rerun-tag styling
    (style.css) is tuned for the Timeline's flat glass cards and disappears
-   against art — same dark-pill override as the figure tags. is-first
+   against art — same dark-pill override as the fivecard tags. is-first
    ("Release") already has a solid --five background so it's excluded. */
 .spotlight-fourcard-label .rerun-tag:not(.is-first){
 	background-color: rgba(10,10,16,0.6); color: var(--text);

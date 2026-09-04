@@ -120,7 +120,13 @@ not a flex child sized by `height:100%` — a flex child's percentage height
 resolving against a purely `aspect-ratio`-derived container height is
 circular (the container's content-size pass sees the image's raw 1024px
 intrinsic height before `aspect-ratio` constrains it), inflating the
-wrapper to the wrong size.
+wrapper to the wrong size. Both this and the 4-star cards' splash art
+zoom slightly (`scale()`) on hovering the card — `transform`-only, and
+safely clipped by the card's own `overflow:hidden` the same way the art's
+normal off-wrap bleed already is. Each variant's hover rule has to restate
+its own base `translate()` alongside the added `scale()`, since a bare
+`scale()` would replace the centering transform outright rather than
+combining with it.
 
 **4-star mini cards** (below the carousel) use the same splash art + the
 same crop technique (now squared to `aspect-ratio:1/1` — the existing
@@ -129,7 +135,7 @@ approach already behaves exactly like `object-fit:cover` once the box gets
 narrower than the source's 2:1 ratio, so squaring it up needed no new
 technique, just the one ratio number) — real art instead of a circular
 face icon, still clearly secondary by scale alone. Release-vs-rerun is the
-tag text only (`Release`/`Rerun N`, same convention the 5-star figures
+tag text only (`Release`/`Rerun N`, same convention the 5-star cards
 use), not a separate grayscale-filter/colored-ring distinction — one
 convention for that fact, not two.
 
@@ -155,7 +161,7 @@ fixed pixel value, for the same fluid-width reason.
 The name/tag label overlaps the art itself, reclaiming that height for the
 splash art instead of pushing the card taller — but as an
 `position:absolute; bottom:8px` overlay on `.spotlight-fourcard` itself,
-**not** the `.spotlight-figure-label` carousel's `margin-top:-Npx` trick.
+**not** the `.spotlight-fivecard-label` carousel's `margin-top:-Npx` trick.
 That negative-margin approach only overlaps correctly if the label is
 always the same height, and it isn't: preexisting-roster characters (e.g.
 Sucrose — see below) skip the tag entirely, so their label is just the
@@ -168,15 +174,70 @@ with ~11px of her splash art cut off). Taking the label out of flow
 entirely with `position:absolute` sizes the card off the image wrap alone,
 so every card is identical regardless of that character's label height —
 worth remembering as the general fix whenever an overlapping caption's
-content length can vary (the carousel's `.spotlight-figure-label` has the
+content length can vary (the carousel's `.spotlight-fivecard-label` has the
 same latent risk, just not yet hit live, since no currently-preexisting
 5-star lacks every tag). Text-shadow (not a background box) keeps the name
-legible against whatever's directly behind it, mirroring the figure name.
+legible against whatever's directly behind it, mirroring the fivecard name.
 
 Preexisting-roster characters (e.g. Sucrose) show no tag at all, same as
 on the carousel — calling their first tracked appearance "Release" would
 be wrong and a "Rerun N" count would be meaningless without knowing their
 real 1.0 debut, so the tag is omitted rather than shown incorrectly.
+
+Splash art is draggable, purely decorative — `attachSpringDrag(handleEl,
+targetEl, options)` in landing.js, written generically (not fourcard-
+specific, so it's reusable on any future element): `handleEl` takes the
+pointer events, `targetEl` gets the transform, `options` exposes
+`maxPull`/`stiffness`/`damping`/`rest`/class names/`baseTransform`.
+Currently only wired up for the 4-star splash art (`attachSpringDrag(card,
+img)`). One continuous spring simulation for the whole gesture, not "snap
+to cursor while dragging, then spring back after release" — dragging never
+sets the position directly, it only moves a `target` (the mouse offset,
+radially rubber-banded — iOS-scroll-bounce formula, direction-preserving,
+so a diagonal pull caps to a circle rather than a per-axis square) that a
+damped spring continuously chases, both during the drag and after release
+(target just snaps to (0,0) then, same running loop). That's what makes it
+visibly lag/trail the cursor mid-drag, not just spring back on release.
+Position itself is never clamped anywhere — the rubber-band ceiling on the
+target is the only bound; position settles near it purely because nothing
+else is pulling on the spring. Mouse-only, skipped on pure-touch devices
+(`matchMedia`, double-checked per-event via `pointerType`) since a touch
+drag would fight the page's vertical scroll.
+
+Tuned **underdamped** on purpose (`stiffness: 0.0194, damping: 0.9327` —
+the differential-equations classification: overdamped never crosses
+equilibrium, critically damped crosses at most once, underdamped
+oscillates several times before settling): 3 visible swings over ~1.7s.
+`damping` is a per-frame velocity-*retention* multiplier, not a damping
+coefficient — a *higher* value is what loosens it, easy to get backwards.
+Slowing the whole thing down without changing its shape (same overshoot
+ratios/swing count, just stretched in time) needs both constants scaled
+together, not just one — shape is set by the damping ratio ζ=c/(2√k)
+(scale-invariant), timescale by ω₀=√k, so halving the speed means
+stiffness÷(slowdown²) and `damping_new = damping_old^(1/slowdown)`.
+Verified numerically via the discrete update's eigenvalues, not just by
+eyeballing the result: decay-per-oscillation-cycle came out identical
+before/after, period exactly doubled. One consequence worth knowing before
+assuming a test drag "isn't working": with low stiffness a quick flick no
+longer reaches full amplitude before release, since the spring also reacts
+more sluggishly *during* the drag — correct slow-motion behavior, not a
+bug.
+
+Two implementation traps worth remembering for the next element this gets
+attached to: (1) any `transition: transform` on `targetEl` (e.g. a hover-
+zoom) would otherwise ease every per-frame update this drives too, reading
+as input lag — handled internally by saving/restoring
+`targetEl.style.transition` for the whole drag+spring window, so callers
+don't need a matching CSS rule of their own. (2) `baseTransform` (whatever
+transform `targetEl` already has) defaults to a fresh `getComputedStyle`
+read at the *start of each drag*, not once at `attachSpringDrag()`
+call-time — call-time can be before an `<img>`'s `src` has even loaded (or
+failed over to a differently-positioned fallback state), so caching it
+there risks baking in a stale pre-load transform. On settle, that
+auto-detected case clears the inline transform entirely (not a baked
+resolved value) so live CSS — including a hover-zoom — keeps working
+afterward; only an explicit `options.baseTransform` string gets left in
+place, since then there may be no CSS to fall back to.
 
 ### Trivia ticker
 Deliberately the *lightweight* opposite of the spotlight carousel above —
@@ -326,7 +387,26 @@ isn't realistically grabbable on touch.
 6 versions have a `chronicled` field → an extra `--chronicled`-accented card
 after the relevant phase. The 5-star row uses plain CSS flex-wrap rather
 than manual row-splitting — gives the desired "3-3, break to 3-3-2" for
-free.
+free. The 4-star group is different: `app.js` pre-splits it into exactly
+two `.phase-four-col` columns (first half / second half of up to a dozen
+names, e.g. 4.5's 12-name Mondstadt roster) rather than relying on wrap,
+since a flat wrapped list of that many icons+names didn't read as a grid.
+
+**Real bug this caused, fixed twice** (found via real-viewport-width
+testing, not just resize-the-window eyeballing): between ~480–768px, those
+two fixed-width columns had no room to shrink once `.phase-five-group`'s
+own `flex-shrink:0`/340px max-width claimed most of the card, and — since
+neither the columns nor their `white-space:nowrap` names could compress —
+they overflowed the card, and the page itself, rather than wrapping.
+First fix (`flex-wrap` on `.phase-four-group` itself) helped but didn't
+fully close it: wrap only kicks in between siblings that already fit
+*somewhere*, and a single column collapsed against a nearly-zero-width
+parent still renders at its own min-content size and overflows anyway.
+Real fix: chronicled cards specifically (not regular phase cards, which
+were always fine in row layout down to 480px) get the same row→column
+stacking treatment as the general `<480px` breakpoint below, just starting
+from the wider, already-established 768px breakpoint — reusing an
+existing threshold rather than inventing a new one.
 
 ### Ambient region background
 `#regionBgA`/`#regionBgB` (two layers, crossfade 1.6s) driven by the same
@@ -465,6 +545,11 @@ month, 4am server time).
   occupy permanent viewport space.
 - `--line` is lavender, chosen over slate-grey/bronze/icy-blue options to
   tie into `--four`.
+- Breakpoints are shared across pages on purpose (`480`/`600`/`768`/`900`
+  only) — fewer distinct widths means fewer places the layout visibly
+  jumps as the window resizes. The char-panel drawer and Server Clocks'
+  grid used to switch at their own one-off `700`/`720` and were folded
+  into `768` to match.
 
 ## CSS/animation gotchas
 1. **Animate only `transform`/`opacity`.** Anything else (`width`,

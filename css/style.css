@@ -476,7 +476,18 @@ body::-webkit-scrollbar{display: none;}
 .phase-divider{width: 1px; align-self: stretch; background-color: var(--glass-border); flex-shrink: 0;}
 
 .phase-four-group{display: flex; flex-direction: column; gap: 7px; min-width: 0;}
-.is-chronicled .phase-four-group{display: flex; flex-direction: row; align-items: center; gap: 20px;}
+/* flex-wrap (missing before) is what actually fixes the overflow — a
+   chronicled banner can carry up to a dozen 4-stars (e.g. 4.5 Mondstadt),
+   and with no wrap they all forced onto one unbroken row, pushing the card
+   — and the page itself — well past the viewport at ~480-768px widths
+   where .phase-card-body is still row-direction (the <480px breakpoint
+   below stacks everything to a column, which happened to hide this same
+   bug there). justify-content:center matches the sibling
+   .phase-five-group's wrap treatment right next to it. */
+.is-chronicled .phase-four-group{
+	display: flex; flex-direction: row; flex-wrap: wrap;
+	align-items: center; justify-content: center; gap: 10px 20px;
+}
 .phase-four-col{display: flex; flex-direction: column; gap: 7px;}
 .phase-four-unit{display: flex; align-items: center; gap: 8px;}
 .char-face-sm{width: 24px; height: 24px; border-radius: 50%; object-fit: contain; flex-shrink: 0;
@@ -503,6 +514,21 @@ body::-webkit-scrollbar{display: none;}
 	.phase-card-body{flex-direction: column; align-items: stretch; gap: 12px;}
 	.phase-divider{width: 100%; height: 1px; align-self: auto;}
 	.phase-five-group, .phase-four-group{width: 100%;}
+}
+/* Chronicled banners specifically (not regular phase cards, which are fine
+   in row layout down to 480px) — a chronicled 4-star group can be a dozen
+   names split into two columns (see .phase-four-col in app.js), which has
+   no room left to shrink once .phase-five-group's fixed 340px max-width
+   claims most of the card, so it overflows the card — and the page —
+   well above the general 480px stacking breakpoint above. Reusing the
+   same row->column treatment, just starting from the wider, already-
+   established 768px breakpoint (see the avatar-sizing rule below) for
+   this card type only. */
+@media (max-width: 768px){
+	.trail-node.phase-card.is-chronicled .phase-card-body{flex-direction: column; align-items: stretch; gap: 12px;}
+	.trail-node.phase-card.is-chronicled .phase-divider{width: 100%; height: 1px; align-self: auto;}
+	.trail-node.phase-card.is-chronicled .phase-five-group{margin: 0 auto;}
+	.trail-node.phase-card.is-chronicled .phase-four-group{width: 100%;}
 }
 
 /* clickable characters open the detail panel below */
@@ -597,7 +623,7 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 .char-appear-tag{font-size: 11px; color: var(--text-dim);}
 .char-appear-tag.is-release{color: var(--five); font-weight: bold;}
 
-@media (max-width: 700px){
+@media (max-width: 767px){
 	.char-panel{
 		top: auto; left: 0; right: 0; bottom: 0; width: 100%;
 		max-height: 82vh;
@@ -618,6 +644,6 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 	}
 	.char-panel-topbar{display: none;}
 }
-@media (min-width: 701px){
+@media (min-width: 768px){
 	body.panel-open .timeline-root{transform: translateX(300px);}
 }
