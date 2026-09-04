@@ -315,6 +315,15 @@
    size. No separate overflow:hidden needed here — .spotlight-fourcard
    already clips via its own overflow:hidden above. */
 .spotlight-fourcard-img-wrap{width: 100%; aspect-ratio: 1 / 1; position: relative;}
+/* attachSpringDrag() (landing.js) drives this element's transform every
+   frame, both mid-drag and during the spring-back — it must never carry a
+   CSS transition (see that function's contract comment for why an earlier
+   save/restore-the-transition approach on a single shared element was
+   buggy: re-grabbing before the spring settled could permanently wipe the
+   restored transition). position:relative so it's the containing block
+   .spotlight-fourcard-img positions itself against, regardless of whether
+   JS has applied a transform yet. */
+.spotlight-fourcard-drag{position: relative; width: 100%; height: 100%; transition: none;}
 .spotlight-fourcard-img{
 	position: absolute; top: 0; left: 50%; transform: translateX(-50%);
 	height: 100%; width: auto; display: block;
@@ -324,17 +333,10 @@
 .spotlight-fourcard-img.is-fallback{top: 50%; height: 56px; transform: translate(-50%, -50%);}
 /* Same hover-zoom treatment as .spotlight-fivecard-img — see that comment
    for the full reasoning. .spotlight-fourcard already clips via its own
-   overflow:hidden. */
+   overflow:hidden. Safe to transition here (unlike the drag layer above)
+   since nothing else ever writes to this element's transform. */
 .spotlight-fourcard:hover .spotlight-fourcard-img{transform: translateX(-50%) scale(1.08);}
 .spotlight-fourcard:hover .spotlight-fourcard-img.is-fallback{transform: translate(-50%, -50%) scale(1.08);}
-/* The hover-zoom transition above would also apply to every OTHER change
-   to `transform` on this element — including attachSpringDrag()'s
-   per-pointermove updates and its per-frame spring-back rAF loop, both of
-   which need to move instantly/on their own physics, not get eased over
-   0.35s on top. attachSpringDrag() (landing.js) handles this itself by
-   saving/restoring the element's inline `transition` directly for the
-   whole drag+spring-back window, rather than requiring a CSS rule here to
-   know about it — nothing to declare on this side. */
 /* Absolutely positioned against .spotlight-fourcard (its nearest
    position:relative ancestor), not a negative margin-top like
    .spotlight-fivecard-label — a fixed negative margin only overlaps

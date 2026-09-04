@@ -516,12 +516,14 @@ function attachSpringDrag(handleEl, targetEl, options = {}) {
 		// preserved underneath the spring offset. A fixed string can be
 		// passed for an element whose base transform is known upfront;
 		// left undefined (the default), it's read fresh via getComputedStyle
-		// at the *start of each drag* rather than once here at attach time —
-		// attach happens right after e.g. an <img>'s src is set, before it's
-		// actually loaded (or possibly fails over to a differently-
-		// positioned fallback), so reading it here would risk baking in a
-		// stale pre-load transform. By the time a user actually starts
-		// dragging, any such async state has long since settled.
+		// at the start of each drag *that begins from a fully settled,
+		// CSS-controlled state* (see the simRAF-guarded call below) rather
+		// than once here at attach time — attach happens right after e.g.
+		// an <img>'s src is set, before it's actually loaded (or possibly
+		// fails over to a differently-positioned fallback), so reading it
+		// here would risk baking in a stale pre-load transform. By the time
+		// a user actually starts dragging, any such async state has long
+		// since settled.
 		getBaseTransform = () => {
 			let computed = getComputedStyle(targetEl).transform;
 			return computed === "none" ? "" : computed;
@@ -547,7 +549,6 @@ function attachSpringDrag(handleEl, targetEl, options = {}) {
 	let targetX = 0, targetY = 0;
 	let x = 0, y = 0, vx = 0, vy = 0;
 	let simRAF = null;
-	let savedTransition = null;
 
 	// Rubber-band on the pull's radial distance (iOS-scroll-bounce formula:
 	// approaches `maxPull` asymptotically, never exceeds it), not capped per
@@ -573,18 +574,18 @@ function attachSpringDrag(handleEl, targetEl, options = {}) {
 		targetEl.style.transform = `${baseTransform} translate(${px}px, ${py}px)`;
 	};
 
-	// Any of targetEl's own `transform` transitions (e.g. a hover-zoom
-	// elsewhere) would otherwise ease every per-frame update this drives —
-	// read as input lag during the drag and a fought-over motion during the
-	// spring-back (bit the 4-star card exactly this way once — see
-	// CLAUDE.md). Saved/restored directly here rather than requiring every
-	// caller to hand-author a matching "kill the transition" CSS rule for
-	// whatever element they hand in.
-	let suspendTransition = () => {
-		savedTransition = targetEl.style.transition;
-		targetEl.style.transition = "none";
-	};
-	let restoreTransition = () => { targetEl.style.transition = savedTransition; savedTransition = null; };
+	// Contract: targetEl must have no CSS transition on `transform` — this
+	// drives that property every frame (during the drag) and every frame of
+	// the spring-back (after release), and a transition would ease each of
+	// those updates, reading as input lag while dragging and a fought-over
+	// motion on the way back. An earlier version allowed a transitioned
+	// targetEl by saving/restoring its inline `transition` for the drag+
+	// settle window, but re-grabbing before settle re-saved the already-
+	// suspended "none" as if it were the original value, permanently wiping
+	// the transition on restore. Simpler and actually robust: if targetEl
+	// also needs a transitioned effect (e.g. a hover-zoom), give that effect
+	// its own nested element instead — see the 4-star card's drag-layer/img
+	// split in buildSpotlightFourCard() for the pattern.
 
 	// Semi-implicit Euler per frame, same hand-rolled-physics style as the
 	// carousel's momentum coast, not a closed-form solution. Keeps running
@@ -608,7 +609,6 @@ function attachSpringDrag(handleEl, targetEl, options = {}) {
 			// baseTransform explicitly, since then there may be no CSS rule
 			// to fall back to at all.
 			targetEl.style.transform = hasFixedBaseTransform ? baseTransform : "";
-			restoreTransition();
 			return;
 		}
 		setOffset(x, y);
@@ -623,10 +623,16 @@ function attachSpringDrag(handleEl, targetEl, options = {}) {
 		startX = e.clientX; startY = e.clientY;
 		targetX = 0; targetY = 0;
 		// Re-derived on every drag start (not cached from attach time) — see
-		// getBaseTransform's own comment above for why.
-		if (!hasFixedBaseTransform) baseTransform = getBaseTransform();
+		// getBaseTransform's own comment above for why. Guarded to only fire
+		// when simRAF is null (no simulation currently running, so targetEl's
+		// transform is genuinely whatever CSS put there): re-grabbing before
+		// a previous drag's spring-back has settled would otherwise read
+		// back our OWN in-flight offset via getComputedStyle and bake it in
+		// as the new "base," visually doubling the current offset on the
+		// spot and leaving the true center polluted until the next full
+		// settle clears it.
+		if (!hasFixedBaseTransform && simRAF === null) baseTransform = getBaseTransform();
 		handleEl.classList.add(draggingClass);
-		suspendTransition();
 		handleEl.setPointerCapture(e.pointerId);
 		startSim();
 	});
@@ -676,17 +682,26 @@ function buildSpotlightFourCard(character, data, versionIdx, phaseIdx, notes, el
 	// Same splash art + fallback pattern as buildSpotlightFiveCard() — not
 	// every future 4-star will have art downloaded immediately, so this
 	// must degrade to the face icon rather than show a broken image.
+	// dragLayer/img split: attachSpringDrag() drives dragLayer's transform
+	// every frame (no CSS transition, ever), while img keeps its own
+	// separately-transitioned transform for the hover-zoom — see
+	// attachSpringDrag()'s contract comment for why sharing one transform
+	// between "driven every frame by JS" and "eased by CSS" doesn't work.
 	let imgWrap = document.createElement("div");
 	imgWrap.className = "spotlight-fourcard-img-wrap";
+	let dragLayer = document.createElement("div");
+	dragLayer.className = "spotlight-fourcard-drag";
 	let img = document.createElement("img");
 	img.className = "spotlight-fourcard-img";
 	img.src = splashPath(character);
 	img.alt = character;
 	img.loading = "lazy";
+	img.draggable = false;
 	img.onerror = () => { img.onerror = null; img.src = facePath(character); img.classList.add("is-fallback"); };
-	imgWrap.appendChild(img);
+	dragLayer.appendChild(img);
+	imgWrap.appendChild(dragLayer);
 	card.appendChild(imgWrap);
-	attachSpringDrag(card, img);
+	attachSpringDrag(card, dragLayer);
 
 	let label = document.createElement("div");
 	label.className = "spotlight-fourcard-label";
