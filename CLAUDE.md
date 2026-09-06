@@ -653,6 +653,23 @@ characters, stale `phase-notes` keys, and missing face/namecard art (which
 fail *silently* in the UI — neither has an `onerror` fallback). Not wired
 into CI yet, so it only catches things when someone remembers to run it.
 
+## Testing date/time-sensitive UI
+`previewNow()` (`js/shared.js`) is a drop-in replacement for `Date.now()`/
+`new Date()` everywhere "now" is read for UI purposes (phase math, daily
+reset countdowns, live indicators) — used across `landing.js`, `clocks.js`,
+and `app.js`. Add `?fakeDate=2026-09-30T14:30:00` (date-only also works) to
+any page's URL while running `npm run dev` to preview it as of that instant
+— time keeps flowing forward normally from there (a fixed offset applied
+to the real clock, computed once at load) rather than freezing, so
+`setInterval`-driven countdowns still tick realistically during testing.
+Gated to `localhost`/`127.0.0.1` (the dev-server hostname) so it's
+structurally inert on the deployed site regardless of what URL a visitor
+tries — not just hidden, the offset is hardcoded to 0 off that hostname
+check. Parsing a *stored* date from `data.json` should still use a plain
+`new Date(...)` — only reads of the current moment go through this.
+Per-URL only, not persisted across navigation — add the param to whatever
+page you're actually testing.
+
 ## Data accuracy note
 Moved to `data/SOURCES.md` (same file as art provenance — both are only
 needed when actually adding new version/character data or art, not on

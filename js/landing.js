@@ -1149,15 +1149,40 @@ async function bootstrapLanding() {
 		let elements = await elementsRes.json();
 		let triviaPool = await triviaRes.json();
 
-		let versionIdx = data.length - 1;
-		let entry = data[versionIdx];
-		let phaseIdx = getCurrentPhaseIndex(entry, Date.now());
+		let now = previewNow();
+		// Not always data[data.length-1] — a version can be pre-staged in
+		// data.json up to a week before its real launch (roster/art set,
+		// announced, but not live yet). Walk backward for the last entry
+		// that's actually launched — same pattern as findLastLaunchedEntry()
+		// (shared.js, used by the header's live dot) and the Timeline's own
+		// live-ripple logic — otherwise the spotlight would confidently show
+		// the *next* version as already live during that pre-staged week.
+		let entry = findLastLaunchedEntry(data, now.getTime()) || data[0];
+		let versionIdx = data.indexOf(entry);
+		let phaseIdx = getCurrentPhaseIndex(entry, now.getTime());
 
 		document.getElementById("spotlightHeading").textContent = `Version ${entry.version} — Phase ${phaseIdx + 1}`;
-		document.getElementById("spotlightSub").textContent = `Live since ${formatDate(entry.date)}`;
+		// The *phase's* start date, not the version's launch date — same
+		// PHASE_LENGTH_DAYS math getCurrentPhaseIndex() already used to pick
+		// this phase, so it's consistent (and correctly falls back to
+		// entry.date itself for phase 1).
+		let phaseStart = new Date(entry.date + "T00:00:00Z");
+		phaseStart.setUTCDate(phaseStart.getUTCDate() + phaseIdx * PHASE_LENGTH_DAYS);
+		document.getElementById("spotlightSub").textContent = `Live since ${formatDate(phaseStart.toISOString().slice(0, 10))}`;
+		// Same LIVE_WINDOW_DAYS staleness rule as the header's brand dot
+		// (shared.js) — once data.json hasn't been updated in that long, this
+		// card is almost certainly showing an old version/phase rather than
+		// whatever's actually live, so say so instead of confidently
+		// displaying stale info with no indication anything's off.
+		let daysSinceLaunch = (now.getTime() - new Date(entry.date + "T00:00:00Z").getTime()) / 86400000;
+		let staleEl = document.getElementById("spotlightStale");
+		if (daysSinceLaunch > LIVE_WINDOW_DAYS) {
+			staleEl.textContent = "This might be old news by now — we may be behind on the latest update.";
+			staleEl.hidden = false;
+		}
 		document.getElementById("spotlightCard").replaceWith(buildSpotlight(data, versionIdx, phaseIdx, notes, elements));
 
-		let triviaCards = shuffle([...getAnniversaryCards(data, versionMeta, notes, new Date()), ...sampleTrivia(triviaPool, 3)]);
+		let triviaCards = shuffle([...getAnniversaryCards(data, versionMeta, notes, now), ...sampleTrivia(triviaPool, 3)]);
 		document.getElementById("triviaTicker").replaceWith(buildTriviaTicker(triviaCards));
 
 		// Same background recipe as the Timeline's per-version region art (see

@@ -644,7 +644,7 @@ function init(data) {
 	let root = document.getElementById("timelineRoot");
 	let majorBlocks = [];
 	let LIVE_WINDOW_DAYS = 42;
-	let now = Date.now();
+	let now = previewNow().getTime();
 	// data.json's last entry isn't always the currently-live version — it can be
 	// pre-staged ahead of its official date once announced, same edge case the
 	// Server Clocks update estimate handles. Walk backward for the last entry

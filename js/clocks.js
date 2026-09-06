@@ -127,7 +127,7 @@ function updateClockCard(server, el, now, { animateRing = true } = {}) {
 }
 
 function tickDailyClocks(cards) {
-	let now = new Date();
+	let now = previewNow();
 	cards.forEach(({ server, el }) => updateClockCard(server, el, now));
 }
 
@@ -136,7 +136,7 @@ function tickDailyClocks(cards) {
 // (some just resolve to a "GMT+X" offset already, e.g. India) — in that case
 // skip the redundant offset suffix rather than showing "GMT+5:30 (UTC+5:30)".
 function detectTimezoneLabel() {
-	let now = new Date();
+	let now = previewNow();
 	let short = new Intl.DateTimeFormat("en-US", { timeZoneName: "short" })
 		.formatToParts(now).find(p => p.type === "timeZoneName")?.value || "";
 	let offsetMin = -now.getTimezoneOffset();
@@ -149,7 +149,7 @@ function detectTimezoneLabel() {
 }
 
 function showTimezoneNote() {
-	let now = new Date();
+	let now = previewNow();
 	let long = new Intl.DateTimeFormat("en-US", { timeZoneName: "long" })
 		.formatToParts(now).find(p => p.type === "timeZoneName")?.value || "";
 	let note = document.getElementById("clocksTzNote");
@@ -158,7 +158,7 @@ function showTimezoneNote() {
 
 function buildDailyClocks() {
 	let grid = document.getElementById("dailyClockGrid");
-	let now = new Date();
+	let now = previewNow();
 	let reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 	let cards = SERVERS.map(server => {
 		let el = buildClockCard(server);
@@ -170,7 +170,7 @@ function buildDailyClocks() {
 		// end normally triggers this) doesn't run in that case either.
 		updateClockCard(server, el, now, { animateRing: reduceMotion });
 		if (!reduceMotion) {
-			el.addEventListener("animationend", () => updateClockCard(server, el, new Date()), { once: true });
+			el.addEventListener("animationend", () => updateClockCard(server, el, previewNow()), { once: true });
 		}
 		return { server, el };
 	});
@@ -185,7 +185,7 @@ function buildUpdateCard(lastEntry, prevEntry) {
 	// future. Treat that as a *known* upcoming launch instead of a past one:
 	// count down to its real date rather than guessing +42 days from it, and
 	// fall back to the entry before it as "the current live version" for display.
-	let isUpcoming = Date.now() < lastEntryAnchor.getTime();
+	let isUpcoming = previewNow().getTime() < lastEntryAnchor.getTime();
 	let liveEntry = isUpcoming && prevEntry ? prevEntry : lastEntry;
 	let liveAnchor = isUpcoming && prevEntry
 		? cstDateToUtcInstant(prevEntry.date, MAINTENANCE_START_HOUR_CST)
@@ -238,7 +238,7 @@ function buildUpdateCard(lastEntry, prevEntry) {
 	let descEl = card.querySelector('[data-role="desc"]');
 	let wasOverdue = null;
 	function tick({ animateBar = true } = {}) {
-		let now = new Date();
+		let now = previewNow();
 		// A confirmed upcoming launch can't be "overdue" — its target is by
 		// definition still in the future the whole time isUpcoming holds.
 		let isOverdue = !isUpcoming && now.getTime() > target.getTime();

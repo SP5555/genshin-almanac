@@ -19,6 +19,33 @@ function formatDate(isoDate) {
 	return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+// Dev-only time travel for testing date/time-sensitive UI (phase math,
+// countdowns, live indicators) without touching the system clock. Reads
+// ?fakeDate=<ISO date or datetime, e.g. 2026-09-30T14:30:00> from the URL —
+// gated to the dev-server hostname (localhost/127.0.0.1) so it's
+// structurally inert on the real deployed site regardless of what URL a
+// visitor tries. The offset is computed once at page load and held fixed,
+// so time keeps flowing forward normally from that starting instant rather
+// than freezing there — every call to previewNow() re-reads the real clock
+// and re-applies the same offset, which is what keeps a setInterval-driven
+// countdown ticking realistically during testing. Every "now" read for UI
+// purposes across the site should go through this instead of a bare
+// Date.now()/new Date() — parsing a *stored* date from data.json is
+// unaffected and shouldn't use this. Per-URL only, not persisted — the
+// param has to be on whatever page you're actually testing.
+const PREVIEW_TIME_OFFSET_MS = (() => {
+	let isLocalDev = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+	if (!isLocalDev) return 0;
+	let fakeDate = new URLSearchParams(location.search).get("fakeDate");
+	if (!fakeDate) return 0;
+	let parsed = new Date(fakeDate);
+	return isNaN(parsed.getTime()) ? 0 : parsed.getTime() - Date.now();
+})();
+
+function previewNow() {
+	return new Date(Date.now() + PREVIEW_TIME_OFFSET_MS);
+}
+
 function initBackToTop() {
 	let btn = document.getElementById("backToTop");
 	if (!btn) return;
@@ -51,7 +78,7 @@ async function initBrandLivePulse() {
 		let res = await fetch("data/data.json");
 		if (!res.ok) return;
 		let data = await res.json();
-		let now = Date.now();
+		let now = previewNow().getTime();
 		let launched = findLastLaunchedEntry(data, now);
 		if (!launched) return;
 		let daysSince = (now - new Date(launched.date + "T00:00:00").getTime()) / 86400000;
