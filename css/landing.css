@@ -87,12 +87,22 @@
    extra -50% in the transform corrects for the box's own half-height, so
    the offset below is the icon's actual center distance from the top edge,
    not the box edge. */
+/* --hover-scale drives both the zoom AND the anchor push together via
+   calc(), rather than two independently-tuned magic numbers that can drift
+   out of sync (they did once already — a translate offset hand-tuned
+   alongside an old scale value got left behind when the scale was retuned
+   smaller, so the push kept its old strength while the zoom nearly
+   vanished). At --hover-scale:1 the extra term is exactly 0, recovering
+   the plain base translate — only the :hover rule below needs to touch
+   anything, just by changing this one number. */
 .spotlight-banner-icon{
 	position: absolute; z-index: -1; pointer-events: none;
-	top: 70px; left: 0; transform: translate(-40%, -50%);
+	top: 70px; left: 0;
+	--hover-scale: 1;
+	transform: translate(calc(-40% - (var(--hover-scale) - 1) * 100%), calc(-50% - (var(--hover-scale) - 1) * 100%)) scale(var(--hover-scale));
 	width: 220px; height: 220px;
 	background-repeat: no-repeat; background-position: center; background-size: contain;
-	opacity: 0; transition: opacity 0.4s ease;
+	opacity: 0; transition: opacity 0.4s ease, transform 0.4s ease;
 }
 .spotlight-banner-icon.is-active{opacity: 0.16;}
 /* Second icon at the opposite corner — mirrors the top-left positioning
@@ -102,12 +112,22 @@
    pose leaves little empty space in the middle — the corners actually use
    the negative space the art leaves free. */
 .spotlight-banner-icon.is-bottom-right{
-	top: auto; left: auto; bottom: 70px; right: 0; transform: translate(40%, 50%);
+	top: auto; left: auto; bottom: 70px; right: 0;
+	transform: translate(calc(40% + (var(--hover-scale) - 1) * 100%), calc(50% + (var(--hover-scale) - 1) * 100%)) scale(var(--hover-scale));
 }
 @media (min-width: 600px){
 	.spotlight-banner-icon{width: 320px; height: 320px; top: 90px;}
 	.spotlight-banner-icon.is-bottom-right{top: auto; bottom: 90px;}
 }
+/* Same hover-zoom moment as the splash art, but reads as scaling from the
+   *card's* center rather than the icon's own — since each icon is already
+   positioned via translate() anchoring it near its corner (see above),
+   growing that same translate's magnitude on hover pushes it further from
+   its anchor point exactly as if it were scaling outward from the middle
+   of the card, without actually needing that as a transform-origin. Only
+   this one custom property changes on hover — both icons' transform
+   recomputes from it automatically (see above). */
+.spotlight-banner:hover .spotlight-banner-icon{--hover-scale: 1.1;}
 .spotlight-banner-glow{
 	position: absolute; inset: 0; z-index: 0; pointer-events: none;
 	opacity: 0; transition: opacity 0.4s ease;
@@ -303,7 +323,13 @@
 	   look proportionally tiny on a wide card and oversized on a narrow one. */
 	background-size: 130% 130%;
 	opacity: 0.16; pointer-events: none;
+	transition: transform 0.4s ease;
 }
+/* Same hover-zoom as the banner's corner icons, but this one's already
+   centered via inset:0 — its own transform-origin already matches the
+   card's center, so a plain scale() (no translate trick needed) reads the
+   same way. */
+.spotlight-fourcard:hover::before{transform: scale(1.15);}
 /* Same idea as .spotlight-banner-glow, one color instead of two — sits
    above the icon watermark but below the splash art/name, same layering
    order as the banner (icon, then glow, then content). */
