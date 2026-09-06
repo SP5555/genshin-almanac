@@ -115,6 +115,66 @@ function buildSpotlightFiveCard(character, data, versionIdx, phaseIdx, notes) {
 	return card;
 }
 
+// 4-star drag toy's tuning — a real damping ratio ζ (same bounce shape the
+// carousel below borrows and slows down), tuned to feel right on a 240Hz
+// display. stiffness/damping are discrete per-step multipliers against
+// SPRING_STEP_MS, not a runtime tick rate — see deriveSpringConstants() for
+// what they mean, and CLAUDE.md for the full differential-equations
+// derivation (damping ratio ζ, per-step vs. per-second, time-dilation).
+const SPRING_STIFFNESS = 0.3104;
+const SPRING_DAMPING = 0.7567769695999043;
+const SPRING_STEP_MS = 1000 / 60;
+
+// Converts discrete per-step stiffness/damping into the underlying
+// continuous damped-oscillator's real parameters — decay rate and damped
+// angular frequency — via eigenvalue analysis of the discrete recurrence's
+// transition matrix [[1-damping*stiffness, damping], [-damping*stiffness,
+// damping]] (see CLAUDE.md for the full derivation). Only valid for an
+// underdamped tuning (complex eigenvalues); a critically-damped or
+// overdamped stiffness/damping pair needs a different closed form.
+function deriveSpringConstants(stiffness, damping, stepMs) {
+	let stepSec = stepMs / 1000;
+	let trace = 1 + damping - damping * stiffness;
+	let determinant = damping;
+	let discriminant = trace * trace - 4 * determinant;
+	let magnitude = Math.sqrt(determinant);
+	let theta = Math.atan2(Math.sqrt(Math.max(0, -discriminant)) / 2, trace / 2);
+	return { decay: -Math.log(magnitude) / stepSec, omegaD: theta / stepSec };
+}
+
+// Carousel spring: same shape (damping ratio ζ) as the 4-star toy's, but
+// slowed down — stiffness÷n², damping^(1/n) preserves ζ exactly while
+// stretching the motion over n times more real time.
+const CAROUSEL_SLOWDOWN = 2;
+const CAROUSEL_SPRING_STIFFNESS = SPRING_STIFFNESS / (CAROUSEL_SLOWDOWN * CAROUSEL_SLOWDOWN);
+const CAROUSEL_SPRING_DAMPING = Math.pow(SPRING_DAMPING, 1 / CAROUSEL_SLOWDOWN);
+const { decay: CAROUSEL_SPRING_DECAY, omegaD: CAROUSEL_SPRING_OMEGA_D } = deriveSpringConstants(CAROUSEL_SPRING_STIFFNESS, CAROUSEL_SPRING_DAMPING, SPRING_STEP_MS);
+
+// Exact solution to a damped harmonic oscillator over `dt` seconds, given
+// its current offset from rest (e) and velocity (v) — not an approximation
+// stepped in small increments, the actual closed-form position/velocity a
+// real spring would have after exactly dt seconds. This is what makes both
+// spring users below frame-rate independent without needing a fixed-
+// timestep accumulator: a naive Euler step (`v += a*dt; e += v*dt`) only
+// approximates the curve and needs a small dt to stay accurate/stable,
+// whereas this formula is exact for any dt — a slow frame just steps
+// further along the same curve in one call instead of needing several
+// smaller ones, and an enormous dt (e.g. a backgrounded tab waking up)
+// naturally decays toward e=0 via the e^(-decay*dt) term rather than
+// needing a manual clamp to avoid blowing up. decay/omegaD are explicit
+// parameters (not module constants) since the carousel and the 4-star toy
+// each derive their own from different stiffness/damping tuning.
+function stepSpring(e, v, dt, decay, omegaD) {
+	let decayTerm = Math.exp(-decay * dt);
+	let cosT = Math.cos(omegaD * dt);
+	let sinT = Math.sin(omegaD * dt);
+	let b = (v + decay * e) / omegaD;
+	return {
+		e: decayTerm * (e * cosT + b * sinT),
+		v: decayTerm * ((b * omegaD - decay * e) * cosT - (e * omegaD + decay * b) * sinT),
+	};
+}
+
 const CAROUSEL_INTERVAL_MS = 5000;
 const CAROUSEL_SETTLE_MS = 1000;
 // How dark an off-center slot gets at dist >= 1 — a literal "spotlight
@@ -126,10 +186,14 @@ const CAROUSEL_MIN_BRIGHTNESS = 0.1;
 const CAROUSEL_MAX_TILT_DEG = 38;
 // position-units are "how many carousel widths of drag" — 1.0 = exactly one
 // full slide over. Velocity below FLING_MIN is treated as a plain release
-// (snap immediately); above it, momentum keeps going and decays by
-// FRICTION_PER_MS every millisecond until it drops below MOMENTUM_STOP.
+// (springSettle() runs immediately); above it, momentum coasts (decaying by
+// FRICTION_PER_MS every millisecond) until it drops below MOMENTUM_STOP,
+// which then hands its *actual remaining velocity* — not zero — off to
+// springSettle() for the pull-back-to-center bounce. A higher MOMENTUM_STOP
+// means an earlier handoff with more leftover velocity (a stronger bounce);
+// lower lets the friction coast remove more speed first (a gentler one).
 const CAROUSEL_FLING_MIN_VELOCITY = 0.0006;
-const CAROUSEL_MOMENTUM_STOP_VELOCITY = 0.00006;
+const CAROUSEL_MOMENTUM_STOP_VELOCITY = 0.002;
 const CAROUSEL_FRICTION_PER_MS = 0.9955;
 // Only pointer samples from within this many ms of "now" count toward the
 // release-velocity estimate — see the pointermove/endDrag handlers below.
@@ -300,9 +364,14 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 	// fires once position crosses ±0.5) into the newly-needed role and
 	// gives it fresh content. The other two slots just get relabeled: same
 	// DOM element, same continuous transform, no jump, no content swap.
+	// Returns the total step applied (0 if no rotation happened) — springSettle()
+	// below needs this to keep its own target in the same renumbered frame;
+	// every other caller ignores it, same as before.
 	let resolveRotation = () => {
+		let totalStep = 0;
 		while (Math.round(position) !== 0) {
 			let step = position > 0 ? 1 : -1;
+			totalStep += step;
 			baseIndex = normalize(baseIndex + step);
 			position -= step;
 			if (step > 0) slots.push(slots.shift());
@@ -310,6 +379,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 			slots.forEach((slot, i) => { slot.offset = i - 1; });
 			slots.forEach(assign);
 		}
+		return totalStep;
 	};
 
 	let stopAnimation = () => {
@@ -328,10 +398,13 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 	// passed through. One continuous eased curve across the full distance,
 	// used for every case including a plain 1-character or drift-only
 	// move, has no such seams.
-	// `steps` is how many characters forward (or back, if negative) to
-	// move from wherever we currently are; 0 just corrects any leftover
-	// drag/momentum drift back to whichever character is already nearest
-	// (used for a plain drag release with no fling).
+	// `steps` is how many characters forward (or back, if negative) to move
+	// from wherever we currently are — used for auto-advance (always 1) and
+	// dot-clicks (goTo()'s shortest-path count). A plain drag-release/
+	// momentum-stop correcting back to the nearest character uses
+	// springSettle() below instead, not this — see that function's comment
+	// for why a "move nothing the user's hand prompted" and "the exact
+	// moment they let go" call for different motion.
 	let settle = (steps = 0) => {
 		stopAnimation();
 		let start = position;
@@ -354,6 +427,54 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 			resolveRotation();
 			render();
 			animationRAF = t < 1 ? requestAnimationFrame(frame) : null;
+		};
+		animationRAF = requestAnimationFrame(frame);
+	};
+	// The physical "letting go" moment — a plain drag-release or a momentum
+	// coast that's slowed to a stop, pulling back to whichever character is
+	// nearest. Reuses the exact same tuned underdamped spring as the 4-star
+	// card's drag toy (stepSpring(), driven by real per-frame dt rather than
+	// a fixed step — see that function's comment for why an exact solution
+	// stays correct at any frame rate), so the same signature bounce shows
+	// up here as the visible "give" when momentum runs out, rather than
+	// settle()'s calm, non-bouncy sweep — deliberately kept for auto-
+	// advance/dot-clicks, moves the user's hand didn't make.
+	//
+	// Tracks its own `target` + `offset` (position = target + offset)
+	// instead of springing `position` directly at a fixed target, because
+	// resolveRotation() can fire mid-bounce on a big enough overshoot,
+	// renumbering baseIndex and shifting `position` by an integer step —
+	// `target` shifts by that same step (via resolveRotation()'s return
+	// value) so `offset` (and the velocity driving it) stays continuous
+	// across the renumbering instead of jumping.
+	let springSettle = (initialVelocityPerMs = 0) => {
+		stopAnimation();
+		let target = Math.round(position);
+		let offset = position - target;
+		let velocity = initialVelocityPerMs * 1000; // position-units/ms -> /s
+		// Same 0.4px perceptual stopping tolerance as the 4-star spring toy,
+		// converted to position-units (fraction of a slide) via the
+		// carousel's current pixel width rather than reusing 0.4 directly —
+		// 0.4 of a whole slide would stop the animation while still
+		// visibly far from centered. restVelocity mirrors the same 0.4px/step
+		// feel but rescaled to a per-second rate (multiplying by the tuning
+		// reference's 60 steps/sec) now that velocity is a real per-second
+		// quantity rather than a per-discrete-step one.
+		let restOffset = 0.4 / getSlotPx();
+		let restVelocity = restOffset * (1000 / SPRING_STEP_MS);
+		let lastFrameTime = null;
+		let frame = now => {
+			let dt = lastFrameTime === null ? 0 : (now - lastFrameTime) / 1000;
+			lastFrameTime = now;
+			let stepped = stepSpring(offset, velocity, dt, CAROUSEL_SPRING_DECAY, CAROUSEL_SPRING_OMEGA_D);
+			offset = stepped.e; velocity = stepped.v;
+			let settled = Math.abs(offset) < restOffset && Math.abs(velocity) < restVelocity;
+			if (settled) offset = 0;
+			position = target + offset;
+			target -= resolveRotation();
+			render();
+			if (settled) { animationRAF = null; return; }
+			animationRAF = requestAnimationFrame(frame);
 		};
 		animationRAF = requestAnimationFrame(frame);
 	};
@@ -398,7 +519,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 				animationRAF = requestAnimationFrame(step);
 			} else {
 				animationRAF = null;
-				settle();
+				springSettle(velocity);
 				startAutoAdvance();
 			}
 		};
@@ -473,7 +594,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 		if (Math.abs(velocity) > CAROUSEL_FLING_MIN_VELOCITY) {
 			runMomentum(velocity);
 		} else {
-			settle();
+			springSettle(velocity);
 			startAutoAdvance();
 		}
 	};
@@ -510,7 +631,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 function attachSpringDrag(handleEl, targetEl, options = {}) {
 	if (!window.matchMedia("(hover: hover)").matches) return;
 	let {
-		maxPull = 26, stiffness = 0.0194, damping = 0.9327, rest = 0.4,
+		maxPull = 26, stiffness = SPRING_STIFFNESS, damping = SPRING_DAMPING, rest = 0.4,
 		draggableClass = "is-spring-draggable", draggingClass = "is-dragging",
 		// Whatever transform targetEl already has (centering, etc.) is
 		// preserved underneath the spring offset. A fixed string can be
@@ -531,6 +652,11 @@ function attachSpringDrag(handleEl, targetEl, options = {}) {
 	} = options;
 	let hasFixedBaseTransform = typeof options.baseTransform === "string";
 	let baseTransform = hasFixedBaseTransform ? options.baseTransform : "";
+	// Derived once per call (cheap — a handful of trig/log ops, not per-frame
+	// work) from whatever stiffness/damping this call actually received, so
+	// a caller overriding them gets a spring derived from ITS tuning rather
+	// than a silently-ignored option.
+	let { decay, omegaD } = deriveSpringConstants(stiffness, damping, SPRING_STEP_MS);
 
 	if (targetEl.tagName === "IMG") targetEl.draggable = false;
 
@@ -575,40 +701,50 @@ function attachSpringDrag(handleEl, targetEl, options = {}) {
 	};
 
 	// Contract: targetEl must have no CSS transition on `transform` — this
-	// drives that property every frame (during the drag) and every frame of
-	// the spring-back (after release), and a transition would ease each of
-	// those updates, reading as input lag while dragging and a fought-over
-	// motion on the way back. An earlier version allowed a transitioned
-	// targetEl by saving/restoring its inline `transition` for the drag+
-	// settle window, but re-grabbing before settle re-saved the already-
-	// suspended "none" as if it were the original value, permanently wiping
-	// the transition on restore. Simpler and actually robust: if targetEl
-	// also needs a transitioned effect (e.g. a hover-zoom), give that effect
-	// its own nested element instead — see the 4-star card's drag-layer/img
-	// split in buildSpotlightFourCard() for the pattern.
+	// drives that property every frame (during the drag and the spring-back),
+	// and a transition would ease each update instead, reading as input lag
+	// and a fought-over motion. Don't "fix" this with a save/restore of
+	// targetEl's inline `transition` for the drag+settle window — re-grabbing
+	// before settle re-saves the already-suspended "none" as the "original"
+	// value, permanently wiping the transition on restore. If targetEl also
+	// needs a transitioned effect (e.g. a hover-zoom), give that effect its
+	// own nested element instead — see the drag-layer/img split in
+	// buildSpotlightFourCard() for the pattern.
 
-	// Semi-implicit Euler per frame, same hand-rolled-physics style as the
-	// carousel's momentum coast, not a closed-form solution. Keeps running
-	// past release (target snaps to (0,0) then) until targetEl is both
-	// close to center AND nearly stopped — checking dragging too would let
-	// a still-moving spring get cut off mid-motion the instant the pointer
-	// lifts.
-	let tick = () => {
-		let ax = stiffness * (targetX - x);
-		let ay = stiffness * (targetY - y);
-		vx = (vx + ax) * damping;
-		vy = (vy + ay) * damping;
-		x += vx; y += vy;
-		if (!dragging && Math.abs(x) < rest && Math.abs(y) < rest && Math.abs(vx) < rest && Math.abs(vy) < rest) {
-			simRAF = null;
-			// Cleared entirely (not set to the resolved baseTransform) when
-			// auto-detected, so a live CSS rule like translateX(-50%) keeps
-			// adapting if targetEl's size changes later — the resolved
-			// matrix baked in at drag-start would otherwise go stale after
-			// a resize. Only baked in when the caller passed a fixed
-			// baseTransform explicitly, since then there may be no CSS rule
-			// to fall back to at all.
-			targetEl.style.transform = hasFixedBaseTransform ? baseTransform : "";
+	// Driven by stepSpring() (module scope, above) using the real elapsed
+	// time each frame — frame-rate independent, since a per-frame discrete
+	// step would otherwise run faster on a higher-refresh display (more
+	// callbacks per real second). rest is a position tolerance (px);
+	// restVelocity rescales it into an equivalent per-second velocity
+	// tolerance now that velocity is a real per-second rate.
+	let restVelocity = rest * (1000 / SPRING_STEP_MS);
+	let lastFrameTime = null;
+
+	// Named stopSim (not settle) to avoid reading as the same thing as this
+	// file's other settle() (the carousel's auto-advance/dot-click sweep) —
+	// different scope so no actual collision, just an avoidable false-friend.
+	let stopSim = () => {
+		simRAF = null;
+		lastFrameTime = null;
+		// Cleared entirely (not set to the resolved baseTransform) when
+		// auto-detected, so a live CSS rule like translateX(-50%) keeps
+		// adapting if targetEl's size changes later — the resolved matrix
+		// baked in at drag-start would otherwise go stale after a resize.
+		// Only baked in when the caller passed a fixed baseTransform
+		// explicitly, since then there may be no CSS rule to fall back to
+		// at all.
+		targetEl.style.transform = hasFixedBaseTransform ? baseTransform : "";
+	};
+
+	let tick = now => {
+		let dt = lastFrameTime === null ? 0 : (now - lastFrameTime) / 1000;
+		lastFrameTime = now;
+		let stepX = stepSpring(x - targetX, vx, dt, decay, omegaD);
+		let stepY = stepSpring(y - targetY, vy, dt, decay, omegaD);
+		x = targetX + stepX.e; vx = stepX.v;
+		y = targetY + stepY.e; vy = stepY.v;
+		if (!dragging && Math.abs(x) < rest && Math.abs(y) < rest && Math.abs(vx) < restVelocity && Math.abs(vy) < restVelocity) {
+			stopSim();
 			return;
 		}
 		setOffset(x, y);

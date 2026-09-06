@@ -189,55 +189,88 @@ targetEl, options)` in landing.js, written generically (not fourcard-
 specific, so it's reusable on any future element): `handleEl` takes the
 pointer events, `targetEl` gets the transform, `options` exposes
 `maxPull`/`stiffness`/`damping`/`rest`/class names/`baseTransform`.
-Currently only wired up for the 4-star splash art (`attachSpringDrag(card,
-img)`). One continuous spring simulation for the whole gesture, not "snap
-to cursor while dragging, then spring back after release" — dragging never
-sets the position directly, it only moves a `target` (the mouse offset,
-radially rubber-banded — iOS-scroll-bounce formula, direction-preserving,
-so a diagonal pull caps to a circle rather than a per-axis square) that a
+Currently wired up as `attachSpringDrag(card, dragLayer)` — `dragLayer` is
+a dedicated wrapper around the `<img>`, not the `<img>` itself, so the
+spring's per-frame transform never shares a property with the image's own
+CSS-transitioned hover-zoom (see the transition trap below). One
+continuous spring simulation for the whole gesture, not "snap to cursor
+while dragging, then spring back after release" — dragging never sets the
+position directly, it only moves a `target` (the mouse offset, radially
+rubber-banded — iOS-scroll-bounce formula, direction-preserving, so a
+diagonal pull caps to a circle rather than a per-axis square) that a
 damped spring continuously chases, both during the drag and after release
-(target just snaps to (0,0) then, same running loop). That's what makes it
-visibly lag/trail the cursor mid-drag, not just spring back on release.
-Position itself is never clamped anywhere — the rubber-band ceiling on the
-target is the only bound; position settles near it purely because nothing
-else is pulling on the spring. Mouse-only, skipped on pure-touch devices
-(`matchMedia`, double-checked per-event via `pointerType`) since a touch
-drag would fight the page's vertical scroll.
+(target just snaps to (0,0) then). Position itself is never clamped
+anywhere — the rubber-band ceiling on the target is the only bound. Mouse-
+only, skipped on pure-touch devices (`matchMedia`, double-checked per-event
+via `pointerType`) since a touch drag would fight the page's vertical
+scroll.
 
-Tuned **underdamped** on purpose (`stiffness: 0.0194, damping: 0.9327` —
-the differential-equations classification: overdamped never crosses
-equilibrium, critically damped crosses at most once, underdamped
-oscillates several times before settling): 3 visible swings over ~1.7s.
-`damping` is a per-frame velocity-*retention* multiplier, not a damping
-coefficient — a *higher* value is what loosens it, easy to get backwards.
-Slowing the whole thing down without changing its shape (same overshoot
-ratios/swing count, just stretched in time) needs both constants scaled
-together, not just one — shape is set by the damping ratio ζ=c/(2√k)
-(scale-invariant), timescale by ω₀=√k, so halving the speed means
-stiffness÷(slowdown²) and `damping_new = damping_old^(1/slowdown)`.
-Verified numerically via the discrete update's eigenvalues, not just by
-eyeballing the result: decay-per-oscillation-cycle came out identical
-before/after, period exactly doubled. One consequence worth knowing before
-assuming a test drag "isn't working": with low stiffness a quick flick no
-longer reaches full amplitude before release, since the spring also reacts
-more sluggishly *during* the drag — correct slow-motion behavior, not a
-bug.
+**Physics**: `stepSpring(e, v, dt, decay, omegaD)` (module scope in
+landing.js) is the *exact* closed-form solution to a damped harmonic
+oscillator over any elapsed `dt`, not a discretized approximation — this
+makes it frame-rate independent by construction, since a naive "one step
+per `requestAnimationFrame` callback" version runs faster on a higher-
+refresh display (more callbacks per real second). `decay`/`omegaD`
+(continuous decay rate and damped angular frequency) come from tuned
+discrete `stiffness`/`damping` constants via `deriveSpringConstants()`,
+using eigenvalue analysis of the discrete recurrence's transition matrix
+`[[1-damping*stiffness, damping], [-damping*stiffness, damping]]` — only
+valid while its eigenvalues stay complex (underdamped); a critically-
+damped/overdamped retune needs a different closed form. Tuned
+**underdamped** on purpose (the differential-equations classification:
+overdamped never crosses equilibrium, critically damped crosses at most
+once, underdamped oscillates several times before settling) for a visible
+multi-swing bounce. `damping` is a per-step velocity-*retention*
+multiplier, not a friction coefficient — a *higher* value is what loosens
+it, easy to get backwards.
 
-Two implementation traps worth remembering for the next element this gets
-attached to: (1) any `transition: transform` on `targetEl` (e.g. a hover-
-zoom) would otherwise ease every per-frame update this drives too, reading
-as input lag — handled internally by saving/restoring
-`targetEl.style.transition` for the whole drag+spring window, so callers
-don't need a matching CSS rule of their own. (2) `baseTransform` (whatever
-transform `targetEl` already has) defaults to a fresh `getComputedStyle`
-read at the *start of each drag*, not once at `attachSpringDrag()`
-call-time — call-time can be before an `<img>`'s `src` has even loaded (or
-failed over to a differently-positioned fallback state), so caching it
-there risks baking in a stale pre-load transform. On settle, that
-auto-detected case clears the inline transform entirely (not a baked
-resolved value) so live CSS — including a hover-zoom — keeps working
-afterward; only an explicit `options.baseTransform` string gets left in
-place, since then there may be no CSS to fall back to.
+**Changing a spring's speed without changing its shape**: scaling `decay`
+and `omegaD` by the same factor compresses/stretches the whole motion in
+time while preserving the exact damping ratio ζ = decay/ω₀ (same swing
+count, same overshoot ratios). Equivalently, scaling the *discrete*
+`stiffness÷n²` and `damping^(1/n)` before deriving decay/omegaD
+approximates the same result (exact for `decay`; a few percent off on
+`omegaD` at `n=4`, generally imperceptible). The 4-star toy's
+`SPRING_STIFFNESS`/`SPRING_DAMPING` are baked-in literals for a
+deliberately fast feel (roughly a lighter original tuning run 4x faster,
+chosen to match a 240Hz display); the carousel's own constants apply
+`CAROUSEL_SLOWDOWN` on top of those same two numbers to slow back down —
+at `CAROUSEL_SLOWDOWN=4` this is an *exact* algebraic round-trip to that
+original lighter tuning, not an approximation.
+
+**The carousel's own spring** — `springSettle()` in `buildSpotlightBanner()`
+— is the physical "letting go" moment: a plain drag-release, or a momentum
+coast (`runMomentum()`, plain friction decay) once it slows down, pulling
+back to whichever character is nearest. Distinct from `settle()`'s calm
+ease-in-out sweep (used for auto-advance/dot-clicks — deliberately non-
+bouncy, since those are moves the user's hand didn't make).
+`CAROUSEL_MOMENTUM_STOP_VELOCITY` hands its *actual remaining velocity* to
+the spring, not near-zero, so a real fling's momentum visibly carries into
+the bounce instead of the friction coast doing all the deceleration alone.
+Tracks its own `target`+`offset` (`position = target + offset`) rather
+than springing `position` directly at a fixed target, since a strong
+enough throw can cross into the next character mid-bounce
+(`resolveRotation()` renumbering `baseIndex`) — `target` shifts by that
+same step so `offset` (and its velocity) stays continuous across the
+renumbering instead of jumping.
+
+Two implementation traps for reusing `attachSpringDrag()` on a future
+element: (1) `targetEl` must have **no CSS transition on `transform`** —
+it's driven every frame during the drag and the spring-back, and a
+transition would ease each update, reading as input lag. A hover-zoom (or
+any other transitioned effect) needs its **own separate, nested element**
+instead — see the drag-layer/`<img>` split above. (A save/restore-the-
+inline-transition approach was tried and is a real trap: re-grabbing
+before the spring settles can permanently wipe the transition.) (2)
+`baseTransform` (whatever transform `targetEl` already has) defaults to a
+fresh `getComputedStyle` read at the start of each drag that begins from a
+fully settled state (guarded by `simRAF === null`, not re-read mid-bounce)
+— re-deriving it while the spring is still running would read back its own
+in-flight offset and bake it in as a new "base," visually doubling the
+current offset. On settle, the auto-detected case clears the inline
+transform entirely (not a baked resolved value) so live CSS — including a
+hover-zoom — keeps working afterward; only an explicit
+`options.baseTransform` string gets left in place.
 
 ### Trivia ticker
 Deliberately the *lightweight* opposite of the spotlight carousel above —
