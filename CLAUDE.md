@@ -27,14 +27,15 @@ they can't tell you.
   renamed when the landing page was built — see "Landing page" below).
   `clocks.html` — Server Clocks page. `calendar.html` — Calendar page.
 - `css/reset.css` + `css/style.css` — shared base (palette, header, footer,
-  char panel, timeline, back-to-top button, brand live-dot). `css/clocks.css`
+  detail panel, timeline, back-to-top button, brand live-dot). `css/clocks.css`
   / `css/landing.css` / `css/calendar.css` — page-specific styles for those
   three pages.
 - `js/shared.js` — cross-page utilities, loaded by all four pages: the
   back-to-top button, the header brand's live-status dot,
-  `faceImg()`/`facePath()`/`formatDate()` (moved out of `app.js` once the
-  landing page also needed them), and `previewNow()` (see "Testing
-  date/time-sensitive UI" below). `js/app.js` — Timeline page logic, still
+  `faceImg()`/`facePath()`/`formatDate()`/`countAppearancesThrough()`
+  (each moved out of `app.js` once a second page needed it), and
+  `previewNow()` (see "Testing date/time-sensitive UI" below). `js/app.js`
+  — Timeline page logic, still
   the only thing that knows how to render the full 52-version DOM.
   `js/glow-config.js` — release-glow ray tuning knobs, kept as `.js` not
   JSON since it applies its own values as CSS custom properties.
@@ -392,7 +393,13 @@ in the notes files below, not inline. Each entry has a verified real-world
 **`data/phase-notes.json`** (keyed `"<version>-<phase#>"`): `{"filler":
 true}` marks a minor/padding phase (currently only `"1.3-2"`, Keqing's —
 inserted before Hu Tao's funeral-parlor-themed banner to avoid landing near
-Chinese New Year).
+Chinese New Year). `{"date": "YYYY-MM-DD"}` overrides a phase's computed
+start date (`entry.date + 21×phaseIndex` — see Calendar's debut layer)
+for the handful of phases where that formula is wrong: 1.3's unusual
+3-phase structure (`1.3-2`/`1.3-3`, the Feb 17 → Mar 2 gap is only 13
+days) and 3.0–3.2's compressed 16-day cadence (`3.0-2`/`3.1-2`/`3.2-2`),
+all verified against 2+ independent sources. Phase 1 never needs an
+override — it's always exactly `entry.date`.
 
 Both notes files are keyed once per fact, not per occurrence — `app.js`
 applies them wherever relevant regardless of how `data.json` changes.
@@ -407,11 +414,16 @@ is "Luna" I/II/III), `bgImage` (region background filename).
 Ayaka/Ayato, Kokomi, Yae, Itto, Kazuha, Sara, Heizou, Wanderer.
 
 ### Character detail panel
-Click any avatar → side drawer (desktop) / bottom sheet (mobile). Appearance
-rows jump to their timeline card via `jumpToCard()` without closing the
-panel. Desktop nudges `.timeline-root` via `transform: translateX(300px)`
-(not margin — see gotcha #1) so a jumped-to card isn't hidden behind the
-drawer.
+Click any avatar → side drawer (desktop) / bottom sheet (mobile). The panel
+component itself (`#detailPanel` + `.detail-panel-*` classes, all in
+style.css) is shared with the Calendar page's day panel — named
+`detailPanel`, not `charPanel`, for that reason; `.detail-panel-name`/
+`-tags`/`-badge` styling must stay generic (big centered title + pill
+badges), since Calendar reuses it for a date/version headline rather than a
+character name. Appearance rows jump to their timeline card via
+`jumpToCard()` without closing the panel. Desktop nudges `.timeline-root`
+via `transform: translateX(300px)` (not margin — see gotcha #1) so a
+jumped-to card isn't hidden behind the drawer.
 
 Mobile drag-to-dismiss: Pointer Events (not separate touch/mouse handlers)
 drive 1:1 finger tracking via inline `transform`; on release the existing
@@ -443,6 +455,18 @@ were always fine in row layout down to 480px) get the same row→column
 stacking treatment as the general `<480px` breakpoint below, just starting
 from the wider, already-established 768px breakpoint — reusing an
 existing threshold rather than inventing a new one.
+
+### Lightrace Wish banners
+Permanent rotating banner type (debuted 6.7, `lightrace` field on that
+entry) — inherits Chronicled's layout wholesale (`buildNode`'s `variant`
+param takes `"chronicled"`/`"lightrace"`, sharing the five/four-group wrap
+and column-split CSS), only the accent color (`--lightrace`, periwinkle)
+differs. Its real mechanic designates from the *entire* 4-star roster (50
+of them at 6.7, confirmed against Fandom), not a curated few — so
+`data.json` deliberately has no `"4"` array for it; the card shows a live-
+derived count (`Object.keys(characterIndex).filter(rarity==="4").length`)
+instead of a name list, which stays correct automatically as future
+versions (and future Lightrace instances) add more 4-stars.
 
 ### Ambient region background
 `#regionBgA`/`#regionBgB` (two layers, crossfade 1.6s) driven by the same
@@ -580,16 +604,16 @@ month, 4am server time).
 The banner history as a year-view grid instead of a line — deliberately
 leaning into the site's time/history angle rather than adding
 theorycrafting/build-tag features other Genshin sites already cover better.
-Version launch dates are the first event layer (pulled straight from
-`data.json`, no new data file); character debuts and birthdays are planned
-follow-ups, not yet built. A dedicated Month/Year zoom toggle was considered
-and deliberately parked — its whole benefit is desktop-only, since on
+Three event layers are plotted: version launches (straight from
+`data.json`), character debuts, and birthdays (see below). A dedicated
+Month/Year zoom toggle was considered and deliberately parked — its whole
+benefit is desktop-only, since on
 mobile the year-view already collapses to one full-width month per row, so
 it doesn't replace the need to get the compact cell design right everywhere
 first.
 
 **Year stepper**: range is `2020` (1.0's real launch year) to
-`previewNow().getFullYear() + 2`, computed live rather than a hardcoded
+`previewNow().getFullYear() + 1`, computed live rather than a hardcoded
 upper bound. The year label opens a popover (not a native `<select>`) for
 jumping the full range in one click. Two stepper instances exist — one
 above the grid, one below — since scrolling through all 12 months on
@@ -632,6 +656,55 @@ every day. The event label sits with `bottom:12px`, not centered in the
 remaining space below the number nor flush against the true bottom edge —
 purely mathematical centering there read as too low, since the eye doesn't
 weigh the label/edge whitespace symmetrically.
+
+**Character debuts**: derived, not stored — a debut's date is just its
+phase's start date (`entry.date + 21×phaseIndex`, with `phase-notes.json`'s
+`date` override for the irregular phases — see Timeline's `data.json`
+notes above). `buildDebutsByDate()`/`getPhaseLabel()` in calendar.js mirror
+app.js's own filler-skipping phase-count logic so captions match what
+Timeline would call the same phase. Chronicled/Lightrace are never scanned
+(reruns by definition, can't contain a real debut).
+
+**Birthdays**: `data/character-birthdays.json` (name → `"MM-DD"`, no year —
+recurs annually). Sourced from Game8's consolidated birthday table,
+cross-checked; verify freshly against 2+ sources before trusting it for any
+newly-added character, since that kind of table lags new releases. A
+birthday only shows from the character's real debut date onward, not
+retroactively — gated by full `YYYY-MM-DD` string comparison, not just
+year (a year-only cutoff let a birthday show *before* the exact debut date
+within that debut year — caught via the 11 "preexisting" characters, whose
+birthday could otherwise land before the real Sep 28, 2020 launch if only
+the bare year 2020 was checked; they use that real launch date as their
+cutoff instead of their later first-tracked-banner date). Bennett's Feb 29
+needs no leap-year special case — `buildMonthCard` only ever generates a
+Feb 29 cell in years that actually have one.
+
+**Day-cell markers**: up to 3 small dots (5★/4★ debut, birthday — gold/
+purple/`--birthday` pink) live in the *same row* as the day number, glued
+directly beside it — not a separate corner. A corner-positioned dot read as
+ambiguous at this cell width (~44px): it ended up visually closer to the
+*next* day's number than its own. Sized small (4px, 2px gap) specifically
+so a 2-digit day + all 3 dots still fit without touching the cell edge
+(checked against the tightest real case, March 26 2025 — a version launch
++ two debut rarities + a birthday all landing the same day).
+
+**Day panel**: debuts/birthdays render as namecard-background "trading
+cards" (`buildCharacterCard()` in calendar.js) — art lives on its own
+layer (not the card's own `background`), with `overflow:hidden` clipping
+its hover-zoom `transform:scale()` and, as a side effect, avoiding the
+border-radius+background seam class of bug a literal `background-image` +
+`border-radius` + `border` combo can produce. A static scrim layer keeps
+text legible through the zoom. Hover glow color is keyed to card *type*
+(`.is-five`/`.is-four` for a debut, `.is-birthday` always for a birthday,
+regardless of that character's own rarity) so a birthday card reads as a
+birthday at a glance rather than blending into a debut card. The date is
+always a small top-left corner label, never the headline — a launch day
+promotes "Version X.Y launch" into `.detail-panel-name`'s big centered
+role instead; any other day (the vast majority) gets a compact 64px header
+rather than a mostly-empty 200px box. A reported rendering seam along the
+header's own gradient top/bottom edges (real hardware only, not
+reproducible headless) was NOT fixed by `isolation:isolate` — don't
+re-attempt that exact fix if this resurfaces.
 
 ## Design decisions
 - Header is `position: relative`, not `sticky` — deliberate, so it doesn't
@@ -760,9 +833,9 @@ levels, and the 1.0 launch roster. Read it before adding a new version.
   as the Calendar page's year-view grid. A dedicated single-date page would
   still need the same nearest-match handling (only 51/365 days have an
   exact hit).
-- Calendar (built) is the newest differentiator; character debuts and
-  birthdays are its planned next event layers (see "Calendar page" above)
-  before Region/lore explorer becomes the next *new* page.
+- Calendar (built, all three event layers — launches/debuts/birthdays —
+  live) is the newest differentiator; Region/lore explorer is the next
+  candidate for a genuinely *new* page.
 
 ## Multi-page architecture
 Separate physical HTML pages (not a JS router/SPA) — zero-build, Netlify
@@ -773,9 +846,11 @@ merging into an SPA (see Server Clocks section).
 `css/clocks.css` + `js/clocks.js` are the first realization of the "shared
 base + page-specific stylesheet/script" split — `app.js` itself hasn't been
 split into shared-utilities-vs-timeline-specific yet, since no page has
-needed to reuse its helpers (`faceImg()`, `characterIndex` building, etc.)
-so far. Do that split when a page actually needs it (e.g. Character profile
-pages).
+needed to reuse its full `characterIndex` building. One piece of it did
+move: `countAppearancesThrough()` now lives in `shared.js`, since landing.js
+and calendar.js both need "how many times has this character appeared
+through this point" without building the entire index. Do the bigger split
+when a page actually needs it (e.g. Character profile pages).
 
 Header is duplicated per page (not templated) — fine at 2-4 pages, not
 worth the machinery. `data.json` (12.3KB total) isn't worth splitting

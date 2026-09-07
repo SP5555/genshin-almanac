@@ -29,7 +29,7 @@
 	.calendar-intro, .calendar-year-stepper, .calendar-month-card{animation: none;}
 }
 
-.calendar-root{position: relative; z-index: 1; min-height: 60vh; padding: 20px 0 60px 0;}
+.calendar-root{position: relative; z-index: 1; min-height: 60vh; padding: 20px 0 60px 0; transition: transform 0.4s ease;}
 
 .calendar-intro{padding: 36px 0 4px 0; text-align: center;}
 .calendar-title{
@@ -156,8 +156,14 @@
 	border: 1px solid transparent;
 }
 .calendar-day-cell.is-empty{pointer-events: none;}
+/* Number and debut dots share this row so they're always glued together —
+   see the comment in calendar.js's buildMonthCard for why a corner-
+   positioned dot read as ambiguous at this cell width. */
+.calendar-day-top{
+	position: absolute; top: 3px; left: 5px; right: 5px;
+	display: flex; align-items: center; gap: 4px;
+}
 .calendar-day-number{
-	position: absolute; top: 3px; left: 5px;
 	font-size: 10px; color: var(--text-dim); font-variant-numeric: tabular-nums;
 }
 /* Border/background only shows up on a day that actually has something on
@@ -187,3 +193,103 @@
 	border-color: var(--five-glow); background-color: rgba(255, 194, 71, 0.14);
 }
 .calendar-day-cell.is-today .calendar-day-number{color: var(--five); font-weight: bold;}
+
+/* Same fill+glow language as .char-appear-dot in the character panel (see
+   style.css), just smaller — this is a "something happened here" signal at
+   a glance, not a place to fit names; full details live in the day panel
+   instead. Lives inside .calendar-day-top, right after the number. Holds up
+   to 3 dots now (5-star debut, 4-star debut, birthday), independent of each
+   other — a day can have any combination. */
+/* Sized to still fit a 2-digit day + all 3 dots (5-star debut, 4-star
+   debut, birthday) at once at this cell width — checked against the
+   tightest real case, March 26 2025, which was landing flush against the
+   cell's edge with the previous 5px/3px sizing. */
+.calendar-day-markers{display: flex; gap: 2px;}
+.calendar-day-marker-dot{width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0;}
+.calendar-day-marker-dot.is-five{background-color: var(--five); box-shadow: 0 0 4px 1px var(--five-glow);}
+.calendar-day-marker-dot.is-four{background-color: var(--four); box-shadow: 0 0 4px 1px var(--four-glow);}
+.calendar-day-marker-dot.is-birthday{background-color: var(--birthday); box-shadow: 0 0 4px 1px var(--birthday-glow);}
+
+/* Day panel's event lists (debuts, birthdays) — each character gets a small
+   "trading card" of their own: their namecard art as the background (same
+   technique as the character panel's header, app.js openCharPanel — just a
+   left-weighted scrim instead of top/bottom, since namecards are wide/short
+   (672x320) rather than the header's tall aspect), with the same is-release
+   avatar ring style used everywhere else on the site a debut/release is
+   called out. Named after "card," not "appear" (style.css's .char-appear-*),
+   since a list here is several different characters on one day rather than
+   one character's own history. */
+/* The date is always this small corner label now — on a launch day the
+   version takes over .detail-panel-name's big centered role (style.css)
+   instead; .detail-panel-header already promotes every direct child to
+   position:relative/z-index:1 (style.css), so overriding position:absolute
+   here is enough to place it without fighting that. Top-left, matching the
+   day-cell's own day-number corner convention elsewhere on this page. */
+.calendar-panel-date-corner{
+	position: absolute; top: 16px; left: 20px;
+	font-size: 11px; color: var(--text-dim); font-weight: normal;
+}
+/* Applied when there's no launch (and so no region art or big centered
+   text) to fill the shared 200px min-height — without this, the ~345 days
+   a year that land here would show a big, mostly-empty dark box under a
+   tiny corner date instead of a compact, intentional-looking header. */
+.detail-panel-header.is-compact{min-height: 64px;}
+
+.calendar-day-card-list{display: flex; flex-direction: column; gap: 12px; margin-top: 4px;}
+.calendar-day-card{
+	position: relative; display: flex; align-items: center; gap: 14px;
+	min-height: 88px; padding: 14px 18px;
+	border-radius: var(--radius-md); border: 1px solid var(--glass-border);
+	/* Clips the art layer's hover zoom to the rounded shape — as a side
+	   effect this also avoids the old background+border-radius seam bug
+	   (a plain rectangular child clipped by the parent's own overflow has
+	   no border/radius of its own to mismatch against). */
+	overflow: hidden;
+	transition: border-color 0.25s, box-shadow 0.25s;
+}
+/* Hover glow color is keyed to what KIND of card this is (.is-five/.is-four
+   for a debut, .is-birthday for a birthday), same --five/--four/--birthday
+   language as every other accent on the site — a birthday card always gets
+   the birthday accent regardless of that character's own rarity, so it
+   reads as "a birthday" at a glance rather than blending in with debuts;
+   rarity is still shown as its own badge either way. */
+.calendar-day-card.is-five:hover{border-color: var(--five); box-shadow: 0 4px 20px -4px var(--five-glow);}
+.calendar-day-card.is-four:hover{border-color: var(--four); box-shadow: 0 4px 20px -4px var(--four-glow);}
+.calendar-day-card.is-birthday:hover{border-color: var(--birthday); box-shadow: 0 4px 20px -4px var(--birthday-glow);}
+.calendar-day-card-art{
+	position: absolute; inset: 0;
+	background-size: cover; background-position: center;
+	transform: scale(1); transition: transform 0.5s ease;
+	will-change: transform;
+}
+.calendar-day-card:hover .calendar-day-card-art{transform: scale(1.08);}
+.calendar-day-card-scrim{
+	position: absolute; inset: 0;
+	background: linear-gradient(to right, rgba(13,13,20,0.92) 40%, rgba(13,13,20,0.25));
+}
+/* Painting order for a stacking context puts positioned descendants (the
+   absolutely-positioned art/scrim above) after plain in-flow ones,
+   regardless of DOM order — without this, the art/scrim would paint over
+   the avatar and text rather than under them. Same class of gotcha as
+   CLAUDE.md's paint-order note, just triggered by position:absolute
+   siblings instead of a transform. */
+.calendar-day-card-info, .calendar-day-card .avatar-wrap{position: relative; z-index: 1;}
+.calendar-day-card-info{display: flex; flex-direction: column; gap: 8px; min-width: 0;}
+.calendar-day-card-name{font-size: 16px; font-weight: bold; color: var(--text); text-shadow: 0 1px 4px rgba(0,0,0,0.6);}
+.calendar-day-card-badges{display: flex; align-items: center; gap: 8px; flex-wrap: wrap;}
+.calendar-day-card-element{width: 18px; height: 18px; flex-shrink: 0; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6));}
+
+.calendar-day-cell.is-clickable{cursor: pointer; transition: background-color 0.15s, border-color 0.15s;}
+.calendar-day-cell.is-clickable:hover, .calendar-day-cell.is-clickable:focus-visible{
+	background-color: var(--glass-hover); border-color: var(--glass-border-hover);
+}
+.calendar-day-cell.is-clickable:focus-visible{outline: 2px solid var(--four); outline-offset: 1px;}
+
+/* Same char-panel component style.css already ships (Timeline's character
+   drawer) — reused as-is for a per-day detail panel rather than inventing a
+   second slide-in/bottom-sheet component. .timeline-root gets its own nudge
+   rule in style.css; .calendar-root needs the same one since the panel is
+   shared but the page root it should push isn't. */
+@media (min-width: 768px){
+	body.panel-open .calendar-root{transform: translateX(300px);}
+}

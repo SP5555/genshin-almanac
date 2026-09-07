@@ -13,23 +13,6 @@ function getCurrentPhaseIndex(entry, now) {
 	return Math.min(Math.floor(daysSince / PHASE_LENGTH_DAYS), phases.length - 1);
 }
 
-// Lightweight stand-in for app.js's characterIndex tracking — that only
-// gets built as a side effect of rendering the entire 52-version timeline
-// (see CLAUDE.md's "Decouple building characterIndex..." note), which this
-// page doesn't do. Counting appearances just through the current point is
-// enough to know Release vs. Rerun N for the handful of characters shown here.
-function countAppearancesThrough(data, versionIdx, phaseIdx, character) {
-	let count = 0;
-	for (let vi = 0; vi <= versionIdx; vi++) {
-		let phases = data[vi].banner;
-		let maxPi = vi === versionIdx ? phaseIdx : phases.length - 1;
-		for (let pi = 0; pi <= maxPi; pi++) {
-			if (phases[pi]["5"].includes(character) || phases[pi]["4"].includes(character)) count++;
-		}
-	}
-	return count;
-}
-
 // Same hex values baked into assets/elements/*.svg (HoYoverse's own element
 // colors), reused here so the banner glow / 4-star badges match the element
 // icon exactly instead of an approximated palette.

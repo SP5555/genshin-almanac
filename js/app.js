@@ -43,9 +43,9 @@ function normalizeChar(name) {
 	return { name, rateDown: !!notes.rateDown, preexisting: !!notes.preexisting };
 }
 
-function buildNode(version, phaseLabel, phase, charCount, isFiller, isChronicled) {
+function buildNode(version, phaseLabel, phase, charCount, isFiller, variant) {
 	let card = document.createElement("div");
-	card.className = "trail-node phase-card" + (isFiller ? " is-filler" : "") + (isChronicled ? " is-chronicled" : "");
+	card.className = "trail-node phase-card" + (isFiller ? " is-filler" : "") + (variant ? ` is-${variant}` : "");
 	card.dataset.version = version;
 	card.dataset.phaseLabel = phaseLabel;
 
@@ -109,7 +109,7 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, isChronicled
 	fiveUnits.forEach(u => fiveGroup.appendChild(u));
 	body.appendChild(fiveGroup);
 
-	if (phase["4"].length > 0) {
+	if (phase["4"] && phase["4"].length > 0) {
 		let divider = document.createElement("div");
 		divider.className = "phase-divider";
 		body.appendChild(divider);
@@ -145,7 +145,7 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, isChronicled
 			fourUnits.push(row);
 		}
 
-		if (isChronicled) {
+		if (variant === "chronicled" || variant === "lightrace") {
 			let half = Math.ceil(fourUnits.length / 2);
 			[fourUnits.slice(0, half), fourUnits.slice(half)].forEach(colUnits => {
 				if (colUnits.length === 0) return;
@@ -158,6 +158,31 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, isChronicled
 			fourUnits.forEach(u => fourGroup.appendChild(u));
 		}
 		body.appendChild(fourGroup);
+	} else if (variant === "lightrace") {
+		// Real Lightrace Wish behavior: EVERY 4-star character in the game is a
+		// selectable designated-pull target, not a small curated subset — 50 of
+		// them as of this card's 6.7 debut, confirmed against Fandom's banner
+		// page. Rendering 50 individual icons isn't viable (a dozen already
+		// needed the chronicled column-split above), and since Lightrace is a
+		// permanent, ever-recurring banner, a hand-maintained name list would
+		// only ever grow — so data.json deliberately omits a "4" array here and
+		// this count is derived live from characterIndex (everyone who's
+		// appeared as a 4-star by this point in the timeline) instead.
+		let divider = document.createElement("div");
+		divider.className = "phase-divider";
+		body.appendChild(divider);
+
+		let fourStarCount = Object.keys(characterIndex).filter(n => characterIndex[n][0].rarity === "4").length;
+		let summary = document.createElement("div");
+		summary.className = "phase-four-summary";
+		// A literal <br> at a fixed clause break (rather than relying on
+		// max-width to wrap wherever it lands) is what lets the box's CSS
+		// width:fit-content hug the longer of the two actual lines — a
+		// width/max-width alone always resolves to the constraint itself once
+		// content forces a wrap, not the narrower width the wrapped text
+		// actually rendered at.
+		summary.append("Every 4-star character", document.createElement("br"), `released so far (${fourStarCount})`);
+		body.appendChild(summary);
 	}
 
 	card.appendChild(body);
@@ -209,8 +234,8 @@ function openCharPanel(character) {
 	if (entries.length === 0) return;
 
 	let notes = characterNotes[character] || {};
-	let header = document.getElementById("charPanelHeader");
-	let content = document.getElementById("charPanelContent");
+	let header = document.getElementById("detailPanelHeader");
+	let content = document.getElementById("detailPanelContent");
 	header.innerHTML = "";
 	content.innerHTML = "";
 
@@ -233,14 +258,14 @@ function openCharPanel(character) {
 	header.appendChild(avatarWrap);
 
 	let nameEl = document.createElement("h2");
-	nameEl.className = "char-panel-name";
+	nameEl.className = "detail-panel-name";
 	nameEl.textContent = character;
 	header.appendChild(nameEl);
 
 	let tagsWrap = document.createElement("div");
-	tagsWrap.className = "char-panel-tags";
+	tagsWrap.className = "detail-panel-tags";
 	let rarityTag = document.createElement("span");
-	rarityTag.className = "char-panel-rarity " + (rarity === "5" ? "is-five" : "is-four");
+	rarityTag.className = "detail-panel-badge " + (rarity === "5" ? "is-five" : "is-four");
 	rarityTag.textContent = rarity === "5" ? "5-Star" : "4-Star";
 	tagsWrap.appendChild(rarityTag);
 	if (notes.rateDown) {
@@ -253,13 +278,13 @@ function openCharPanel(character) {
 
 	if (notes.preexisting) {
 		let note = document.createElement("p");
-		note.className = "char-panel-note";
+		note.className = "detail-panel-note";
 		note.textContent = "Already in the game at launch — these appearances are technically reruns, not a debut.";
 		content.appendChild(note);
 	}
 
 	let stats = document.createElement("div");
-	stats.className = "char-panel-stats";
+	stats.className = "detail-panel-stats";
 	stats.textContent = `${entries.length} banner appearance${entries.length === 1 ? "" : "s"}`;
 	content.appendChild(stats);
 
@@ -268,17 +293,17 @@ function openCharPanel(character) {
 	entries.forEach(entry => list.appendChild(buildAppearanceRow(entry)));
 	content.appendChild(list);
 
-	document.getElementById("charPanel").classList.add("is-open");
-	document.getElementById("charPanel").setAttribute("aria-hidden", "false");
-	document.getElementById("charPanelBackdrop").classList.add("is-open");
+	document.getElementById("detailPanel").classList.add("is-open");
+	document.getElementById("detailPanel").setAttribute("aria-hidden", "false");
+	document.getElementById("detailPanelBackdrop").classList.add("is-open");
 	document.body.classList.add("panel-open");
 	document.documentElement.classList.add("panel-open");
 }
 
 function closeCharPanel() {
-	document.getElementById("charPanel").classList.remove("is-open");
-	document.getElementById("charPanel").setAttribute("aria-hidden", "true");
-	document.getElementById("charPanelBackdrop").classList.remove("is-open");
+	document.getElementById("detailPanel").classList.remove("is-open");
+	document.getElementById("detailPanel").setAttribute("aria-hidden", "true");
+	document.getElementById("detailPanelBackdrop").classList.remove("is-open");
 	document.body.classList.remove("panel-open");
 	document.documentElement.classList.remove("panel-open");
 }
@@ -314,14 +339,14 @@ function initCharPanel() {
 			openCharPanel(e.target.dataset.character);
 		}
 	});
-	document.getElementById("charPanelClose").addEventListener("click", closeCharPanel);
-	document.getElementById("charPanelBackdrop").addEventListener("click", closeCharPanel);
+	document.getElementById("detailPanelClose").addEventListener("click", closeCharPanel);
+	document.getElementById("detailPanelBackdrop").addEventListener("click", closeCharPanel);
 	document.addEventListener("keydown", e => {
 		if (e.key === "Escape") closeCharPanel();
 	});
 
-	let grabber = document.getElementById("charPanelGrabber");
-	let panel = document.getElementById("charPanel");
+	let grabber = document.getElementById("detailPanelGrabber");
+	let panel = document.getElementById("detailPanel");
 	let dragging = false;
 	let startY = 0;
 	let dragDistance = 0;
@@ -585,18 +610,40 @@ function buildPatchRow(entry, charCount, isLive) {
 		let notes = phaseNotes[`${version}-${p + 1}`] || {};
 		let isFiller = !!notes.filler;
 		let label = isFiller ? "Filler" : `Phase ${++realPhaseCount}`;
-		let card = buildNode(version, label, phase, charCount, isFiller, false);
+		let card = buildNode(version, label, phase, charCount, isFiller, null);
 		phasesWrap.appendChild(card);
 		phaseCards.push(card);
+	}
+
+	// Tracks whichever card currently sits right after each real phase, so a
+	// second special banner targeting the same phase (e.g. a future version
+	// with both a Chronicled Wish and a Lightrace Wish in Phase 1) inserts
+	// after the first one instead of both racing for the same "afterend"
+	// spot and landing in reverse order.
+	let phaseAnchors = phaseCards.slice();
+	function insertAfterPhase(phaseNum, card) {
+		let anchorIdx = phaseNum - 1;
+		let anchor = phaseAnchors[anchorIdx];
+		if (anchor) anchor.insertAdjacentElement("afterend", card);
+		else phasesWrap.appendChild(card);
+		phaseAnchors[anchorIdx] = card;
 	}
 
 	if (entry.chronicled) {
 		let c = entry.chronicled;
 		let label = `Chronicled Wish — ${c.theme}`;
-		let chronicledCard = buildNode(version, label, c, charCount, false, true);
-		let afterCard = phaseCards[c.phase - 1];
-		if (afterCard) afterCard.insertAdjacentElement("afterend", chronicledCard);
-		else phasesWrap.appendChild(chronicledCard);
+		insertAfterPhase(c.phase, buildNode(version, label, c, charCount, false, "chronicled"));
+	}
+
+	// Lightrace Wish: a permanent, ever-rotating banner (debuted 6.7) that
+	// features characters getting Stellar-Conduct reaction buffs, not a
+	// region theme — so no "— theme" suffix on its label the way Chronicled
+	// gets one. Weapons are part of the real banner too, but this site
+	// deliberately only tracks character banners (see CLAUDE.md), so those
+	// aren't recorded here.
+	if (entry.lightrace) {
+		let l = entry.lightrace;
+		insertAfterPhase(l.phase, buildNode(version, "Lightrace Wish", l, charCount, false, "lightrace"));
 	}
 
 	content.appendChild(phasesWrap);

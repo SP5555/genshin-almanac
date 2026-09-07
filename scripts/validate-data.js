@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // Cross-checks data/*.json against each other. data.json (banner phases +
-// chronicled entries) is the single source of truth for "which characters
-// have appeared" — this script derives that set from it and flags anything
-// in the other data files that doesn't line up, plus missing face/namecard
-// art (which fail silently in the UI, with no onerror fallback).
+// chronicled + lightrace entries) is the single source of truth for "which
+// characters have appeared" — this script derives that set from it and
+// flags anything in the other data files that doesn't line up, plus missing
+// face/namecard art (which fail silently in the UI, with no onerror
+// fallback).
 const fs = require("fs");
 const path = require("path");
 
@@ -30,6 +31,9 @@ for (let v of data) {
 	});
 	if (v.chronicled) {
 		for (let rarity of ["5", "4"]) (v.chronicled[rarity] || []).forEach(n => canonicalNames.add(n));
+	}
+	if (v.lightrace) {
+		for (let rarity of ["5", "4"]) (v.lightrace[rarity] || []).forEach(n => canonicalNames.add(n));
 	}
 }
 

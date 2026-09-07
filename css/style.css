@@ -15,6 +15,10 @@
 	--accent-glow: rgba(255, 255, 255, 0.12);
 	--chronicled: #c98a4b;
 	--chronicled-glow: rgba(201, 138, 75, 0.25);
+	--lightrace: #6f9bd1;
+	--lightrace-glow: rgba(111, 155, 209, 0.25);
+	--birthday: #ec7fb0;
+	--birthday-glow: rgba(236, 127, 176, 0.25);
 	--line: #6e5a94;
 	--content-max: 1140px;
 	--content-pad: 20px;
@@ -22,7 +26,7 @@
 	   vibe at once instead of hunting down every border-radius individually.
 	   Avatars/dots/icon buttons deliberately stay literal 50% (always
 	   circular, not part of this scale). */
-	--radius-lg: 10px;  /* primary content cards: timeline phase cards, mobile char-panel sheet */
+	--radius-lg: 10px;  /* primary content cards: timeline phase cards, mobile detail-panel sheet */
 	--radius-md: 8px;  /* secondary cards: Server Clocks cards */
 	--radius-sm: 6px;  /* small popovers: search results dropdown, hover targets */
 	--radius-full: 999px; /* pills/badges/progress bars — fully rounded */
@@ -409,11 +413,21 @@ body::-webkit-scrollbar{display: none;}
 }
 .trail-node.phase-card.is-filler:hover{opacity: 1;}
 .trail-node.phase-card.is-filler .phase-tag{border-left-color: var(--text-dim); color: var(--text-dim);}
+/* Chronicled Wish and Lightrace Wish share one "special banner" layout
+   (five/four-group wrap, column-split, the 768px stacking fix below) —
+   Lightrace deliberately inherits Chronicled's design wholesale rather than
+   getting its own tuned-for-a-smaller-cast rules, so the only thing that
+   actually differs between the two is color. */
 .trail-node.phase-card.is-chronicled{
 	border-color: var(--chronicled); background-color: var(--chronicled-glow);
 }
 .trail-node.phase-card.is-chronicled:hover{border-color: var(--chronicled);}
 .trail-node.phase-card.is-chronicled .phase-tag{border-left-color: var(--chronicled); color: var(--chronicled);}
+.trail-node.phase-card.is-lightrace{
+	border-color: var(--lightrace); background-color: var(--lightrace-glow);
+}
+.trail-node.phase-card.is-lightrace:hover{border-color: var(--lightrace);}
+.trail-node.phase-card.is-lightrace .phase-tag{border-left-color: var(--lightrace); color: var(--lightrace);}
 
 .phase-card-body{display: flex; align-items: center; gap: 16px;}
 
@@ -426,7 +440,7 @@ body::-webkit-scrollbar{display: none;}
 }
 
 .phase-five-group{display: flex; flex-direction: row; flex-wrap: wrap; gap: 10px 18px; flex-shrink: 0;}
-.is-chronicled .phase-five-group{flex-wrap: wrap; justify-content: center; max-width: 340px;}
+.is-chronicled .phase-five-group, .is-lightrace .phase-five-group{flex-wrap: wrap; justify-content: center; max-width: 340px;}
 .phase-five-unit{display: flex; flex-direction: column; align-items: center; gap: 6px;}
 
 /* flickering sunburst rays behind release portraits — each ray is a separate
@@ -484,11 +498,18 @@ body::-webkit-scrollbar{display: none;}
    below stacks everything to a column, which happened to hide this same
    bug there). justify-content:center matches the sibling
    .phase-five-group's wrap treatment right next to it. */
-.is-chronicled .phase-four-group{
+.is-chronicled .phase-four-group, .is-lightrace .phase-four-group{
 	display: flex; flex-direction: row; flex-wrap: wrap;
 	align-items: center; justify-content: center; gap: 10px 20px;
 }
 .phase-four-col{display: flex; flex-direction: column; gap: 7px;}
+/* Stands in for .phase-four-group on Lightrace specifically, when the whole
+   4-star roster applies rather than a short list worth spelling out — see
+   the comment in app.js for why this is a derived count, not a name list. */
+.phase-four-summary{
+	font-size: 12.5px; color: var(--text-dim); font-style: italic; line-height: 1.5;
+	text-align: center; align-self: center; width: fit-content;
+}
 .phase-four-unit{display: flex; align-items: center; gap: 8px;}
 .char-face-sm{width: 24px; height: 24px; border-radius: 50%; object-fit: contain; flex-shrink: 0;
 	box-shadow: 0 0 0 1px var(--four); background-color: rgba(255,255,255,0.06);
@@ -515,20 +536,22 @@ body::-webkit-scrollbar{display: none;}
 	.phase-divider{width: 100%; height: 1px; align-self: auto;}
 	.phase-five-group, .phase-four-group{width: 100%;}
 }
-/* Chronicled banners specifically (not regular phase cards, which are fine
-   in row layout down to 480px) — a chronicled 4-star group can be a dozen
-   names split into two columns (see .phase-four-col in app.js), which has
-   no room left to shrink once .phase-five-group's fixed 340px max-width
+/* Chronicled/Lightrace banners specifically (not regular phase cards, which
+   are fine in row layout down to 480px) — a chronicled 4-star group can be a
+   dozen names split into two columns (see .phase-four-col in app.js), which
+   has no room left to shrink once .phase-five-group's fixed 340px max-width
    claims most of the card, so it overflows the card — and the page —
    well above the general 480px stacking breakpoint above. Reusing the
    same row->column treatment, just starting from the wider, already-
    established 768px breakpoint (see the avatar-sizing rule below) for
-   this card type only. */
+   these card types. Lightrace doesn't strictly need this at its current
+   5+2 cast size, but it inherits Chronicled's layout wholesale rather than
+   getting a size-tuned exception. */
 @media (max-width: 768px){
-	.trail-node.phase-card.is-chronicled .phase-card-body{flex-direction: column; align-items: stretch; gap: 12px;}
-	.trail-node.phase-card.is-chronicled .phase-divider{width: 100%; height: 1px; align-self: auto;}
-	.trail-node.phase-card.is-chronicled .phase-five-group{margin: 0 auto;}
-	.trail-node.phase-card.is-chronicled .phase-four-group{width: 100%;}
+	.trail-node.phase-card.is-chronicled .phase-card-body, .trail-node.phase-card.is-lightrace .phase-card-body{flex-direction: column; align-items: stretch; gap: 12px;}
+	.trail-node.phase-card.is-chronicled .phase-divider, .trail-node.phase-card.is-lightrace .phase-divider{width: 100%; height: 1px; align-self: auto;}
+	.trail-node.phase-card.is-chronicled .phase-five-group, .trail-node.phase-card.is-lightrace .phase-five-group{margin: 0 auto;}
+	.trail-node.phase-card.is-chronicled .phase-four-group, .trail-node.phase-card.is-lightrace .phase-four-group{width: 100%;}
 }
 
 /* clickable characters open the detail panel below */
@@ -538,16 +561,16 @@ body::-webkit-scrollbar{display: none;}
 html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 
 /* ---------- character detail panel ---------- */
-.char-panel-backdrop{
+.detail-panel-backdrop{
 	position: fixed; inset: 0; z-index: 90;
 	background-color: rgba(0,0,0,0.6);
 	opacity: 0; pointer-events: none;
 	transition: opacity 0.3s ease;
 	will-change: opacity;
 }
-.char-panel-backdrop.is-open{opacity: 1; pointer-events: auto;}
+.detail-panel-backdrop.is-open{opacity: 1; pointer-events: auto;}
 
-.char-panel{
+.detail-panel{
 	position: fixed; top: 0; left: 0; bottom: 0; z-index: 100;
 	width: min(380px, 88vw);
 	display: flex; flex-direction: column;
@@ -558,51 +581,52 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 	transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 	will-change: transform;
 }
-.char-panel.is-open{transform: translateX(0);}
+.detail-panel.is-open{transform: translateX(0);}
 
-.char-panel-grabber{display: none;}
+.detail-panel-grabber{display: none;}
 
-.char-panel-topbar{display: flex; justify-content: flex-end; padding: 10px 10px 0; flex-shrink: 0;}
-.char-panel-close{
+.detail-panel-topbar{display: flex; justify-content: flex-end; padding: 10px 10px 0; flex-shrink: 0;}
+.detail-panel-close{
 	width: 32px; height: 32px; border-radius: 50%; border: none;
 	background-color: var(--glass); color: var(--text);
 	font-size: 20px; line-height: 1; cursor: pointer;
 	display: flex; align-items: center; justify-content: center;
 	transition: background-color 0.2s;
 }
-.char-panel-close:hover{background-color: var(--glass-hover);}
+.detail-panel-close:hover{background-color: var(--glass-hover);}
 
-.char-panel-content{
+.detail-panel-content{
 	flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 4px 24px 32px;
 	scrollbar-width: thin; scrollbar-color: var(--glass-border-hover) transparent;
 	background-repeat: no-repeat; background-position: center, center;
 	background-size: 100% 100%, 340px 340px;
 }
-.char-panel-content::-webkit-scrollbar{width: 6px;}
-.char-panel-content::-webkit-scrollbar-track{background: transparent;}
-.char-panel-content::-webkit-scrollbar-thumb{background-color: var(--glass-border-hover); border-radius: var(--radius-full);}
-.char-panel-content::-webkit-scrollbar-thumb:hover{background-color: var(--four);}
+.detail-panel-content::-webkit-scrollbar{width: 6px;}
+.detail-panel-content::-webkit-scrollbar-track{background: transparent;}
+.detail-panel-content::-webkit-scrollbar-thumb{background-color: var(--glass-border-hover); border-radius: var(--radius-full);}
+.detail-panel-content::-webkit-scrollbar-thumb:hover{background-color: var(--four);}
 
-.char-panel-header{
+.detail-panel-header{
 	position: relative;
-	display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px;
-	flex-shrink: 0; padding: 20px 32px 16px; overflow: visible;
+	display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px;
+	flex-shrink: 0; min-height: 200px; padding: 20px 32px 16px; overflow: visible;
 	background-size: cover; background-position: center;
 }
-.char-panel-header::before, .char-panel-header::after{
+.detail-panel-header::before, .detail-panel-header::after{
 	content: ''; position: absolute; left: 0; right: 0; height: 24px; pointer-events: none; z-index: 0;
 }
-.char-panel-header::before{top: 0; background: linear-gradient(to bottom, var(--bg-alt), transparent);}
-.char-panel-header::after{bottom: 0; background: linear-gradient(to top, var(--bg-alt), transparent);}
-.char-panel-header > *{position: relative; z-index: 1;}
-.char-panel-name{font-size: 24px; font-weight: bold; color: var(--text);}
-.char-panel-tags{display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;}
-.char-panel-rarity{font-size: 11px; font-weight: bold; padding: 3px 10px; border-radius: var(--radius-full); text-transform: uppercase; letter-spacing: 0.5px;}
-.char-panel-rarity.is-five{background-color: rgba(255,194,71,0.15); color: var(--five);}
-.char-panel-rarity.is-four{background-color: rgba(193,123,240,0.15); color: var(--four);}
+.detail-panel-header::before{top: 0; background: linear-gradient(to bottom, var(--bg-alt), transparent);}
+.detail-panel-header::after{bottom: 0; background: linear-gradient(to top, var(--bg-alt), transparent);}
+.detail-panel-header > *{position: relative; z-index: 1;}
+.detail-panel-name{font-size: 24px; font-weight: bold; color: var(--text);}
+.detail-panel-tags{display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;}
+.detail-panel-badge{font-size: 11px; font-weight: bold; padding: 3px 10px; border-radius: var(--radius-full); text-transform: uppercase; letter-spacing: 0.5px;}
+.detail-panel-badge.is-five{background-color: rgba(255,194,71,0.15); color: var(--five);}
+.detail-panel-badge.is-four{background-color: rgba(193,123,240,0.15); color: var(--four);}
+.detail-panel-badge.is-birthday{background-color: var(--birthday-glow); color: var(--birthday);}
 
-.char-panel-note{font-size: 13px; color: var(--text-dim); font-style: italic; margin-top: 16px; line-height: 1.5;}
-.char-panel-stats{font-size: 13px; color: var(--text-dim); margin-top: 18px; padding-bottom: 10px; border-bottom: 1px solid var(--glass-border);}
+.detail-panel-note{font-size: 13px; color: var(--text-dim); font-style: italic; margin-top: 16px; line-height: 1.5;}
+.detail-panel-stats{font-size: 13px; color: var(--text-dim); margin-top: 18px; padding-bottom: 10px; border-bottom: 1px solid var(--glass-border);}
 
 .char-appear-list{display: flex; flex-direction: column;}
 .char-appear-row{display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--glass-border);}
@@ -624,25 +648,25 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 .char-appear-tag.is-release{color: var(--five); font-weight: bold;}
 
 @media (max-width: 767px){
-	.char-panel{
+	.detail-panel{
 		top: auto; left: 0; right: 0; bottom: 0; width: 100%;
-		max-height: 82vh;
+		min-height: 40vh; max-height: 82vh;
 		border-right: none; border-top: 1px solid var(--glass-border);
 		border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 		transform: translateY(100%);
 	}
-	.char-panel.is-open{transform: translateY(0);}
-	.char-panel-grabber{
+	.detail-panel.is-open{transform: translateY(0);}
+	.detail-panel-grabber{
 		display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 		width: 100%; height: 28px; margin-top: 4px;
 		touch-action: none;
 	}
-	.char-panel-grabber::before{
+	.detail-panel-grabber::before{
 		content: '';
 		width: 36px; height: 4px; border-radius: var(--radius-full);
 		background-color: var(--glass-border-hover);
 	}
-	.char-panel-topbar{display: none;}
+	.detail-panel-topbar{display: none;}
 }
 @media (min-width: 768px){
 	body.panel-open .timeline-root{transform: translateX(300px);}

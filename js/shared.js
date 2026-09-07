@@ -19,6 +19,25 @@ function formatDate(isoDate) {
 	return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+// Lightweight stand-in for app.js's characterIndex tracking — that only gets
+// built as a side effect of rendering the entire 52-version timeline, which
+// neither the landing page nor the calendar page do. Counting appearances
+// just through a given point is enough to know Release vs. Rerun N (landing)
+// or true-debut-vs-rerun (calendar's debut markers) without needing the full
+// index. Only scans banner[] phases, never chronicled/lightrace — both are
+// reruns by definition, so they never affect a first-appearance count.
+function countAppearancesThrough(data, versionIdx, phaseIdx, character) {
+	let count = 0;
+	for (let vi = 0; vi <= versionIdx; vi++) {
+		let phases = data[vi].banner;
+		let maxPi = vi === versionIdx ? phaseIdx : phases.length - 1;
+		for (let pi = 0; pi <= maxPi; pi++) {
+			if (phases[pi]["5"].includes(character) || phases[pi]["4"].includes(character)) count++;
+		}
+	}
+	return count;
+}
+
 // Dev-only time travel for testing date/time-sensitive UI (phase math,
 // countdowns, live indicators) without touching the system clock. Reads
 // ?fakeDate=<ISO date or datetime, e.g. 2026-09-30T14:30:00> from the URL —
