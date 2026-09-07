@@ -25,19 +25,22 @@ they can't tell you.
 - `index.html` — landing page (the site's actual root/entry point).
   `timeline.html` — the full banner Timeline (this used to be `index.html`,
   renamed when the landing page was built — see "Landing page" below).
-  `clocks.html` — Server Clocks page.
+  `clocks.html` — Server Clocks page. `calendar.html` — Calendar page.
 - `css/reset.css` + `css/style.css` — shared base (palette, header, footer,
   char panel, timeline, back-to-top button, brand live-dot). `css/clocks.css`
-  / `css/landing.css` — page-specific styles for those two pages.
-- `js/shared.js` — cross-page utilities, loaded by all three pages: the
-  back-to-top button, the header brand's live-status dot, and
+  / `css/landing.css` / `css/calendar.css` — page-specific styles for those
+  three pages.
+- `js/shared.js` — cross-page utilities, loaded by all four pages: the
+  back-to-top button, the header brand's live-status dot,
   `faceImg()`/`facePath()`/`formatDate()` (moved out of `app.js` once the
-  landing page also needed them). `js/app.js` — Timeline page logic, still
+  landing page also needed them), and `previewNow()` (see "Testing
+  date/time-sensitive UI" below). `js/app.js` — Timeline page logic, still
   the only thing that knows how to render the full 52-version DOM.
   `js/glow-config.js` — release-glow ray tuning knobs, kept as `.js` not
   JSON since it applies its own values as CSS custom properties.
   `js/clocks.js` — Server Clocks logic. `js/landing.js` — landing page
-  logic. Neither depends on `app.js` or on each other.
+  logic. `js/calendar.js` — Calendar page logic. None of the four depend on
+  each other.
 - `data/*.json` — plain JSON, no comments/trailing commas — semantics
   documented below since JSON can't hold comments. `data/SOURCES.md` — art
   asset sourcing reference (APIs, file patterns, codenames), split out so
@@ -573,6 +576,63 @@ more clocks; likely worth combining into the existing daily card per server
 rather than a separate 8-card section) and Spiral Abyss reset (16th of each
 month, 4am server time).
 
+## Calendar page (`calendar.html` / `js/calendar.js` / `css/calendar.css`)
+The banner history as a year-view grid instead of a line — deliberately
+leaning into the site's time/history angle rather than adding
+theorycrafting/build-tag features other Genshin sites already cover better.
+Version launch dates are the first event layer (pulled straight from
+`data.json`, no new data file); character debuts and birthdays are planned
+follow-ups, not yet built. A dedicated Month/Year zoom toggle was considered
+and deliberately parked — its whole benefit is desktop-only, since on
+mobile the year-view already collapses to one full-width month per row, so
+it doesn't replace the need to get the compact cell design right everywhere
+first.
+
+**Year stepper**: range is `2020` (1.0's real launch year) to
+`previewNow().getFullYear() + 2`, computed live rather than a hardcoded
+upper bound. The year label opens a popover (not a native `<select>`) for
+jumping the full range in one click. Two stepper instances exist — one
+above the grid, one below — since scrolling through all 12 months on
+mobile just to change year is real friction; both are kept in sync by
+operating on every matching element via class rather than unique IDs
+(duplicate IDs would be invalid HTML anyway). The bottom instance's
+popover opens *upward*, not down — it sits right above the footer, so
+opening downward the way the top one does would push it toward/past the
+footer instead of over already-scrolled-past content.
+
+Two real bugs worth remembering if this pattern gets reused elsewhere:
+1. The popover's own `display: flex` (author CSS) silently overrides the
+   browser's default `[hidden]{display:none}` (user-agent CSS) — origin is
+   checked before specificity in the cascade, so author styles win
+   regardless. Toggling `hidden` in JS did nothing visually; the popover
+   kept fully rendering and painting. Fixed with an explicit
+   `.calendar-year-popover[hidden]{display:none;}` rule.
+2. The page's entrance animation (`animation:...both`) leaves the stepper
+   with a lingering `transform:translateY(0)` after it finishes
+   (`animation-fill-mode:both` keeps the final keyframe) — any non-`none`
+   transform promotes an element into its own stacking context, which
+   trapped the popover's `z-index:10` inside it, unable to rise above the
+   month grid (later in DOM order, painted on top of the whole stepper
+   regardless of the popover's own z-index). Same class of gotcha as #2
+   below, just triggered by an animation's fill-mode instead of a direct
+   `transform` rule. Fixed by giving the stepper itself `position:relative;
+   z-index:5`, so its whole box — popover included — paints above the grid.
+
+**Day cells**: Sunday-first (not the Monday-first convention Server
+Clocks' weekday strip uses — that was specific to Genshin's own reset
+schedule, doesn't apply here). Fixed height, not `aspect-ratio:1/1` — every
+cell stays visually identical whether or not it carries an event, but
+freed from being forced square, since with ~8-9 launches a year against
+365 days almost every cell is empty and needs to stay calm rather than
+compete for space. Day number sits in the top-left corner (freeing the
+cell's remaining space for a version label like "7.0"); a border only
+appears on cells that actually have something on them, so the border
+itself is the "something is here" signal rather than uniform chrome on
+every day. The event label sits with `bottom:12px`, not centered in the
+remaining space below the number nor flush against the true bottom edge —
+purely mathematical centering there read as too low, since the eye doesn't
+weigh the label/edge whitespace symmetrically.
+
 ## Design decisions
 - Header is `position: relative`, not `sticky` — deliberate, so it doesn't
   occupy permanent viewport space.
@@ -687,20 +747,22 @@ levels, and the 1.0 launch roster. Read it before adding a new version.
 - The manual per-patch update process (hand-editing `data.json` +
   hand-sourcing art) is why the site fell 17 versions behind once — worth a
   scripted/automated data pipeline if picking this up as a project.
-- Multi-page candidates: **Region/lore explorer** (browse by nation,
-  reusing the region-background/glow visual language already built for the
-  Timeline/landing pages) is the likely next page — real gap: no
+- Multi-page candidates still on the table: **Region/lore explorer**
+  (browse by nation, reusing the region-background/glow visual language
+  already built for the Timeline/landing pages) — real gap: no
   character→region mapping exists yet (`character-elements.json` is
   element, not nation; needs a new `character-regions.json` with an
   explicit `"Unaffiliated"` sentinel for characters like Skirk, not
   omission). **Character profile pages** (dedicated shareable URLs) are
   the next-cheapest candidate after that.
 - "On this day" — the *concept* is now partly built as the landing trivia
-  ticker's anniversary cards (see "Trivia ticker" above), not a standalone
-  page. A dedicated page would need the same nearest-match handling (only
-  51/365 days have an exact hit).
-- Server Clocks (built) and the trivia ticker were the differentiators so
-  far; Region/lore explorer is the likely next page.
+  ticker's anniversary cards (see "Trivia ticker" above) and, more fully,
+  as the Calendar page's year-view grid. A dedicated single-date page would
+  still need the same nearest-match handling (only 51/365 days have an
+  exact hit).
+- Calendar (built) is the newest differentiator; character debuts and
+  birthdays are its planned next event layers (see "Calendar page" above)
+  before Region/lore explorer becomes the next *new* page.
 
 ## Multi-page architecture
 Separate physical HTML pages (not a JS router/SPA) — zero-build, Netlify
