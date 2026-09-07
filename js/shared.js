@@ -65,6 +65,42 @@ function previewNow() {
 	return new Date(Date.now() + PREVIEW_TIME_OFFSET_MS);
 }
 
+// Generic "swap this container's content with a smooth fade + resize."
+// Locks the container's current height as a px value, fades fadeEls out,
+// calls renderFn once invisible, measures the new natural height, then
+// animates to it while fading back in — CSS can't transition to/from
+// `auto`, so height has to be measured/set explicitly on both ends.
+//   container — resizes to match the new content. Its own CSS must already
+//               include `height` in its `transition` list (each component
+//               owns that list, usually combined with other transitions).
+//   fadeEls   — elements toggled `.is-fading` during the swap (component
+//               CSS defines what that means, e.g. `.trivia-text.is-fading
+//               {opacity:0}`). Often just [container]; sometimes specific
+//               children (Calendar fades header+content while the panel
+//               itself resizes).
+//   renderFn  — mutates the DOM to the new state, called once invisible.
+//   fadeMs    — wait before swapping (default 200, matching every current
+//               caller's own CSS transition duration).
+// Respects prefers-reduced-motion — renders instantly, no animation.
+function swapWithFade(container, fadeEls, renderFn, fadeMs = 200) {
+	if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+		renderFn();
+		return;
+	}
+	let startHeight = container.getBoundingClientRect().height;
+	container.style.height = startHeight + "px";
+	fadeEls.forEach(el => el.classList.add("is-fading"));
+	setTimeout(() => {
+		renderFn();
+		container.style.height = "auto";
+		let endHeight = container.getBoundingClientRect().height;
+		container.style.height = startHeight + "px";
+		container.offsetHeight; // force reflow so the revert above commits before animating
+		container.style.height = endHeight + "px";
+		fadeEls.forEach(el => el.classList.remove("is-fading"));
+	}, fadeMs);
+}
+
 function initBackToTop() {
 	let btn = document.getElementById("backToTop");
 	if (!btn) return;

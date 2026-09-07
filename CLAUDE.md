@@ -33,8 +33,13 @@ they can't tell you.
 - `js/shared.js` — cross-page utilities, loaded by all four pages: the
   back-to-top button, the header brand's live-status dot,
   `faceImg()`/`facePath()`/`formatDate()`/`countAppearancesThrough()`
-  (each moved out of `app.js` once a second page needed it), and
-  `previewNow()` (see "Testing date/time-sensitive UI" below). `js/app.js`
+  (each moved out of `app.js` once a second page needed it),
+  `swapWithFade()` (a generic fade-out/swap-DOM/resize/fade-in animation —
+  moved here once Calendar's detail-panel stack needed the identical
+  technique the landing page's trivia ticker had already built
+  independently; see "Trivia ticker" and Calendar's "Day panel" below for
+  its two callers), and `previewNow()` (see "Testing date/time-sensitive
+  UI" below). `js/app.js`
   — Timeline page logic, still
   the only thing that knows how to render the full 52-version DOM.
   `js/glow-config.js` — release-glow ray tuning knobs, kept as `.js` not
@@ -281,7 +286,11 @@ Deliberately the *lightweight* opposite of the spotlight carousel above —
 plain text, no drag physics, auto-advance/dots/pause-on-hover only. Cards
 come from two sources: real version-anniversary facts (computed) and a
 hand-written pool in `data/trivia.json` (flat string array, 3 sampled per
-load), shuffled together so an anniversary card doesn't always lead.
+load), shuffled together so an anniversary card doesn't always lead. Each
+card swap (`render()`) fades/resizes via the shared `swapWithFade()`
+(`js/shared.js`) — this was the original, landing-page-only implementation
+of that technique, pulled out once Calendar's detail-panel stack needed
+the identical thing (see Calendar's "Day panel" below).
 - **Anniversaries are nearest-match, not exact-date** — checked the real
   spread first: 52 versions land on only 51 of 365 possible month-days, so
   a strict "today" match would be empty ~86% of the time. Always shows the
@@ -424,6 +433,16 @@ character name. Appearance rows jump to their timeline card via
 `jumpToCard()` without closing the panel. Desktop nudges `.timeline-root`
 via `transform: translateX(300px)` (not margin — see gotcha #1) so a
 jumped-to card isn't hidden behind the drawer.
+
+**`.char-appear-list`** (a character's own appearance history) reuses the
+Timeline's own `.vt-marker-col` technique — a fixed-width rail with a
+`::before` line running through it and a marker dot on top — at list scale,
+so the list reads as a personal thread through the site's own timeline
+rather than a plain bullet list. `characterIndex` entries carry `variant`
+(chronicled/lightrace, threaded through from `buildNode`'s own param) and
+`isRelease`, so a dot can pick up that special banner's accent color or an
+extra release-glow ring; chronicled/lightrace never conflicts with the
+release ring since those banners are reruns by definition.
 
 Mobile drag-to-dismiss: Pointer Events (not separate touch/mouse handlers)
 drive 1:1 finger tracking via inline `transform`; on release the existing
@@ -624,6 +643,24 @@ popover opens *upward*, not down — it sits right above the footer, so
 opening downward the way the top one does would push it toward/past the
 footer instead of over already-scrolled-past content.
 
+A **"Today" button** sits in each stepper (`jumpToToday()` in calendar.js) —
+deliberately not an auto-scroll on page load. Auto-scrolling to the current
+month on every load was built and then reconsidered before shipping: it
+would fight a reader who opens the page to browse from the top, or reload a
+bookmarked link and get yanked away from wherever they'd scrolled to.
+`jumpToToday()` is a thin wrapper around **`jumpToDate(isoDate)`** — the
+generic "jump to a specific day" primitive: switches year first if needed
+(`setYear()` is synchronous, so the new cells exist immediately after),
+`scrollIntoView()`s that exact day cell, and gives it a temporary highlight
+ring (`.calendar-day-cell.is-highlighted`, 1.8s, `--four`) — the *same*
+glow-highlight language as Timeline's `jumpToCard()`/`.is-highlighted`
+(app.js/style.css), reused so "you just landed here" reads identically
+everywhere on the site. `--four` rather than `--five` specifically so the
+transient jump-ring never gets confused with `.is-today`'s permanent gold
+wash when both land on the same cell (the common case). `jumpToDate()` is
+meant to be the one thing any future jump-across-the-grid feature (a
+character/date search, etc.) calls — don't build a second version of this.
+
 Two real bugs worth remembering if this pattern gets reused elsewhere:
 1. The popover's own `display: flex` (author CSS) silently overrides the
    browser's default `[hidden]{display:none}` (user-agent CSS) — origin is
@@ -688,23 +725,66 @@ so a 2-digit day + all 3 dots still fit without touching the cell edge
 (checked against the tightest real case, March 26 2025 — a version launch
 + two debut rarities + a birthday all landing the same day).
 
-**Day panel**: debuts/birthdays render as namecard-background "trading
-cards" (`buildCharacterCard()` in calendar.js) — art lives on its own
-layer (not the card's own `background`), with `overflow:hidden` clipping
-its hover-zoom `transform:scale()` and, as a side effect, avoiding the
+**Day panel**: debuts render as namecard-background "trading cards"
+(`buildCharacterCard()` in calendar.js) — art lives on its own layer (not
+the card's own `background`), with `overflow:hidden` clipping its
+hover-zoom `transform:scale()` and, as a side effect, avoiding the
 border-radius+background seam class of bug a literal `background-image` +
 `border-radius` + `border` combo can produce. A static scrim layer keeps
-text legible through the zoom. Hover glow color is keyed to card *type*
-(`.is-five`/`.is-four` for a debut, `.is-birthday` always for a birthday,
-regardless of that character's own rarity) so a birthday card reads as a
-birthday at a glance rather than blending into a debut card. The date is
-always a small top-left corner label, never the headline — a launch day
-promotes "Version X.Y launch" into `.detail-panel-name`'s big centered
-role instead; any other day (the vast majority) gets a compact 64px header
+text legible through the zoom. Hover glow color is keyed to which rarity
+debuted (`.is-five`/`.is-four`). Birthdays deliberately do NOT use this
+card — see "Birthdays" above for why (a debut is a one-time historical
+fact, a birthday is light and recurring) and `buildBirthdayChip()`'s own
+lighter ringed-avatar-row treatment instead. The date is always a small
+top-left corner label, never the headline — a launch day promotes
+"Version X.Y launch" into `.detail-panel-name`'s big centered role
+instead; any other day (the vast majority) gets a compact 64px header
 rather than a mostly-empty 200px box. A reported rendering seam along the
 header's own gradient top/bottom edges (real hardware only, not
 reproducible headless) was NOT fixed by `isolation:isolate` — don't
 re-attempt that exact fix if this resurfaces.
+
+Clicking a debut card or birthday chip drills into that character's own
+appearance history — the exact same `.char-appear-list` component Timeline's
+character panel has (grander timeline-line, release glow, banner-type
+coloring included), via a **UI stack** on the shared detail panel
+(`panelStack`/`pushPanelView()`/`popPanelView()`/`renderPanelTop()` in
+calendar.js) rather than opening a second overlapping popup. Each stack
+entry is `{type: "day"|"character", ...}`; `openDayPanel()` is the only
+thing that *resets* the stack (to a single day entry) and toggles the
+panel's open state — pushing/popping only ever re-renders content. A
+**Back** button (`#detailPanelBack`, shared HTML/CSS with Timeline's panel
+but only ever un-hidden by calendar.js — Timeline has no "previous view"
+to return to) appears whenever stack depth > 1. On mobile the topbar
+(Back included) is hidden entirely — the drag-to-dismiss gesture is the
+only affordance there, so `endGrabberDrag()` pops one stack level on a
+qualifying swipe instead of always closing; only swiping from the stack's
+root actually closes the panel.
+
+A push/pop animates via the shared `swapWithFade()` (`js/shared.js` — see
+its own doc comment for the full mechanics) rather than snapping straight
+to the new content: `swapPanelView()` calls it with `.detail-panel` as the
+resizing container and `[header, content]` as what fades. Both toggle the
+shared `.is-fading` convention (`.detail-panel-header.is-fading`/
+`.detail-panel-content.is-fading`, style.css). On desktop this also
+re-centers the popup vertically through the resize for free, since
+`top:50%` + `translate(-50%,-50%)` recomputes off the element's own
+(animating) height automatically. `openDayPanel()` itself never animates —
+only a push/pop (an already-open panel navigating) does; opening fresh
+always renders immediately at natural size.
+
+This needed a full per-character appearance history inside calendar.js,
+which only existed as a side effect of rendering Timeline's entire DOM
+(`characterIndex` in app.js) — rather than duplicate that render path,
+`buildCharacterAppearances()` is a pure-data mirror: same per-version scan
+order as app.js's `buildPatchRow()` (phases, then chronicled, then
+lightrace) so rerun counts line up identically, built once at bootstrap
+like every other calendar.js index. Its rows reuse `jumpToDate()` (not
+Timeline's `jumpToCard()`, which has no equivalent here) for the
+version-jump click — chronicled/lightrace rows jump to their *parent
+phase's* start date, since no exact "chronicled banner start date" is
+tracked anywhere on this site (same reason `buildDebutsByDate` never scans
+them for debuts).
 
 ## Design decisions
 - Header is `position: relative`, not `sticky` — deliberate, so it doesn't

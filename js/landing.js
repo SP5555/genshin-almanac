@@ -1031,24 +1031,7 @@ function buildTriviaTicker(cards) {
 	}
 
 	function render(index) {
-		// Locks the box at its current rendered height before the swap, then
-		// measures the new content's natural height (with height:auto, so
-		// min-height still applies as a floor) and animates to that — CSS
-		// can't transition to/from "auto" on its own, so this "flip" pair of
-		// forced-reflow reads is what gives the transition real start/end
-		// pixel values to animate between.
-		let startHeight = textEl.getBoundingClientRect().height;
-		textEl.style.height = startHeight + "px";
-		textEl.classList.add("is-fading");
-		setTimeout(() => {
-			textEl.textContent = cards[index];
-			textEl.style.height = "auto";
-			let endHeight = textEl.getBoundingClientRect().height;
-			textEl.style.height = startHeight + "px";
-			textEl.offsetHeight; // force reflow so the revert above commits before animating
-			textEl.style.height = endHeight + "px";
-			textEl.classList.remove("is-fading");
-		}, 200);
+		swapWithFade(textEl, [textEl], () => { textEl.textContent = cards[index]; });
 		dotEls.forEach((d, i) => d.classList.toggle("is-active", i === index));
 		resetProgress();
 	}

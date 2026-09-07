@@ -1,18 +1,13 @@
 // Year-view calendar — the same banner history as a spreadsheet-shaped grid
-// instead of a line. Version launch dates and character debuts are plotted
-// on it; birthdays are a deliberate later follow-up, not yet built.
+// instead of a line. Three event layers are plotted: version launches,
+// character debuts, and birthdays.
 const CALENDAR_MIN_YEAR = 2020; // 1.0's real launch year
-// Sunday-first, matching Date.getDay()'s own native order directly (0-6,
-// Sun-Sat) — no rotation needed below. Deliberately not the Monday-first
-// convention clocks.js's WEEKDAY_STRIP uses; that was specific to Genshin's
-// domain-reset schedule (every domain open Sunday, so it reads best as the
-// week's finale), which doesn't apply to a plain date calendar.
+// Sunday-first (matches Date.getDay()'s native order) — not the Monday-first
+// convention clocks.js uses, which is specific to Genshin's reset schedule.
 const CALENDAR_WEEKDAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
 
-// +1 year out, and driven by previewNow() (not a bare `new Date()`) so the
-// dev-only ?fakeDate= override (shared.js) can exercise the upper bound too
-// — always relative to "now," never hardcoded, so this doesn't quietly go
-// stale the way a literal year would.
+// Relative to previewNow(), not hardcoded, so the ?fakeDate= dev override
+// can exercise the upper bound too.
 function calendarMaxYear() {
 	return previewNow().getFullYear() + 1;
 }
@@ -26,30 +21,20 @@ function getYearFromUrl() {
 	return isNaN(parsed) ? previewNow().getFullYear() : clampYear(parsed);
 }
 
-// "YYYY-MM-DD" -> version string (e.g. "7.0") — data.json's own entry.date
-// is already exactly that format, so no parsing/reformatting needed, just
-// a direct lookup per rendered day. Populated once at bootstrap, before
-// anything renders (same "await the fetch, then build" pattern landing.js/
-// clocks.js already use).
+// "YYYY-MM-DD" -> version string. Built once at bootstrap.
 let versionLaunches = new Map();
-// Keyed by major version ("6", "7", ...) -> {region, bgImage, ...}, same
-// file Timeline/landing already read, for the day panel's region-art header.
+// Major version ("6", "7", ...) -> {region, bgImage, ...}, for the day
+// panel's region-art header.
 let versionMeta = {};
-// "YYYY-MM-DD" -> {five: [names], four: [names]} — every character's true
-// first appearance, keyed by the exact day their phase started. Built once
-// at bootstrap (see buildDebutsByDate below) since it requires a full,
-// in-order scan of every phase in the game, same cost class as app.js's
-// characterIndex.
+// "YYYY-MM-DD" -> {five: [names], four: [names]}, every character's true
+// first appearance. Built once at bootstrap (buildDebutsByDate).
 let debutsByDate = new Map();
 
-// Same 21-day cadence as landing.js's PHASE_LENGTH_DAYS (cross-checked, see
-// CLAUDE.md) — duplicated as a literal rather than imported since it's a
-// single well-established number, not worth a cross-file shared constant
-// for. Unlike landing.js (which only ever needs to be right for whichever
-// version is currently live), the calendar walks every historical phase, so
-// it leans on phase-notes.json's "date" overrides for the handful of phases
-// where this formula is wrong (1.3's 3-phase structure, 3.0-3.2's
-// compressed cadence — see CLAUDE.md).
+// Same 21-day cadence as landing.js's PHASE_LENGTH_DAYS. Unlike landing.js
+// (only needs to be right for the live version), this walks every
+// historical phase, so it leans on phase-notes.json's date overrides for
+// the known exceptions (1.3's 3-phase structure, 3.0-3.2's compressed
+// cadence — see CLAUDE.md).
 function getPhaseStartDate(entry, phaseIndex, phaseNotes) {
 	let override = (phaseNotes[`${entry.version}-${phaseIndex + 1}`] || {}).date;
 	if (override) return override;
@@ -58,10 +43,8 @@ function getPhaseStartDate(entry, phaseIndex, phaseNotes) {
 	return d.toISOString().slice(0, 10);
 }
 
-// Mirrors app.js's own realPhaseCount logic (filler phases, e.g. 1.3-2, are
-// labeled "Filler" and don't consume a phase number) so a debut card's
-// caption reads identically to what the Timeline/character panel would call
-// the same phase.
+// Mirrors app.js's realPhaseCount logic (filler phases don't consume a
+// phase number) so labels match what the Timeline would call the same phase.
 function getPhaseLabel(entry, phaseIndex, phaseNotes) {
 	let isFiller = i => !!(phaseNotes[`${entry.version}-${i + 1}`] || {}).filler;
 	if (isFiller(phaseIndex)) return "Filler";
@@ -72,12 +55,8 @@ function getPhaseLabel(entry, phaseIndex, phaseNotes) {
 	return `Phase ${realCount}`;
 }
 
-// Same "first appearance = true debut" rule as landing.js's getDebuts()
-// (preexisting characters excluded, chronicled/lightrace never scanned
-// since they're reruns by definition) but per-phase rather than
-// per-version, since a version's phases can land on different calendar
-// days. Returns a map so the day cell (a small dot per rarity) and the day
-// panel (full name list) can both read from the same computed source.
+// Same "first appearance = debut" rule as landing.js's getDebuts(), but
+// per-phase since a version's phases can land on different calendar days.
 function buildDebutsByDate(data, notes, phaseNotes) {
 	let map = new Map();
 	for (let vi = 0; vi < data.length; vi++) {
@@ -98,35 +77,28 @@ function buildDebutsByDate(data, notes, phaseNotes) {
 			}
 			if (five.length === 0 && four.length === 0) continue;
 			let date = getPhaseStartDate(entry, pi, phaseNotes);
-			// Everyone in a given date's list debuted in the same phase, so
-			// version/phaseLabel are stored once per date rather than per
-			// character — the day panel shows it once in the heading instead
-			// of repeating it on every card.
 			map.set(date, { version: entry.version, phaseLabel: getPhaseLabel(entry, pi, phaseNotes), five, four });
 		}
 	}
 	return map;
 }
 
-// Keyed by character name -> element ("Pyro", "Cryo", ...), for the day-
-// panel card's element icon — not otherwise loaded on this page.
+// Character name -> element, for the day-panel card's element icon.
 let characterElements = {};
-// Keyed by character name -> "5"/"4" — a character's rarity never changes
-// across appearances, so first sighting in any regular banner phase is
-// authoritative. Needed for the birthday card's avatar ring color (debuts
-// already know their own rarity from which bucket they're in; birthdays
-// don't have that context for free).
+// Character name -> "5"/"4" (first sighting is authoritative).
 let characterRarity = {};
-// "MM-DD" -> "YYYY-MM-DD" per character, i.e. characterBirthdays inverted so
-// a rendered day can do a direct lookup instead of scanning all 117 names.
-// Deliberately keyed by month-day, not a full date — a birthday recurs every
-// year, unlike a debut which is one specific historical instant. Bennett's
-// real Feb 29 birthday needs no special-casing here: buildMonthCard only
-// ever creates a Feb 29 cell in years that actually have one, so a
-// non-leap year simply never looks this entry up.
+// "MM-DD" -> "YYYY-MM-DD" per character, characterBirthdays inverted for
+// direct lookup. Feb 29 needs no special-casing — buildMonthCard only ever
+// creates that cell in real leap years.
 let birthdaysByMonthDay = new Map();
-// Keyed by character name -> "YYYY-MM-DD" (see buildCharacterDebutDate below).
+// Character name -> "YYYY-MM-DD" (see buildCharacterDebutDate below).
 let characterDebutDate = {};
+// character-notes.json's raw contents — kept at module scope since
+// renderCharacterPanel() needs it too, not just the build functions below.
+let characterNotes = {};
+// Character name -> ordered list of every appearance, a pure-data mirror
+// of app.js's characterIndex (see buildCharacterAppearances below).
+let characterAppearances = {};
 
 function buildCharacterRarity(data) {
 	let map = {};
@@ -152,18 +124,12 @@ function buildBirthdaysByMonthDay(birthdays) {
 	return map;
 }
 
-// Keyed by character name -> "YYYY-MM-DD", the exact date their birthday
-// should first start showing up on the calendar — a character shouldn't
-// celebrate a birthday before they existed. Full dates, not just years: a
-// year-only cutoff let a character's birthday show anywhere in their debut
-// year, including before their actual debut date within that same year
-// (caught via the 11 "preexisting" 1.0-launch characters specifically —
-// character-notes.json — whose birthdays could land earlier in 2020 than
-// the real Sep 28 launch date, but the same flaw applies to anyone whose
-// birthday falls earlier in the calendar year than their real debut).
-// Preexisting characters use the real 1.0 launch date itself (they were
-// already in the game since day one, even though their first *tracked*
-// banner comes later) rather than their eventual banner date.
+// A character's own birthday shouldn't show before they existed. Full
+// dates, not just years — a year-only cutoff let a birthday land before the
+// actual debut within that same year (caught via the 11 "preexisting"
+// 1.0-launch characters, whose birthdays could precede the real Sep 28
+// launch). Preexisting characters use that real 1.0 launch date instead of
+// their eventual banner date.
 function buildCharacterDebutDate(data, phaseNotes, notes) {
 	let map = {};
 	for (let entry of data) {
@@ -184,12 +150,56 @@ function buildCharacterDebutDate(data, phaseNotes, notes) {
 	return map;
 }
 
-// Filters a "MM-DD" birthday match down to whoever had actually debuted by
-// the given calendar date — see buildCharacterDebutDate above. ISO date
-// strings compare correctly with plain string comparison (zero-padded,
-// YYYY-MM-DD), no Date parsing needed. Returns null (not an empty array)
-// when nothing survives, matching birthdaysByMonthDay's own "no entry"
-// convention so callers can keep using a plain truthiness check.
+// Pure-data mirror of app.js's characterIndex — built here instead of
+// reusing app.js's, since that only exists as a side effect of rendering
+// the entire Timeline DOM (see CLAUDE.md's Multi-page architecture note).
+// Processes phases/chronicled/lightrace in the same per-version order as
+// app.js's buildPatchRow, so rerun counts line up identically.
+function buildCharacterAppearances(data, notes, phaseNotes) {
+	let index = {};
+	let counts = {};
+	function record(character, rarity, version, phaseLabel, isFiller, variant, date) {
+		let charNotes = notes[character] || {};
+		counts[character] = (counts[character] || 0) + 1;
+		let count = counts[character];
+		let isRelease = !charNotes.preexisting && count === 1;
+		(index[character] = index[character] || []).push({
+			version, phaseLabel, rarity, isRelease, rerun: count - 1,
+			rateDown: !!charNotes.rateDown, preexisting: !!charNotes.preexisting, isFiller, variant, date
+		});
+	}
+	for (let entry of data) {
+		for (let pi = 0; pi < entry.banner.length; pi++) {
+			let phase = entry.banner[pi];
+			let phaseLabel = getPhaseLabel(entry, pi, phaseNotes);
+			let date = getPhaseStartDate(entry, pi, phaseNotes);
+			for (let rarity of ["5", "4"]) {
+				for (let name of phase[rarity]) record(name, rarity, entry.version, phaseLabel, phaseLabel === "Filler", null, date);
+			}
+		}
+		if (entry.chronicled) {
+			let c = entry.chronicled;
+			// No exact chronicled-banner date is tracked anywhere on this site —
+			// reusing the parent phase's own start date is the closest real anchor.
+			let date = getPhaseStartDate(entry, c.phase - 1, phaseNotes);
+			let label = `Chronicled Wish — ${c.theme}`;
+			for (let rarity of ["5", "4"]) {
+				for (let name of (c[rarity] || [])) record(name, rarity, entry.version, label, false, "chronicled", date);
+			}
+		}
+		if (entry.lightrace) {
+			let l = entry.lightrace;
+			let date = getPhaseStartDate(entry, l.phase - 1, phaseNotes);
+			// No "4" array by design (see app.js) — every 4-star is eligible.
+			for (let name of (l["5"] || [])) record(name, "5", entry.version, "Lightrace Wish", false, "lightrace", date);
+		}
+	}
+	return index;
+}
+
+// Filters a birthday match down to whoever had actually debuted by this
+// date (see buildCharacterDebutDate). Returns null, not [], matching
+// birthdaysByMonthDay's own "no entry" convention.
 function getBirthdaysForDate(isoDate) {
 	let names = birthdaysByMonthDay.get(isoDate.slice(5));
 	if (!names) return null;
@@ -214,10 +224,12 @@ async function loadCalendarData() {
 		if (data) characterRarity = buildCharacterRarity(data);
 		if (birthdaysRes.ok) birthdaysByMonthDay = buildBirthdaysByMonthDay(await birthdaysRes.json());
 		let notes = notesRes.ok ? await notesRes.json() : {};
+		characterNotes = notes;
 		let phaseNotes = phaseNotesRes.ok ? await phaseNotesRes.json() : {};
 		if (data) {
 			debutsByDate = buildDebutsByDate(data, notes, phaseNotes);
 			characterDebutDate = buildCharacterDebutDate(data, phaseNotes, notes);
+			characterAppearances = buildCharacterAppearances(data, notes, phaseNotes);
 		}
 	} catch (err) {
 		console.error(err);
@@ -227,6 +239,8 @@ async function loadCalendarData() {
 function buildMonthCard(year, month, today) {
 	let card = document.createElement("div");
 	card.className = "calendar-month-card";
+	// Lets jumpToDate()/jumpToToday() find this month's card by month index.
+	card.dataset.month = month;
 
 	let title = document.createElement("div");
 	title.className = "calendar-month-title";
@@ -245,10 +259,9 @@ function buildMonthCard(year, month, today) {
 
 	let dayGrid = document.createElement("div");
 	dayGrid.className = "calendar-day-grid";
-	// getDay() is already Sunday-first (0-6), matching CALENDAR_WEEKDAY_LETTERS
-	// above directly — no rotation needed.
+	// getDay() is already Sunday-first — matches CALENDAR_WEEKDAY_LETTERS directly.
 	let firstWeekday = new Date(year, month, 1).getDay();
-	let daysInMonth = new Date(year, month + 1, 0).getDate(); // day 0 of next month = last day of this one, leap years included for free
+	let daysInMonth = new Date(year, month + 1, 0).getDate(); // day 0 of next month = last day of this one
 
 	for (let i = 0; i < firstWeekday; i++) {
 		let blank = document.createElement("div");
@@ -263,14 +276,9 @@ function buildMonthCard(year, month, today) {
 		if (today.getFullYear() === year && today.getMonth() === month && today.getDate() === day) {
 			cell.classList.add("is-today");
 		}
-		// Number + debut dots share one row, glued together, rather than the
-		// dots floating in the opposite corner — at this cell width (~44px)
-		// a corner-positioned dot ends up visually closer to the *next*
-		// day's number than to its own (checked: ~12px from the neighbor's
-		// "11" vs. ~19px from its own "10"), reading as if it belonged to
-		// the wrong day. Direct adjacency removes the ambiguity without
-		// needing a grid line/divider, which would undercut the "border
-		// only where something's actually happening" calm-grid rule below.
+		// Number + dots share one row (glued together) rather than the dots
+		// floating in the opposite corner — a corner-positioned dot read as
+		// belonging to the wrong day at this cell width.
 		let top = document.createElement("span");
 		top.className = "calendar-day-top";
 		let num = document.createElement("span");
@@ -278,8 +286,7 @@ function buildMonthCard(year, month, today) {
 		num.textContent = String(day);
 		top.appendChild(num);
 
-		// "YYYY-MM-DD", matching data.json's own date-string format exactly.
-		let isoDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+		let isoDate = toIsoDate(new Date(year, month, day));
 		cell.dataset.date = isoDate;
 		let launchVersion = versionLaunches.get(isoDate);
 		if (launchVersion) {
@@ -290,9 +297,8 @@ function buildMonthCard(year, month, today) {
 			cell.appendChild(label);
 		}
 
-		// Full names are left to the day panel (see openDayPanel) — a
-		// handful of tiny circles is the only realistic amount of event
-		// info this cell size can carry.
+		// Full names are left to the day panel — a handful of tiny circles is
+		// all this cell size can carry.
 		let debuts = debutsByDate.get(isoDate);
 		let birthdayNames = getBirthdaysForDate(isoDate);
 		if (debuts || birthdayNames) {
@@ -335,11 +341,8 @@ function renderCalendarYear(year) {
 
 let currentYear;
 
-// Two stepper instances exist (top of the page, and again below the month
-// grid — so a mobile reader who's scrolled through all 12 months isn't
-// forced back to the top just to change year), kept in sync by operating
-// on every matching element via class rather than a single getElementById
-// — duplicate IDs would be invalid HTML anyway.
+// Two stepper instances (top and below the grid) kept in sync by operating
+// on every matching element via class rather than a single getElementById.
 function updateYearLabel() {
 	document.querySelectorAll(".calendar-year-label").forEach(el => { el.textContent = String(currentYear); });
 	document.querySelectorAll(".calendar-year-arrow.is-prev").forEach(el => { el.disabled = currentYear <= CALENDAR_MIN_YEAR; });
@@ -357,9 +360,6 @@ function openYearPopover(popover, label) {
 	});
 	popover.hidden = false;
 	label.setAttribute("aria-expanded", "true");
-	// Scroll the current year into view within the popover's own scroll
-	// area rather than the page — relevant once the range spans enough
-	// years that the list scrolls (2020 to current+2 is already 8-10).
 	popover.querySelector(".calendar-year-option.is-active")?.scrollIntoView({ block: "nearest" });
 }
 
@@ -388,23 +388,20 @@ function buildYearPopovers() {
 }
 
 // ---------- day detail panel ----------
-// Reuses the exact detail-panel component from timeline.html/app.js (styling
-// lives in style.css, shared across pages already) rather than building a
-// second slide-in/bottom-sheet from scratch.
+// Reuses the shared detail-panel component from timeline.html/app.js
+// (style.css) rather than building a second popup/bottom-sheet from scratch.
 
-// One card layout for both event types (debut and birthday) — namecard art
-// on its own layer so the hover zoom (calendar.css) can transform just the
-// art, a static scrim on top so text stays legible through the zoom, and a
-// rarity-colored avatar ring matching the same is-release language used
-// everywhere else on the site. `variant` ("five"/"four"/"birthday") picks
-// the card's own border/glow color — a birthday card gets the birthday
-// accent regardless of the character's rarity, so it doesn't get confused
-// for a debut card at a glance; the rarity is still shown as a badge either
-// way. `badges` is an ordered list of {className, text, title?} rendered
-// before the (optional) element icon.
+// Debut card: namecard art on its own layer (so hover-zoom transforms just
+// the art), rarity-colored avatar ring, variant ("five"/"four") picks the
+// card's accent. Birthdays don't use this — see buildBirthdayChip below;
+// they're light/recurring, not a one-time historical fact like a debut.
 function buildCharacterCard(name, variant, badges) {
 	let card = document.createElement("div");
 	card.className = "calendar-day-card is-" + variant;
+	card.dataset.character = name;
+	card.tabIndex = 0;
+	card.setAttribute("role", "button");
+	card.setAttribute("aria-label", `View ${name}'s appearance history`);
 
 	let art = document.createElement("div");
 	art.className = "calendar-day-card-art";
@@ -457,7 +454,175 @@ function rarityBadge(rarity) {
 	return { className: "detail-panel-badge " + (rarity === "5" ? "is-five" : "is-four"), text: rarity === "5" ? "5-Star" : "4-Star" };
 }
 
-function openDayPanel(isoDate) {
+// Same DOM/CSS as app.js's own version (.char-appear-*, shared in
+// style.css) — the only real difference is the version text jumps to that
+// phase's calendar date (jumpToDate) instead of a Timeline phase card.
+function buildAppearanceRow(entry) {
+	let row = document.createElement("div");
+	row.className = "char-appear-row" + (entry.isFiller ? " is-filler" : "");
+
+	let rail = document.createElement("span");
+	rail.className = "char-appear-rail";
+	let dot = document.createElement("span");
+	dot.className = "char-appear-dot " + (entry.rarity === "5" ? "is-five" : "is-four")
+		+ (entry.isRelease ? " is-release" : "")
+		+ (entry.variant ? ` is-${entry.variant}` : "");
+	rail.appendChild(dot);
+	row.appendChild(rail);
+
+	let label = document.createElement("div");
+	label.className = "char-appear-label";
+
+	let ver = document.createElement("span");
+	ver.className = "char-appear-version is-jumpable" + (entry.variant ? ` is-${entry.variant}` : "");
+	ver.textContent = `${entry.version} — ${entry.phaseLabel}`;
+	ver.tabIndex = 0;
+	ver.setAttribute("role", "button");
+	ver.setAttribute("aria-label", `Jump to ${entry.version} ${entry.phaseLabel} on the calendar`);
+	ver.addEventListener("click", () => jumpToDate(entry.date));
+	ver.addEventListener("keydown", e => {
+		if (e.key === "Enter" || e.key === " ") { e.preventDefault(); jumpToDate(entry.date); }
+	});
+	label.appendChild(ver);
+
+	let status = document.createElement("span");
+	status.className = "char-appear-tag";
+	if (entry.preexisting) {
+		status.textContent = `Rerun ${entry.rerun + 1}`;
+	} else if (entry.rerun === 0) {
+		status.textContent = "Release";
+		status.classList.add("is-release");
+	} else {
+		status.textContent = `Rerun ${entry.rerun}`;
+	}
+	label.appendChild(status);
+
+	row.appendChild(label);
+	return row;
+}
+
+// A character's own appearance history, pushed onto the panel stack from a
+// debut/birthday card click — mirrors app.js's openCharPanel (same shared
+// .detail-panel-* classes). Render-only; opening/showing the panel is
+// handled once, by whichever function actually opens it fresh.
+function renderCharacterPanel(name) {
+	let entries = characterAppearances[name] || [];
+	let notes = characterNotes[name] || {};
+	let header = document.getElementById("detailPanelHeader");
+	let content = document.getElementById("detailPanelContent");
+	header.innerHTML = "";
+	content.innerHTML = "";
+	header.classList.remove("is-compact");
+	content.scrollTop = 0;
+
+	let namecardPath = `assets/namecards/${name.replace(/\s/g, "").toLowerCase()}.jpg`;
+	header.style.backgroundImage = `linear-gradient(to bottom, rgba(13,13,20,0.45), rgba(13,13,20,0.94)), url(${namecardPath})`;
+
+	let element = characterElements[name];
+	if (element) {
+		content.style.backgroundImage =
+			`linear-gradient(rgba(13,13,20,0.94), rgba(13,13,20,0.94)), url(assets/elements/${element.toLowerCase()}.svg)`;
+	} else {
+		content.style.backgroundImage = "";
+	}
+
+	let rarity = characterRarity[name];
+
+	let avatarWrap = document.createElement("div");
+	avatarWrap.className = "avatar-wrap avatar-wrap-lg";
+	avatarWrap.appendChild(faceImg(name, "phase-face-lg is-release" + (rarity === "4" ? " rarity-four" : "")));
+	header.appendChild(avatarWrap);
+
+	let nameEl = document.createElement("h2");
+	nameEl.className = "detail-panel-name";
+	nameEl.textContent = name;
+	header.appendChild(nameEl);
+
+	let tagsWrap = document.createElement("div");
+	tagsWrap.className = "detail-panel-tags";
+	let rarityTag = document.createElement("span");
+	rarityTag.className = "detail-panel-badge " + (rarity === "5" ? "is-five" : "is-four");
+	rarityTag.textContent = rarity === "5" ? "5-Star" : "4-Star";
+	tagsWrap.appendChild(rarityTag);
+	if (notes.rateDown) {
+		let poolTag = document.createElement("span");
+		poolTag.className = "rate-down-tag";
+		poolTag.textContent = "Rate-down";
+		tagsWrap.appendChild(poolTag);
+	}
+	header.appendChild(tagsWrap);
+
+	if (notes.preexisting) {
+		let note = document.createElement("p");
+		note.className = "detail-panel-note";
+		note.textContent = "Already in the game at launch — these appearances are technically reruns, not a debut.";
+		content.appendChild(note);
+	}
+
+	let stats = document.createElement("div");
+	stats.className = "detail-panel-stats";
+	stats.textContent = `${entries.length} banner appearance${entries.length === 1 ? "" : "s"}`;
+	content.appendChild(stats);
+
+	let list = document.createElement("div");
+	list.className = "char-appear-list";
+	entries.forEach(entry => list.appendChild(buildAppearanceRow(entry)));
+	content.appendChild(list);
+}
+
+// Just a ringed avatar + name, no card/art — birthdays sit in a wrapped row
+// rather than the debut cards' stacked list (see buildCharacterCard). Ring
+// is always the birthday accent regardless of the character's own rarity.
+function buildBirthdayChip(name) {
+	let chip = document.createElement("div");
+	chip.className = "calendar-birthday-chip";
+	chip.dataset.character = name;
+	chip.tabIndex = 0;
+	chip.setAttribute("role", "button");
+	chip.setAttribute("aria-label", `View ${name}'s appearance history`);
+	chip.appendChild(faceImg(name, "calendar-birthday-face"));
+	let nameEl = document.createElement("span");
+	nameEl.className = "calendar-birthday-name";
+	nameEl.textContent = name;
+	chip.appendChild(nameEl);
+	return chip;
+}
+
+// UI stack for the shared detail panel — a debut/birthday card click pushes
+// a character view without opening a second overlapping popup.
+// openDayPanel() is the only thing that resets the stack.
+let panelStack = [];
+
+function renderPanelTop() {
+	let top = panelStack[panelStack.length - 1];
+	if (!top) return;
+	document.getElementById("detailPanelBack").hidden = panelStack.length <= 1;
+	if (top.type === "day") renderDayPanel(top.isoDate);
+	else if (top.type === "character") renderCharacterPanel(top.name);
+}
+
+// Animates a stack navigation (push/pop) via the shared swapWithFade()
+// (shared.js) rather than snapping straight to the new content — header
+// and content fade out/in together while the panel itself resizes to the
+// new view's natural height.
+function swapPanelView() {
+	let panel = document.getElementById("detailPanel");
+	let header = document.getElementById("detailPanelHeader");
+	let content = document.getElementById("detailPanelContent");
+	swapWithFade(panel, [header, content], renderPanelTop);
+}
+
+function pushPanelView(view) {
+	panelStack.push(view);
+	swapPanelView();
+}
+
+function popPanelView() {
+	if (panelStack.length > 1) panelStack.pop();
+	swapPanelView();
+}
+
+function renderDayPanel(isoDate) {
 	let header = document.getElementById("detailPanelHeader");
 	let content = document.getElementById("detailPanelContent");
 	header.innerHTML = "";
@@ -465,15 +630,14 @@ function openDayPanel(isoDate) {
 	header.style.backgroundImage = "";
 	content.style.backgroundImage = "";
 	header.classList.remove("is-compact");
+	content.scrollTop = 0;
 
 	let dateObj = new Date(isoDate + "T00:00:00");
 	let dateText = dateObj.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
-	// The date is always the small corner label now, for consistency across
-	// every day rather than just launch days — .detail-panel-name/-tags are
-	// shared with Timeline's character panel (app.js), where the character
-	// name IS the thing that should stay big, so none of this touches those
-	// shared classes' own styling, only calendar-only ones (calendar.css).
+	// Always a small corner label, not the headline — .detail-panel-name is
+	// shared with Timeline's character panel, where the character name is
+	// the thing that should stay big.
 	let dateLabel = document.createElement("span");
 	dateLabel.className = "calendar-panel-date-corner";
 	dateLabel.textContent = dateText;
@@ -486,20 +650,16 @@ function openDayPanel(isoDate) {
 		versionEl.textContent = `Version ${launchVersion} launch`;
 		header.appendChild(versionEl);
 
-		// Same per-version region-art recipe as Timeline's ambient background
-		// and the landing spotlight (see setRegionBackground() in app.js) —
-		// reuses the 7 region images already sourced rather than needing any
-		// per-day art, which isn't realistic at 365 days/year.
+		// Same per-version region-art recipe as Timeline/landing's ambient
+		// background — reuses the 7 already-sourced region images.
 		let meta = versionMeta[launchVersion.split(".")[0]];
 		if (meta && meta.bgImage) {
 			header.style.backgroundImage =
 				`linear-gradient(to bottom, rgba(13,13,20,0.45), rgba(13,13,20,0.94)), url(assets/regions/${meta.bgImage}.jpg)`;
 		}
 	} else {
-		// Nothing to promote to the big centered spot, and no region art
-		// either — a persistently-tall empty header would just read as
-		// wasted space on the ~345 days a year this applies to, so the
-		// header shrinks to fit just the corner date instead.
+		// No region art either — a persistently-tall empty header would waste
+		// space on the ~345 days a year this applies to.
 		header.classList.add("is-compact");
 	}
 
@@ -535,13 +695,10 @@ function openDayPanel(isoDate) {
 		heading.textContent = `${birthdayNames.length} birthday${birthdayNames.length === 1 ? "" : "s"} today`;
 		content.appendChild(heading);
 
-		let list = document.createElement("div");
-		list.className = "calendar-day-card-list";
-		birthdayNames.forEach(name => {
-			let badges = [rarityBadge(characterRarity[name]), { className: "detail-panel-badge is-birthday", text: "Birthday" }];
-			list.appendChild(buildCharacterCard(name, "birthday", badges));
-		});
-		content.appendChild(list);
+		let row = document.createElement("div");
+		row.className = "calendar-birthday-row";
+		birthdayNames.forEach(name => row.appendChild(buildBirthdayChip(name)));
+		content.appendChild(row);
 	}
 
 	if (!debuts && !birthdayNames) {
@@ -550,7 +707,14 @@ function openDayPanel(isoDate) {
 		stub.textContent = "Nothing else tracked for this day yet.";
 		content.appendChild(stub);
 	}
+}
 
+// Entry point for opening the panel fresh from a day-cell click — resets
+// the stack to just this day. Pushing/popping only re-renders content;
+// this is the one place that toggles is-open/the backdrop/scroll-lock.
+function openDayPanel(isoDate) {
+	panelStack = [{ type: "day", isoDate }];
+	renderPanelTop();
 	document.getElementById("detailPanel").classList.add("is-open");
 	document.getElementById("detailPanel").setAttribute("aria-hidden", "false");
 	document.getElementById("detailPanelBackdrop").classList.add("is-open");
@@ -559,11 +723,18 @@ function openDayPanel(isoDate) {
 }
 
 function closeDayPanel() {
-	document.getElementById("detailPanel").classList.remove("is-open");
-	document.getElementById("detailPanel").setAttribute("aria-hidden", "true");
+	let panel = document.getElementById("detailPanel");
+	panel.classList.remove("is-open");
+	panel.setAttribute("aria-hidden", "true");
+	panel.style.height = "";
+	// Defensive: a close mid-swap could otherwise leave header/content stuck
+	// invisible for whatever's left of swapWithFade()'s pending timeout.
+	document.getElementById("detailPanelHeader").classList.remove("is-fading");
+	document.getElementById("detailPanelContent").classList.remove("is-fading");
 	document.getElementById("detailPanelBackdrop").classList.remove("is-open");
 	document.body.classList.remove("panel-open");
 	document.documentElement.classList.remove("panel-open");
+	panelStack = [];
 }
 
 function initDayPanel() {
@@ -580,8 +751,23 @@ function initDayPanel() {
 	});
 	document.getElementById("detailPanelClose").addEventListener("click", closeDayPanel);
 	document.getElementById("detailPanelBackdrop").addEventListener("click", closeDayPanel);
+	document.getElementById("detailPanelBack").addEventListener("click", popPanelView);
 	document.addEventListener("keydown", e => {
 		if (e.key === "Escape") closeDayPanel();
+	});
+
+	// Delegated on the stable #detailPanelContent ancestor rather than
+	// re-attached per card, since its innerHTML gets fully replaced on
+	// every render.
+	let content = document.getElementById("detailPanelContent");
+	content.addEventListener("click", e => {
+		let trigger = e.target.closest(".calendar-day-card, .calendar-birthday-chip");
+		if (trigger) pushPanelView({ type: "character", name: trigger.dataset.character });
+	});
+	content.addEventListener("keydown", e => {
+		if (e.key !== "Enter" && e.key !== " ") return;
+		let trigger = e.target.closest(".calendar-day-card, .calendar-birthday-chip");
+		if (trigger) { e.preventDefault(); pushPanelView({ type: "character", name: trigger.dataset.character }); }
 	});
 
 	let grabber = document.getElementById("detailPanelGrabber");
@@ -608,7 +794,12 @@ function initDayPanel() {
 		let shouldDismiss = dragDistance > panel.offsetHeight * 0.25;
 		panel.style.transition = "";
 		panel.style.transform = "";
-		if (shouldDismiss) closeDayPanel();
+		if (!shouldDismiss) return;
+		// Mobile's topbar (and Back button) is hidden entirely — the drag
+		// gesture is the only dismiss affordance there, so a swipe pops one
+		// stack level instead of always closing; only the stack's root closes.
+		if (panelStack.length > 1) popPanelView();
+		else closeDayPanel();
 	}
 	grabber.addEventListener("pointerup", endGrabberDrag);
 	grabber.addEventListener("pointercancel", endGrabberDrag);
@@ -630,6 +821,33 @@ document.addEventListener("click", e => {
 	if (!e.target.closest(".calendar-year-label-wrap")) closeAllYearPopovers();
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeAllYearPopovers(); });
+
+function toIsoDate(date) {
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+// Generic "jump to a specific day" — switches year if needed, scrolls the
+// cell into view, and gives it a temporary highlight ring (same language as
+// Timeline's jumpToCard()/.is-highlighted). Not hardcoded to "today" —
+// meant to be reused by any future jump feature (search, etc.).
+function jumpToDate(isoDate) {
+	let year = parseInt(isoDate.slice(0, 4), 10);
+	if (currentYear !== year) setYear(year);
+	let cell = document.querySelector(`.calendar-day-cell[data-date="${isoDate}"]`);
+	if (!cell) return;
+	let reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+	cell.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+	cell.classList.add("is-highlighted");
+	setTimeout(() => cell.classList.remove("is-highlighted"), 1800);
+}
+
+// Explicit button, not an auto-scroll on load — that was tried and
+// reconsidered (it fought a reader browsing from the top, or reloading a
+// bookmarked link).
+function jumpToToday() {
+	jumpToDate(toIsoDate(previewNow()));
+}
+document.querySelectorAll(".calendar-today-btn").forEach(btn => btn.addEventListener("click", jumpToToday));
 
 async function bootstrapCalendar() {
 	await loadCalendarData();

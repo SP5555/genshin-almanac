@@ -43,6 +43,7 @@
         <button type="button" class="calendar-year-arrow is-next" aria-label="Next year">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         </button>
+        <button type="button" class="calendar-today-btn">Today</button>
       </div>
 
       <div class="calendar-month-grid" id="calendarMonthGrid"></div>
@@ -62,6 +63,7 @@
         <button type="button" class="calendar-year-arrow is-next" aria-label="Next year">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         </button>
+        <button type="button" class="calendar-today-btn">Today</button>
       </div>
 
     </div>
@@ -71,6 +73,9 @@
   <aside id="detailPanel" class="detail-panel" aria-hidden="true">
     <div class="detail-panel-grabber" id="detailPanelGrabber" aria-hidden="true"></div>
     <div class="detail-panel-topbar">
+      <button class="detail-panel-back" id="detailPanelBack" aria-label="Back" hidden>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
       <button class="detail-panel-close" id="detailPanelClose" aria-label="Close day details">&times;</button>
     </div>
     <div class="detail-panel-header" id="detailPanelHeader"></div>

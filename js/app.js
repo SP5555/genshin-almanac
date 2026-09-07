@@ -67,7 +67,7 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, variant) {
 
 		let isRelease = !preexisting && count === 1;
 		(characterIndex[character] = characterIndex[character] || []).push({
-			version, phaseLabel, rarity: "5", isRelease, rerun: count - 1, rateDown, preexisting, isFiller
+			version, phaseLabel, rarity: "5", isRelease, rerun: count - 1, rateDown, preexisting, isFiller, variant
 		});
 
 		let unit = document.createElement("div");
@@ -124,7 +124,7 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, variant) {
 			let isFourRelease = !fourPreexisting && fourCount === 1;
 			(characterIndex[character] = characterIndex[character] || []).push({
 				version, phaseLabel, rarity: "4", isRelease: isFourRelease, rerun: fourCount - 1,
-				rateDown: fourRateDown, preexisting: fourPreexisting, isFiller
+				rateDown: fourRateDown, preexisting: fourPreexisting, isFiller, variant
 			});
 
 			let row = document.createElement("div");
@@ -190,19 +190,28 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, variant) {
 	return card;
 }
 
+// Mirrors the Timeline's own .vt-marker-col technique (a rail with a
+// ::before line + marker bubble) at list scale. entry.isRelease gets an
+// extra glow ring; entry.variant (chronicled/lightrace) recolors the dot +
+// version text with that banner's own accent.
 function buildAppearanceRow(entry) {
 	let row = document.createElement("div");
 	row.className = "char-appear-row" + (entry.isFiller ? " is-filler" : "");
 
+	let rail = document.createElement("span");
+	rail.className = "char-appear-rail";
 	let dot = document.createElement("span");
-	dot.className = "char-appear-dot " + (entry.rarity === "5" ? "is-five" : "is-four");
-	row.appendChild(dot);
+	dot.className = "char-appear-dot " + (entry.rarity === "5" ? "is-five" : "is-four")
+		+ (entry.isRelease ? " is-release" : "")
+		+ (entry.variant ? ` is-${entry.variant}` : "");
+	rail.appendChild(dot);
+	row.appendChild(rail);
 
 	let label = document.createElement("div");
 	label.className = "char-appear-label";
 
 	let ver = document.createElement("span");
-	ver.className = "char-appear-version is-jumpable";
+	ver.className = "char-appear-version is-jumpable" + (entry.variant ? ` is-${entry.variant}` : "");
 	ver.textContent = `${entry.version} — ${entry.phaseLabel}`;
 	ver.tabIndex = 0;
 	ver.setAttribute("role", "button");

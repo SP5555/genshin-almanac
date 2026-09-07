@@ -66,6 +66,17 @@
 .calendar-year-arrow:hover{background-color: var(--glass-hover); border-color: var(--glass-border-hover);}
 .calendar-year-arrow:disabled{opacity: 0.3; pointer-events: none;}
 
+/* Sits in the same flex row as the stepper's arrows/label — shifts the
+   whole row slightly off-center, accepted as a minor trade-off rather than
+   building separate grid columns just to keep the year label pixel-centered. */
+.calendar-today-btn{
+	font-size: 12.5px; font-weight: bold; color: var(--text-dim);
+	background-color: var(--glass); border: 1px solid var(--glass-border);
+	padding: 8px 16px; border-radius: var(--radius-full);
+	cursor: pointer; transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+.calendar-today-btn:hover{background-color: var(--glass-hover); border-color: var(--glass-border-hover); color: var(--text);}
+
 .calendar-year-label-wrap{position: relative;}
 .calendar-year-label{
 	font-size: 20px; font-weight: bold; color: var(--five);
@@ -194,6 +205,19 @@
 }
 .calendar-day-cell.is-today .calendar-day-number{color: var(--five); font-weight: bold;}
 
+/* Same glow-highlight language as Timeline's .trail-node.phase-card.is-highlighted
+   (style.css) — reused so "you just landed here" reads identically across
+   the whole site, not just on Timeline. --four rather than --five so a
+   jump straight to today's own cell (the common case, via the Today button)
+   never gets confused with the permanent is-today gold wash above — the
+   purple ring reads as "this is where you just landed," fading out after
+   1.8s (see jumpToDate() in calendar.js), while is-today's gold stays put. */
+.calendar-day-cell.is-highlighted{
+	border-color: var(--four);
+	box-shadow: 0 0 0 3px var(--four-glow), 0 0 16px 3px var(--four-glow);
+	transition: border-color 0.3s, box-shadow 0.3s;
+}
+
 /* Same fill+glow language as .char-appear-dot in the character panel (see
    style.css), just smaller — this is a "something happened here" signal at
    a glance, not a place to fit names; full details live in the day panel
@@ -210,15 +234,16 @@
 .calendar-day-marker-dot.is-four{background-color: var(--four); box-shadow: 0 0 4px 1px var(--four-glow);}
 .calendar-day-marker-dot.is-birthday{background-color: var(--birthday); box-shadow: 0 0 4px 1px var(--birthday-glow);}
 
-/* Day panel's event lists (debuts, birthdays) — each character gets a small
-   "trading card" of their own: their namecard art as the background (same
-   technique as the character panel's header, app.js openCharPanel — just a
-   left-weighted scrim instead of top/bottom, since namecards are wide/short
-   (672x320) rather than the header's tall aspect), with the same is-release
-   avatar ring style used everywhere else on the site a debut/release is
-   called out. Named after "card," not "appear" (style.css's .char-appear-*),
-   since a list here is several different characters on one day rather than
-   one character's own history. */
+/* Day panel's debut list — each character gets a small "trading card" of
+   their own: their namecard art as the background (same technique as the
+   character panel's header, app.js openCharPanel — just a left-weighted
+   scrim instead of top/bottom, since namecards are wide/short (672x320)
+   rather than the header's tall aspect), with the same is-release avatar
+   ring style used everywhere else on the site a debut/release is called
+   out. Named after "card," not "appear" (style.css's .char-appear-*), since
+   a list here is several different characters on one day rather than one
+   character's own history. Birthdays deliberately don't use this — see
+   .calendar-birthday-row below. */
 /* The date is always this small corner label now — on a launch day the
    version takes over .detail-panel-name's big centered role (style.css)
    instead; .detail-panel-header already promotes every direct child to
@@ -235,7 +260,7 @@
    tiny corner date instead of a compact, intentional-looking header. */
 .detail-panel-header.is-compact{min-height: 64px;}
 
-.calendar-day-card-list{display: flex; flex-direction: column; gap: 12px; margin-top: 4px;}
+.calendar-day-card-list{display: flex; flex-direction: column; gap: 12px; margin-top: 14px;}
 .calendar-day-card{
 	position: relative; display: flex; align-items: center; gap: 14px;
 	min-height: 88px; padding: 14px 18px;
@@ -245,24 +270,24 @@
 	   (a plain rectangular child clipped by the parent's own overflow has
 	   no border/radius of its own to mismatch against). */
 	overflow: hidden;
+	cursor: pointer;
 	transition: border-color 0.25s, box-shadow 0.25s;
 }
-/* Hover glow color is keyed to what KIND of card this is (.is-five/.is-four
-   for a debut, .is-birthday for a birthday), same --five/--four/--birthday
-   language as every other accent on the site — a birthday card always gets
-   the birthday accent regardless of that character's own rarity, so it
-   reads as "a birthday" at a glance rather than blending in with debuts;
-   rarity is still shown as its own badge either way. */
-.calendar-day-card.is-five:hover{border-color: var(--five); box-shadow: 0 4px 20px -4px var(--five-glow);}
-.calendar-day-card.is-four:hover{border-color: var(--four); box-shadow: 0 4px 20px -4px var(--four-glow);}
-.calendar-day-card.is-birthday:hover{border-color: var(--birthday); box-shadow: 0 4px 20px -4px var(--birthday-glow);}
+/* Hover glow color is keyed to which rarity debuted (.is-five/.is-four),
+   same --five/--four language as every other accent on the site. Doubles
+   as the "this is clickable" affordance (along with the art zoom below) —
+   clicking anywhere on the card pushes that character's own history onto
+   the panel stack (see pushPanelView in calendar.js). */
+.calendar-day-card.is-five:hover, .calendar-day-card.is-five:focus-visible{border-color: var(--five); box-shadow: 0 4px 20px -4px var(--five-glow);}
+.calendar-day-card.is-four:hover, .calendar-day-card.is-four:focus-visible{border-color: var(--four); box-shadow: 0 4px 20px -4px var(--four-glow);}
+.calendar-day-card:focus-visible{outline: 2px solid var(--four); outline-offset: 2px;}
 .calendar-day-card-art{
 	position: absolute; inset: 0;
 	background-size: cover; background-position: center;
 	transform: scale(1); transition: transform 0.5s ease;
 	will-change: transform;
 }
-.calendar-day-card:hover .calendar-day-card-art{transform: scale(1.08);}
+.calendar-day-card:hover .calendar-day-card-art, .calendar-day-card:focus-visible .calendar-day-card-art{transform: scale(1.08);}
 .calendar-day-card-scrim{
 	position: absolute; inset: 0;
 	background: linear-gradient(to right, rgba(13,13,20,0.92) 40%, rgba(13,13,20,0.25));
@@ -279,17 +304,40 @@
 .calendar-day-card-badges{display: flex; align-items: center; gap: 8px; flex-wrap: wrap;}
 .calendar-day-card-element{width: 18px; height: 18px; flex-shrink: 0; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6));}
 
+/* Birthdays' lighter alternative to the debut trading-card list above — a
+   plain wrapped row of ringed avatars, no art/border/hover-zoom. Same
+   is-release ring-glow language the rest of the site uses (phase-face-lg,
+   char-face-sm in style.css), just sized for this list and always the
+   --birthday accent rather than a rarity color, since the point here is
+   "this is a birthday," not which rarity the character happens to be. */
+.calendar-birthday-row{display: flex; flex-wrap: wrap; gap: 16px 14px; margin-top: 14px;}
+.calendar-birthday-chip{display: flex; flex-direction: column; align-items: center; gap: 6px; width: 68px; cursor: pointer;}
+.calendar-birthday-face{
+	width: 46px; height: 46px; border-radius: 50%; object-fit: contain; flex-shrink: 0;
+	background-color: rgba(255,255,255,0.06);
+	box-shadow: 0 0 0 2px var(--birthday), 0 0 6px 2px var(--birthday-glow);
+	transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+/* Zooms just the avatar rather than lifting the whole chip (transform:
+   translateY on hover was tried on the debut cards earlier and explicitly
+   rejected) — same "zoom the art, not the container" language the debut
+   card's own hover and the landing page's splash-art hovers already use. */
+.calendar-birthday-chip:hover .calendar-birthday-face, .calendar-birthday-chip:focus-visible .calendar-birthday-face{
+	transform: scale(1.1);
+	box-shadow: 0 0 0 2px var(--birthday), 0 0 12px 3px var(--birthday-glow);
+}
+.calendar-birthday-chip:focus-visible{outline: 2px solid var(--four); outline-offset: 2px; border-radius: var(--radius-sm);}
+.calendar-birthday-name{font-size: 11.5px; line-height: 1.3; color: var(--text); text-align: center;}
+
 .calendar-day-cell.is-clickable{cursor: pointer; transition: background-color 0.15s, border-color 0.15s;}
 .calendar-day-cell.is-clickable:hover, .calendar-day-cell.is-clickable:focus-visible{
 	background-color: var(--glass-hover); border-color: var(--glass-border-hover);
 }
 .calendar-day-cell.is-clickable:focus-visible{outline: 2px solid var(--four); outline-offset: 1px;}
 
-/* Same char-panel component style.css already ships (Timeline's character
-   drawer) — reused as-is for a per-day detail panel rather than inventing a
-   second slide-in/bottom-sheet component. .timeline-root gets its own nudge
-   rule in style.css; .calendar-root needs the same one since the panel is
-   shared but the page root it should push isn't. */
-@media (min-width: 768px){
-	body.panel-open .calendar-root{transform: translateX(300px);}
-}
+/* Same detail-panel component style.css already ships (Timeline's character
+   panel) — reused as-is for a per-day detail panel rather than inventing a
+   second popup/bottom-sheet component. On ≥768px it's a centered popup over
+   a dimmed backdrop (style.css), so unlike the old side-drawer version,
+   .calendar-root (and .timeline-root) no longer need a nudge to stay clear
+   of it — nothing to push aside when the panel floats in the middle. */

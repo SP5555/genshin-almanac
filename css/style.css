@@ -17,8 +17,8 @@
 	--chronicled-glow: rgba(201, 138, 75, 0.25);
 	--lightrace: #6f9bd1;
 	--lightrace-glow: rgba(111, 155, 209, 0.25);
-	--birthday: #ec7fb0;
-	--birthday-glow: rgba(236, 127, 176, 0.25);
+	--birthday: #4fb8c4;
+	--birthday-glow: rgba(79, 184, 196, 0.25);
 	--line: #6e5a94;
 	--content-max: 1140px;
 	--content-pad: 20px;
@@ -570,36 +570,74 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 }
 .detail-panel-backdrop.is-open{opacity: 1; pointer-events: auto;}
 
+/* Centered popup on desktop/tablet (≥768px) rather than a side drawer — a
+   drawer meant every interaction started by traveling to the screen edge,
+   away from where the timeline/calendar content the user is actually
+   looking at lives. A centered modal keeps everything in the middle of the
+   page instead, with the dimmed .detail-panel-backdrop doing the same job a
+   side drawer's off-screen content used to not need (nothing to push aside
+   anymore — see the removed body.panel-open .timeline-root/.calendar-root
+   nudge rules this replaced). <768px keeps the original bottom-sheet
+   drawer entirely unchanged (media query below) — a centered popup doesn't
+   suit a small screen the way a full-width sheet you can flick away does.
+   pointer-events is explicit here (not implicit-via-off-screen the way the
+   old translateX(-100%) drawer got it for free) since the closed state now
+   sits at the same on-screen position as the open one, just scaled/faded
+   out, and would otherwise still intercept clicks to whatever's behind it. */
 .detail-panel{
-	position: fixed; top: 0; left: 0; bottom: 0; z-index: 100;
-	width: min(380px, 88vw);
+	position: fixed; top: 50%; left: 50%; z-index: 100;
+	width: min(440px, 90vw);
+	max-height: 82vh;
 	display: flex; flex-direction: column;
 	background-color: var(--bg-alt);
-	border-right: 1px solid var(--glass-border);
-	box-shadow: 20px 0 60px rgba(0,0,0,0.5);
-	transform: translateX(-100%);
-	transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-	will-change: transform;
+	border: 1px solid var(--glass-border);
+	border-radius: var(--radius-lg);
+	box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+	transform: translate(-50%, -50%) scale(0.94);
+	opacity: 0;
+	pointer-events: none;
+	/* `height` only ever animates when JS has explicitly set it to a px
+	   value (swapPanelView() in calendar.js, for a stack push/pop) — it's
+	   otherwise the implicit `auto` a transition can't interpolate to/from,
+	   so this sits inert the rest of the time. On desktop the panel is
+	   centered via top:50%+translate(-50%,-50%), which recomputes off the
+	   element's own height automatically, so animating height here also
+	   keeps it vertically centered through the resize for free. */
+	transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease, height 0.3s ease;
+	will-change: transform, opacity;
 }
-.detail-panel.is-open{transform: translateX(0);}
+.detail-panel.is-open{transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: auto;}
 
 .detail-panel-grabber{display: none;}
 
+/* Still flex-end (not space-between — that put the close button on the
+   LEFT once .detail-panel-back is [hidden], since a lone flex item under
+   space-between sits at the start, not the end). Back stays on the left
+   instead via its own margin-right:auto, which only has an effect while
+   it's actually in the layout — .detail-panel-back is [hidden] by default
+   (Timeline's character panel never shows it, having no "previous view" to
+   return to), so the close button ends up flush right either way. */
 .detail-panel-topbar{display: flex; justify-content: flex-end; padding: 10px 10px 0; flex-shrink: 0;}
-.detail-panel-close{
+.detail-panel-back{margin-right: auto;}
+.detail-panel-close, .detail-panel-back{
 	width: 32px; height: 32px; border-radius: 50%; border: none;
 	background-color: var(--glass); color: var(--text);
 	font-size: 20px; line-height: 1; cursor: pointer;
 	display: flex; align-items: center; justify-content: center;
 	transition: background-color 0.2s;
 }
-.detail-panel-close:hover{background-color: var(--glass-hover);}
+.detail-panel-close:hover, .detail-panel-back:hover{background-color: var(--glass-hover);}
+/* Author-origin `display:flex` above would otherwise beat the UA
+   stylesheet's `[hidden]{display:none}` regardless of specificity (same
+   cascade-origin gotcha as .calendar-year-popover[hidden] — see CLAUDE.md). */
+.detail-panel-back[hidden]{display: none;}
 
 .detail-panel-content{
 	flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 4px 24px 32px;
 	scrollbar-width: thin; scrollbar-color: var(--glass-border-hover) transparent;
 	background-repeat: no-repeat; background-position: center, center;
 	background-size: 100% 100%, 340px 340px;
+	transition: opacity 0.2s ease;
 }
 .detail-panel-content::-webkit-scrollbar{width: 6px;}
 .detail-panel-content::-webkit-scrollbar-track{background: transparent;}
@@ -611,6 +649,19 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 	display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px;
 	flex-shrink: 0; min-height: 200px; padding: 20px 32px 16px; overflow: visible;
 	background-size: cover; background-position: center;
+	transition: opacity 0.2s ease;
+}
+/* `.is-fading` is the shared swapWithFade() utility's own convention
+   (shared.js — same class name the trivia ticker's .trivia-text already
+   used before that got pulled out as a reusable helper); this component
+   just defines what it means for its own elements. Calendar's panel stack
+   (calendar.js's swapPanelView) toggles this on header+content together
+   while .detail-panel itself resizes — see the height-transition comment
+   there. Timeline's character panel never toggles it (single-level, no
+   stack), so this is otherwise always inert there. pointer-events:none
+   guards against a rapid double-click queuing a second swap mid-transition. */
+.detail-panel-header.is-fading, .detail-panel-content.is-fading{
+	opacity: 0; pointer-events: none;
 }
 .detail-panel-header::before, .detail-panel-header::after{
 	content: ''; position: absolute; left: 0; right: 0; height: 24px; pointer-events: none; z-index: 0;
@@ -623,20 +674,48 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 .detail-panel-badge{font-size: 11px; font-weight: bold; padding: 3px 10px; border-radius: var(--radius-full); text-transform: uppercase; letter-spacing: 0.5px;}
 .detail-panel-badge.is-five{background-color: rgba(255,194,71,0.15); color: var(--five);}
 .detail-panel-badge.is-four{background-color: rgba(193,123,240,0.15); color: var(--four);}
-.detail-panel-badge.is-birthday{background-color: var(--birthday-glow); color: var(--birthday);}
 
 .detail-panel-note{font-size: 13px; color: var(--text-dim); font-style: italic; margin-top: 16px; line-height: 1.5;}
 .detail-panel-stats{font-size: 13px; color: var(--text-dim); margin-top: 18px; padding-bottom: 10px; border-bottom: 1px solid var(--glass-border);}
 
 .char-appear-list{display: flex; flex-direction: column;}
-.char-appear-row{display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--glass-border);}
-.char-appear-row:last-child{border-bottom: none;}
+.char-appear-row{display: flex; align-items: stretch; gap: 10px;}
 .char-appear-row.is-filler{opacity: 0.7;}
-.char-appear-dot{width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;}
+
+/* Same rail-with-a-line technique as .vt-marker-col on the Timeline itself
+   (this file) — a fixed-width column with a ::before line running through
+   it and a marker dot sitting on top, just at list scale, so a character's
+   own appearance history reads as a small personal thread through the
+   site's own timeline rather than a plain bullet list. Trimmed to start/end
+   exactly at the first/last dot's center via the :first-child/:last-child
+   overrides below, not a dangling stub above/below the list. */
+.char-appear-rail{position: relative; width: 9px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;}
+.char-appear-rail::before{
+	content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px;
+	background-color: var(--line); transform: translateX(-50%);
+}
+.char-appear-row:first-child .char-appear-rail::before{top: 50%;}
+.char-appear-row:last-child .char-appear-rail::before{bottom: 50%;}
+
+.char-appear-dot{position: relative; z-index: 1; width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;}
 .char-appear-dot.is-five{background-color: var(--five); box-shadow: 0 0 6px 1px var(--five-glow);}
 .char-appear-dot.is-four{background-color: var(--four); box-shadow: 0 0 6px 1px var(--four-glow);}
-.char-appear-label{display: flex; flex-direction: column; gap: 2px;}
+/* A character's actual release gets an extra ring on top of the base glow,
+   same ring-glow vocabulary as .phase-face-lg.is-release elsewhere. */
+.char-appear-dot.is-five.is-release{box-shadow: 0 0 0 2px var(--five), 0 0 10px 2px var(--five-glow);}
+.char-appear-dot.is-four.is-release{box-shadow: 0 0 0 2px var(--four), 0 0 8px 2px var(--four-glow);}
+/* A rerun via a themed special banner (Chronicled/Lightrace) recolors the
+   dot with that banner's own accent instead of the plain rarity glow —
+   chronicled/lightrace appearances are reruns by definition, so this never
+   has to compete with the is-release ring above. */
+.char-appear-dot.is-chronicled{background-color: var(--chronicled); box-shadow: 0 0 6px 1px var(--chronicled-glow);}
+.char-appear-dot.is-lightrace{background-color: var(--lightrace); box-shadow: 0 0 6px 1px var(--lightrace-glow);}
+
+.char-appear-label{display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; padding: 10px 0; border-bottom: 1px solid var(--glass-border);}
+.char-appear-row:last-child .char-appear-label{border-bottom: none;}
 .char-appear-version{font-size: 14px; color: var(--text);}
+.char-appear-version.is-chronicled{color: var(--chronicled);}
+.char-appear-version.is-lightrace{color: var(--lightrace);}
 .char-appear-version.is-jumpable{cursor: pointer; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; transition: text-decoration-color 0.2s, color 0.2s;}
 .char-appear-version.is-jumpable:hover, .char-appear-version.is-jumpable:focus-visible{color: var(--four); text-decoration-color: var(--four);}
 
@@ -647,13 +726,42 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 .char-appear-tag{font-size: 11px; color: var(--text-dim);}
 .char-appear-tag.is-release{color: var(--five); font-weight: bold;}
 
+/* Now that the panel floats centered instead of being squeezed against the
+   screen edge (see the popup comment above), it has real room to be wider
+   — sized up here rather than in the base rule so mobile's own <768px
+   block below (already a full, independent override) doesn't have to
+   un-do it. The header's background-image uses background-size:cover, so
+   it never stretches/distorts at the wider width — but a wider box over
+   the same 200px-tall crop was starting to read as a thin letterboxed
+   strip, so the header (and its content: avatar/name/badges, on Timeline's
+   character panel specifically — Calendar's day panel has no header
+   avatar) scales up to match rather than just the width growing alone.
+   `.detail-panel-header .phase-face-lg` (not the bare `.phase-face-lg`
+   rule elsewhere in this file) so this only resizes the header's own
+   avatar, not the 540 identical portraits on the Timeline's actual phase
+   cards that class also styles. */
+@media (min-width: 768px){
+	.detail-panel{width: min(560px, 92vw);}
+	.detail-panel-header{min-height: 240px; padding-left: 40px; padding-right: 40px;}
+	.detail-panel-header .phase-face-lg{width: 76px; height: 76px;}
+	.detail-panel-name{font-size: 28px;}
+	.detail-panel-badge{font-size: 12px; padding: 4px 12px;}
+	.detail-panel-content{padding-left: 32px; padding-right: 32px;}
+}
+
 @media (max-width: 767px){
 	.detail-panel{
 		top: auto; left: 0; right: 0; bottom: 0; width: 100%;
 		min-height: 40vh; max-height: 82vh;
-		border-right: none; border-top: 1px solid var(--glass-border);
+		border: none; border-top: 1px solid var(--glass-border);
 		border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 		transform: translateY(100%);
+		/* Resets the desktop-popup-only properties above — visibility here is
+		   still purely the transform (off-screen below vs. translateY(0)),
+		   never opacity/pointer-events, exactly like before this became a
+		   popup on larger screens. */
+		opacity: 1; pointer-events: auto;
+		transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 	}
 	.detail-panel.is-open{transform: translateY(0);}
 	.detail-panel-grabber{
@@ -667,7 +775,4 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 		background-color: var(--glass-border-hover);
 	}
 	.detail-panel-topbar{display: none;}
-}
-@media (min-width: 768px){
-	body.panel-open .timeline-root{transform: translateX(300px);}
 }
