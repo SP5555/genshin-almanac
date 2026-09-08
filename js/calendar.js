@@ -30,19 +30,6 @@ let versionMeta = {};
 // first appearance. Built once at bootstrap (buildDebutsByDate).
 let debutsByDate = new Map();
 
-// Same 21-day cadence as landing.js's PHASE_LENGTH_DAYS. Unlike landing.js
-// (only needs to be right for the live version), this walks every
-// historical phase, so it leans on phase-notes.json's date overrides for
-// the known exceptions (1.3's 3-phase structure, 3.0-3.2's compressed
-// cadence — see CLAUDE.md).
-function getPhaseStartDate(entry, phaseIndex, phaseNotes) {
-	let override = (phaseNotes[`${entry.version}-${phaseIndex + 1}`] || {}).date;
-	if (override) return override;
-	let d = new Date(entry.date + "T00:00:00Z");
-	d.setUTCDate(d.getUTCDate() + phaseIndex * 21);
-	return d.toISOString().slice(0, 10);
-}
-
 // Mirrors app.js's realPhaseCount logic (filler phases don't consume a
 // phase number) so labels match what the Timeline would call the same phase.
 function getPhaseLabel(entry, phaseIndex, phaseNotes) {
@@ -99,6 +86,15 @@ let characterNotes = {};
 // Character name -> ordered list of every appearance, a pure-data mirror
 // of app.js's characterIndex (see buildCharacterAppearances below).
 let characterAppearances = {};
+// "YYYY-MM-DD" -> {version, phaseLabel, variant, five: [...], four: [...]}
+// — every character featured on that date's phase, not just those debuting
+// (unlike debutsByDate above). Grouped from characterAppearances rather
+// than its own scan, so a jump/click landing on a pure-rerun, Chronicled,
+// or Lightrace phase date still shows real content instead of an empty
+// panel. Doesn't drive the day-cell dots — those stay debut-only
+// (debutsByDate), a deliberate call to keep the mini-grid calm rather than
+// mark every rerun.
+let bannersByDate = new Map();
 
 function buildCharacterRarity(data) {
 	let map = {};
@@ -197,6 +193,33 @@ function buildCharacterAppearances(data, notes, phaseNotes) {
 	return index;
 }
 
+// One date can host more than one distinct banner — Chronicled/Lightrace
+// share their parent phase's exact date by design (see
+// buildCharacterAppearances), and app.js's own insertAfterPhase already
+// anticipates a version with both attached to the same phase. Grouping by
+// date alone would merge unrelated banners together, so each date maps to
+// an array of groups, keyed by (version, phaseLabel) within that date.
+function buildBannersByDate(appearances) {
+	let byDate = new Map();
+	for (let name of Object.keys(appearances)) {
+		for (let entry of appearances[name]) {
+			if (!byDate.has(entry.date)) byDate.set(entry.date, new Map());
+			let groups = byDate.get(entry.date);
+			let key = `${entry.version}|${entry.phaseLabel}`;
+			if (!groups.has(key)) {
+				groups.set(key, { version: entry.version, phaseLabel: entry.phaseLabel, variant: entry.variant, date: entry.date, five: [], four: [] });
+			}
+			let group = groups.get(key);
+			(entry.rarity === "5" ? group.five : group.four).push({
+				name, isRelease: entry.isRelease, rerun: entry.rerun, rateDown: entry.rateDown, preexisting: entry.preexisting
+			});
+		}
+	}
+	let map = new Map();
+	for (let [date, groups] of byDate) map.set(date, [...groups.values()]);
+	return map;
+}
+
 // Filters a birthday match down to whoever had actually debuted by this
 // date (see buildCharacterDebutDate). Returns null, not [], matching
 // birthdaysByMonthDay's own "no entry" convention.
@@ -230,6 +253,7 @@ async function loadCalendarData() {
 			debutsByDate = buildDebutsByDate(data, notes, phaseNotes);
 			characterDebutDate = buildCharacterDebutDate(data, phaseNotes, notes);
 			characterAppearances = buildCharacterAppearances(data, notes, phaseNotes);
+			bannersByDate = buildBannersByDate(characterAppearances);
 		}
 	} catch (err) {
 		console.error(err);
@@ -300,8 +324,9 @@ function buildMonthCard(year, month, today) {
 		// Full names are left to the day panel — a handful of tiny circles is
 		// all this cell size can carry.
 		let debuts = debutsByDate.get(isoDate);
+		let banners = bannersByDate.get(isoDate);
 		let birthdayNames = getBirthdaysForDate(isoDate);
-		if (debuts || birthdayNames) {
+		if (debuts || banners || birthdayNames) {
 			let dots = document.createElement("span");
 			dots.className = "calendar-day-markers";
 			if (debuts && debuts.five.length > 0) {
@@ -312,6 +337,17 @@ function buildMonthCard(year, month, today) {
 			if (debuts && debuts.four.length > 0) {
 				let dot = document.createElement("span");
 				dot.className = "calendar-day-marker-dot is-four";
+				dots.appendChild(dot);
+			}
+			// A plain "something's running here" dot for banners with zero
+			// real debuts (reruns, Chronicled, Lightrace, all sharing this one
+			// neutral marker rather than three more dot types) — only ever
+			// needed when neither debut dot above already fired, so it never
+			// stacks a 4th dot onto an already-multi-dot day; the mini-grid's
+			// max dot count per cell stays exactly what it was.
+			if (!debuts && banners) {
+				let dot = document.createElement("span");
+				dot.className = "calendar-day-marker-dot is-banner";
 				dots.appendChild(dot);
 			}
 			if (birthdayNames) {
@@ -485,6 +521,8 @@ function buildAppearanceRow(entry) {
 	});
 	label.appendChild(ver);
 
+	let meta = document.createElement("div");
+	meta.className = "char-appear-meta";
 	let status = document.createElement("span");
 	status.className = "char-appear-tag";
 	if (entry.preexisting) {
@@ -495,7 +533,14 @@ function buildAppearanceRow(entry) {
 	} else {
 		status.textContent = `Rerun ${entry.rerun}`;
 	}
-	label.appendChild(status);
+	meta.appendChild(status);
+	if (entry.date) {
+		let dateEl = document.createElement("span");
+		dateEl.className = "char-appear-date";
+		dateEl.textContent = formatDate(entry.date);
+		meta.appendChild(dateEl);
+	}
+	label.appendChild(meta);
 
 	row.appendChild(label);
 	return row;
@@ -588,6 +633,117 @@ function buildBirthdayChip(name) {
 	return chip;
 }
 
+// Compact summary of a full banner — same DOM/CSS as Timeline's own
+// .trail-node.phase-card (app.js's buildNode), so a banner reads
+// identically wherever it's shown. Unlike buildCharacterCard above (which
+// is used for debuts only, one big art card per character), this shows
+// every character on the banner at once, release or rerun — the reason it
+// exists: an 18-character Chronicled Wish as individual art cards would be
+// a lot of scrolling for one day. No release-glow rays (buildRays()/
+// GLOW_CONFIG are Timeline-only, gated behind glow-config.js which this
+// page doesn't load) — release characters get the plain ring glow instead.
+function buildPhaseCard(banner) {
+	let card = document.createElement("div");
+	card.className = "trail-node phase-card calendar-phase-card" + (banner.variant ? ` is-${banner.variant}` : "");
+
+	let badge = document.createElement("div");
+	badge.className = "phase-tag";
+	badge.textContent = `${banner.version} — ${banner.phaseLabel}`;
+	card.appendChild(badge);
+
+	let body = document.createElement("div");
+	body.className = "phase-card-body";
+
+	let fiveGroup = document.createElement("div");
+	fiveGroup.className = "phase-five-group";
+	banner.five.forEach(entry => fiveGroup.appendChild(buildPhaseUnit(entry, "five")));
+	body.appendChild(fiveGroup);
+
+	if (banner.four.length > 0) {
+		let divider = document.createElement("div");
+		divider.className = "phase-divider";
+		body.appendChild(divider);
+
+		// No column-split here (unlike Timeline's own chronicled/lightrace
+		// layout) — just a flat, left-aligned row that wraps on its own via
+		// .calendar-phase-card's flex-wrap (calendar.css).
+		let fourGroup = document.createElement("div");
+		fourGroup.className = "phase-four-group";
+		banner.four.forEach(entry => fourGroup.appendChild(buildPhaseUnit(entry, "four")));
+		body.appendChild(fourGroup);
+	} else if (banner.variant === "lightrace") {
+		let divider = document.createElement("div");
+		divider.className = "phase-divider";
+		body.appendChild(divider);
+
+		// characterAppearances (not characterRarity, which skips chronicled
+		// entries entirely and isn't date-scoped) so this matches app.js's
+		// characterIndex-derived count exactly, including chronicled-only
+		// 4-stars (e.g. Amber, Kaeya, Lisa) and excluding anyone who only
+		// debuted after this particular Lightrace instance's own date.
+		let fourStarCount = Object.keys(characterAppearances).filter(n => {
+			let entries = characterAppearances[n];
+			return entries[0].rarity === "4" && entries.some(e => e.date <= banner.date);
+		}).length;
+		let summary = document.createElement("div");
+		summary.className = "phase-four-summary";
+		summary.append("Every 4-star character", document.createElement("br"), `released so far (${fourStarCount})`);
+		body.appendChild(summary);
+	}
+
+	card.appendChild(body);
+	return card;
+}
+
+// Each unit is clickable (dataset.character), same as the debut cards and
+// birthday chips — delegated on #detailPanelContent in initDayPanel below.
+function buildPhaseUnit(entry, size) {
+	let isFive = size === "five";
+	let unit = document.createElement("div");
+	unit.className = (isFive ? "phase-five-unit" : "phase-four-unit") + " char-trigger";
+	unit.dataset.character = entry.name;
+	unit.tabIndex = 0;
+	unit.setAttribute("role", "button");
+	unit.setAttribute("aria-label", `View ${entry.name}'s appearance history`);
+
+	let avatarWrap = document.createElement("div");
+	avatarWrap.className = "avatar-wrap " + (isFive ? "avatar-wrap-lg" : "avatar-wrap-sm") + (entry.isRelease ? " is-release" : "");
+	avatarWrap.appendChild(faceImg(entry.name, (isFive ? "phase-face-lg" : "char-face-sm") + (entry.isRelease ? " is-release" : "")));
+	unit.appendChild(avatarWrap);
+
+	if (isFive) {
+		let text = document.createElement("div");
+		text.className = "phase-five-text";
+		let name = document.createElement("span");
+		name.className = "char-name" + (entry.isRelease ? " is-release" : "");
+		name.textContent = entry.name;
+		text.appendChild(name);
+		if (!entry.preexisting) text.appendChild(appearanceTag(entry));
+		if (entry.rateDown) {
+			let poolTag = document.createElement("span");
+			poolTag.className = "rate-down-tag";
+			poolTag.textContent = "Rate-down";
+			poolTag.title = "Not a truly exclusive/limited character — already available via the standard rate-down pool";
+			text.appendChild(poolTag);
+		}
+		unit.appendChild(text);
+	} else {
+		let name = document.createElement("span");
+		name.className = "char-name" + (entry.isRelease ? " is-release" : "");
+		name.textContent = entry.name;
+		unit.appendChild(name);
+	}
+
+	return unit;
+}
+
+function appearanceTag(entry) {
+	let tag = document.createElement("span");
+	tag.className = "rerun-tag" + (entry.rerun === 0 ? " is-first" : "");
+	tag.textContent = entry.rerun === 0 ? "Release" : `Rerun ${entry.rerun}`;
+	return tag;
+}
+
 // UI stack for the shared detail panel — a debut/birthday card click pushes
 // a character view without opening a second overlapping popup.
 // openDayPanel() is the only thing that resets the stack.
@@ -596,7 +752,7 @@ let panelStack = [];
 function renderPanelTop() {
 	let top = panelStack[panelStack.length - 1];
 	if (!top) return;
-	document.getElementById("detailPanelBack").hidden = panelStack.length <= 1;
+	document.querySelectorAll(".detail-panel-back").forEach(btn => { btn.hidden = panelStack.length <= 1; });
 	if (top.type === "day") renderDayPanel(top.isoDate);
 	else if (top.type === "character") renderCharacterPanel(top.name);
 }
@@ -663,6 +819,12 @@ function renderDayPanel(isoDate) {
 		header.classList.add("is-compact");
 	}
 
+	// Shows every character featured on this date's phase, not just those
+	// debuting — so jumping here from a rerun/Chronicled/Lightrace row in a
+	// character's own appear-list (jumpToDate) never lands on an empty panel.
+	// Debuts stay their own thing — a true first appearance, called out with
+	// its own big art card (buildCharacterCard), never mixed in with
+	// everyone else on the same banner (that's the phase card below).
 	let debuts = debutsByDate.get(isoDate);
 	if (debuts) {
 		let heading = document.createElement("div");
@@ -688,6 +850,24 @@ function renderDayPanel(isoDate) {
 		content.appendChild(list);
 	}
 
+	// The full banner(s) running this date — everyone featured, release or
+	// rerun, as a compact card rather than individual art cards (see
+	// buildPhaseCard). A date can host more than one distinct banner (e.g. a
+	// regular phase AND a Chronicled Wish attached to it, sharing that
+	// phase's start date) — see buildBannersByDate.
+	let banners = bannersByDate.get(isoDate) || [];
+	if (banners.length > 0) {
+		let heading = document.createElement("div");
+		heading.className = "detail-panel-stats";
+		heading.textContent = `Banner${banners.length === 1 ? "" : "s"} running this day`;
+		content.appendChild(heading);
+
+		let list = document.createElement("div");
+		list.className = "calendar-day-card-list";
+		banners.forEach(banner => list.appendChild(buildPhaseCard(banner)));
+		content.appendChild(list);
+	}
+
 	let birthdayNames = getBirthdaysForDate(isoDate);
 	if (birthdayNames) {
 		let heading = document.createElement("div");
@@ -701,7 +881,7 @@ function renderDayPanel(isoDate) {
 		content.appendChild(row);
 	}
 
-	if (!debuts && !birthdayNames) {
+	if (banners.length === 0 && !birthdayNames) {
 		let stub = document.createElement("p");
 		stub.className = "detail-panel-note";
 		stub.textContent = "Nothing else tracked for this day yet.";
@@ -751,7 +931,7 @@ function initDayPanel() {
 	});
 	document.getElementById("detailPanelClose").addEventListener("click", closeDayPanel);
 	document.getElementById("detailPanelBackdrop").addEventListener("click", closeDayPanel);
-	document.getElementById("detailPanelBack").addEventListener("click", popPanelView);
+	document.querySelectorAll(".detail-panel-back").forEach(btn => btn.addEventListener("click", popPanelView));
 	document.addEventListener("keydown", e => {
 		if (e.key === "Escape") closeDayPanel();
 	});
@@ -761,12 +941,12 @@ function initDayPanel() {
 	// every render.
 	let content = document.getElementById("detailPanelContent");
 	content.addEventListener("click", e => {
-		let trigger = e.target.closest(".calendar-day-card, .calendar-birthday-chip");
+		let trigger = e.target.closest(".calendar-day-card, .calendar-birthday-chip, .char-trigger");
 		if (trigger) pushPanelView({ type: "character", name: trigger.dataset.character });
 	});
 	content.addEventListener("keydown", e => {
 		if (e.key !== "Enter" && e.key !== " ") return;
-		let trigger = e.target.closest(".calendar-day-card, .calendar-birthday-chip");
+		let trigger = e.target.closest(".calendar-day-card, .calendar-birthday-chip, .char-trigger");
 		if (trigger) { e.preventDefault(); pushPanelView({ type: "character", name: trigger.dataset.character }); }
 	});
 
@@ -794,12 +974,11 @@ function initDayPanel() {
 		let shouldDismiss = dragDistance > panel.offsetHeight * 0.25;
 		panel.style.transition = "";
 		panel.style.transform = "";
-		if (!shouldDismiss) return;
-		// Mobile's topbar (and Back button) is hidden entirely — the drag
-		// gesture is the only dismiss affordance there, so a swipe pops one
-		// stack level instead of always closing; only the stack's root closes.
-		if (panelStack.length > 1) popPanelView();
-		else closeDayPanel();
+		// Always a full close, same as tapping the backdrop — never a stack
+		// pop. The mobile-bar's own Back button (see detail-panel-mobile-bar)
+		// is the explicit "go back one level" affordance now; overloading the
+		// swipe gesture to sometimes mean that too just reads as inconsistent.
+		if (shouldDismiss) closeDayPanel();
 	}
 	grabber.addEventListener("pointerup", endGrabberDrag);
 	grabber.addEventListener("pointercancel", endGrabberDrag);

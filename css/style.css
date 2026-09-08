@@ -609,6 +609,7 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 .detail-panel.is-open{transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: auto;}
 
 .detail-panel-grabber{display: none;}
+.detail-panel-mobile-bar{display: none;}
 
 /* Still flex-end (not space-between — that put the close button on the
    LEFT once .detail-panel-back is [hidden], since a lone flex item under
@@ -723,8 +724,15 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 	border-color: var(--four); box-shadow: 0 0 0 3px var(--four-glow), 0 0 24px 4px var(--four-glow);
 	transition: border-color 0.3s, box-shadow 0.3s;
 }
+.char-appear-meta{display: flex; align-items: center; gap: 6px;}
 .char-appear-tag{font-size: 11px; color: var(--text-dim);}
 .char-appear-tag.is-release{color: var(--five); font-weight: bold;}
+/* Always the same dim neutral color, deliberately not tied to is-release —
+   the date is a plain fact, not a "this was the release" signal, so it
+   shouldn't pick up the tag's gold coloring next to it. Same "·" separator
+   convention as the footer's .footer-divider. */
+.char-appear-date{font-size: 11px; color: var(--text-dim);}
+.char-appear-date::before{content: '·'; margin-right: 6px;}
 
 /* Now that the panel floats centered instead of being squeezed against the
    screen edge (see the popup comment above), it has real room to be wider
@@ -761,12 +769,35 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 		   never opacity/pointer-events, exactly like before this became a
 		   popup on larger screens. */
 		opacity: 1; pointer-events: auto;
-		transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+		/* height added here too (not just the desktop-popup rule above) so a
+		   stack push/pop's swapWithFade() resize animates on mobile as well
+		   — this rule replaces the whole transition list (CSS transition
+		   doesn't merge across rules), so leaving height out here silently
+		   drops it even though the base rule has it. */
+		transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), height 0.3s ease;
 	}
 	.detail-panel.is-open{transform: translateY(0);}
+	/* Back button + grabber share one row (1fr auto 1fr) rather than the
+	   grabber's full-width hit area swallowing the corner a button would
+	   need — the empty 1fr columns keep the grabber's pill visually
+	   centered whether or not Back is showing (an empty 1fr track still
+	   claims its share of the row, unlike a shown/hidden auto-sized one),
+	   the same way the desktop topbar's back button never shifts the close
+	   button, just via a different technique (margin-right:auto only works
+	   for an edge target, not a centered one). */
+	.detail-panel-mobile-bar{
+		display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+		padding: 14px 14px 0;
+	}
+	.detail-panel-mobile-bar .detail-panel-back{grid-column: 1; justify-self: start;}
 	.detail-panel-grabber{
+		grid-column: 2;
 		display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-		width: 100%; height: 28px; margin-top: 4px;
+		/* Narrower than the old full-width hit area (not edge-to-edge
+		   anymore, to leave the back button's corner free) but still much
+		   bigger than the 36×4px visible pill — a 4px target isn't
+		   realistically grabbable on touch. */
+		width: 160px; height: 28px;
 		touch-action: none;
 	}
 	.detail-panel-grabber::before{

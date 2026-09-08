@@ -43,7 +43,7 @@ function normalizeChar(name) {
 	return { name, rateDown: !!notes.rateDown, preexisting: !!notes.preexisting };
 }
 
-function buildNode(version, phaseLabel, phase, charCount, isFiller, variant) {
+function buildNode(version, phaseLabel, phase, charCount, isFiller, variant, date) {
 	let card = document.createElement("div");
 	card.className = "trail-node phase-card" + (isFiller ? " is-filler" : "") + (variant ? ` is-${variant}` : "");
 	card.dataset.version = version;
@@ -67,7 +67,7 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, variant) {
 
 		let isRelease = !preexisting && count === 1;
 		(characterIndex[character] = characterIndex[character] || []).push({
-			version, phaseLabel, rarity: "5", isRelease, rerun: count - 1, rateDown, preexisting, isFiller, variant
+			version, phaseLabel, rarity: "5", isRelease, rerun: count - 1, rateDown, preexisting, isFiller, variant, date
 		});
 
 		let unit = document.createElement("div");
@@ -124,7 +124,7 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, variant) {
 			let isFourRelease = !fourPreexisting && fourCount === 1;
 			(characterIndex[character] = characterIndex[character] || []).push({
 				version, phaseLabel, rarity: "4", isRelease: isFourRelease, rerun: fourCount - 1,
-				rateDown: fourRateDown, preexisting: fourPreexisting, isFiller, variant
+				rateDown: fourRateDown, preexisting: fourPreexisting, isFiller, variant, date
 			});
 
 			let row = document.createElement("div");
@@ -222,6 +222,8 @@ function buildAppearanceRow(entry) {
 	});
 	label.appendChild(ver);
 
+	let meta = document.createElement("div");
+	meta.className = "char-appear-meta";
 	let status = document.createElement("span");
 	status.className = "char-appear-tag";
 	if (entry.preexisting) {
@@ -232,7 +234,14 @@ function buildAppearanceRow(entry) {
 	} else {
 		status.textContent = `Rerun ${entry.rerun}`;
 	}
-	label.appendChild(status);
+	meta.appendChild(status);
+	if (entry.date) {
+		let dateEl = document.createElement("span");
+		dateEl.className = "char-appear-date";
+		dateEl.textContent = formatDate(entry.date);
+		meta.appendChild(dateEl);
+	}
+	label.appendChild(meta);
 
 	row.appendChild(label);
 	return row;
@@ -619,7 +628,8 @@ function buildPatchRow(entry, charCount, isLive) {
 		let notes = phaseNotes[`${version}-${p + 1}`] || {};
 		let isFiller = !!notes.filler;
 		let label = isFiller ? "Filler" : `Phase ${++realPhaseCount}`;
-		let card = buildNode(version, label, phase, charCount, isFiller, null);
+		let date = getPhaseStartDate(entry, p, phaseNotes);
+		let card = buildNode(version, label, phase, charCount, isFiller, null, date);
 		phasesWrap.appendChild(card);
 		phaseCards.push(card);
 	}
@@ -641,7 +651,10 @@ function buildPatchRow(entry, charCount, isLive) {
 	if (entry.chronicled) {
 		let c = entry.chronicled;
 		let label = `Chronicled Wish — ${c.theme}`;
-		insertAfterPhase(c.phase, buildNode(version, label, c, charCount, false, "chronicled"));
+		// No exact chronicled-banner date is tracked anywhere on this site —
+		// reusing the parent phase's own start date is the closest real anchor.
+		let date = getPhaseStartDate(entry, c.phase - 1, phaseNotes);
+		insertAfterPhase(c.phase, buildNode(version, label, c, charCount, false, "chronicled", date));
 	}
 
 	// Lightrace Wish: a permanent, ever-rotating banner (debuted 6.7) that
@@ -652,7 +665,8 @@ function buildPatchRow(entry, charCount, isLive) {
 	// aren't recorded here.
 	if (entry.lightrace) {
 		let l = entry.lightrace;
-		insertAfterPhase(l.phase, buildNode(version, "Lightrace Wish", l, charCount, false, "lightrace"));
+		let date = getPhaseStartDate(entry, l.phase - 1, phaseNotes);
+		insertAfterPhase(l.phase, buildNode(version, "Lightrace Wish", l, charCount, false, "lightrace", date));
 	}
 
 	content.appendChild(phasesWrap);

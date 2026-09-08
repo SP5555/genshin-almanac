@@ -233,6 +233,12 @@
 .calendar-day-marker-dot.is-five{background-color: var(--five); box-shadow: 0 0 4px 1px var(--five-glow);}
 .calendar-day-marker-dot.is-four{background-color: var(--four); box-shadow: 0 0 4px 1px var(--four-glow);}
 .calendar-day-marker-dot.is-birthday{background-color: var(--birthday); box-shadow: 0 0 4px 1px var(--birthday-glow);}
+/* Deliberately no glow, unlike the three above — a rerun/Chronicled/
+   Lightrace banner with no debut is real information (the whole reason
+   this dot exists: that day used to show nothing at all), but it's not
+   the headline event a debut or birthday is, so it stays visually quiet
+   rather than competing with them for attention. */
+.calendar-day-marker-dot.is-banner{background-color: var(--text-dim);}
 
 /* Day panel's debut list — each character gets a small "trading card" of
    their own: their namecard art as the background (same technique as the
@@ -261,6 +267,36 @@
 .detail-panel-header.is-compact{min-height: 64px;}
 
 .calendar-day-card-list{display: flex; flex-direction: column; gap: 12px; margin-top: 14px;}
+
+/* Timeline's own phase-card (style.css) is designed for a multi-column flex
+   row, with row->column stacking (and the Chronicled/Lightrace 4-star wrap
+   fix) gated behind viewport-width media queries. The day panel's own
+   container is always narrow (max ~560px, see style.css's popup width)
+   regardless of the actual viewport — a 1280px-wide screen with this
+   narrow popup would never trigger those media queries, hitting the exact
+   overflow bug they exist to fix. So .calendar-phase-card (buildPhaseCard,
+   calendar.js) forces the stacked layout unconditionally instead of
+   relying on viewport width at all. */
+.calendar-phase-card .phase-card-body{flex-direction: column; align-items: stretch; gap: 12px;}
+.calendar-phase-card .phase-divider{width: 100%; height: 1px; align-self: auto;}
+/* Left-aligned, wrapping rows rather than Timeline's own centered/
+   column-split treatment (the latter existed there specifically for the
+   two-column layout buildPhaseCard() no longer builds — see calendar.js).
+   .phase-five-group is already row+flex-wrap by default (style.css); only
+   needs pinning to the left instead of Timeline's centered variant-only
+   rule. .phase-four-group defaults to a *column* (a vertical stacked list)
+   for a plain phase on Timeline — forced to row+wrap here unconditionally,
+   for every variant, not just chronicled/lightrace. */
+/* max-width:none overrides a leftover from Timeline's own
+   .is-chronicled/.is-lightrace .phase-five-group rule (style.css) — that
+   340px cap still applies here too (same class still present on the
+   element), and without an explicit override it's what was forcing an
+   early wrap regardless of the day panel's actual available width. */
+.calendar-phase-card .phase-five-group{width: 100%; max-width: none; justify-content: flex-start;}
+.calendar-phase-card .phase-four-group{
+	width: 100%; display: flex; flex-direction: row; flex-wrap: wrap;
+	align-items: center; justify-content: flex-start; gap: 10px 20px;
+}
 .calendar-day-card{
 	position: relative; display: flex; align-items: center; gap: 14px;
 	min-height: 88px; padding: 14px 18px;

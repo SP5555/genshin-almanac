@@ -446,9 +446,39 @@ release ring since those banners are reruns by definition.
 
 Mobile drag-to-dismiss: Pointer Events (not separate touch/mouse handlers)
 drive 1:1 finger tracking via inline `transform`; on release the existing
-open/close CSS transition finishes the motion. Hit area is much bigger
-(28px tall, full width) than the visible pill (36×4px) since a 4px target
-isn't realistically grabbable on touch.
+open/close CSS transition finishes the motion. Hit area is bigger (28px
+tall) than the visible pill (36×4px) since a 4px target isn't realistically
+grabbable on touch — no longer full-width, though (see mobile-bar below).
+A qualifying swipe is always a full close, same as tapping the backdrop —
+never a stack pop, even mid-stack (Calendar's panel stack, below). That
+was tried (swipe = pop one level, close only at the root) before the
+mobile-bar's own Back button existed to do that job explicitly; once it
+did, overloading the swipe gesture to sometimes mean two different things
+just read as inconsistent.
+
+Calendar's panel stack (see "Day panel" below) needs a Back button on
+mobile too, not just desktop — but the topbar that houses it is hidden
+entirely there (`.detail-panel-topbar{display:none}`), and the grabber's
+old full-width hit area left no room for one. `.detail-panel-mobile-bar`
+(a `1fr auto 1fr` CSS grid) puts them in one row instead: Back in column 1,
+the grabber (now a narrower ~160px hit zone, still generous, just not
+edge-to-edge) in column 2. The empty side columns keep the grabber's pill
+visually centered whether or not Back is showing — an unused `1fr` track
+still claims its share of the row, unlike an auto-sized one would. Both
+`.detail-panel-back` buttons (mobile-bar's and the desktop topbar's) share
+one class, not unique IDs (same "duplicate IDs would be invalid HTML"
+reasoning as the year-stepper) — `renderPanelTop()`/`initDayPanel()` in
+calendar.js operate on `document.querySelectorAll(".detail-panel-back")`.
+
+**Real gotcha**: the mobile breakpoint's `.detail-panel{transition:...}`
+rewrite silently dropped `height` from the transition list — CSS
+`transition` doesn't merge across rules, a later rule's declaration fully
+replaces an earlier one's, so the desktop-popup rule already including
+`height` (for `swapWithFade()`'s stack-navigation resize) didn't help once
+the mobile block redeclared `transition` with only `transform`. The result
+wasn't a crash, just a silently-instant resize instead of an animated one
+on mobile specifically — worth remembering any time a breakpoint
+overrides a shorthand property like `transition` rather than adding to it.
 
 ### Chronicled Wish banners
 6 versions have a `chronicled` field → an extra `--chronicled`-accented card
@@ -717,13 +747,24 @@ needs no leap-year special case — `buildMonthCard` only ever generates a
 Feb 29 cell in years that actually have one.
 
 **Day-cell markers**: up to 3 small dots (5★/4★ debut, birthday — gold/
-purple/`--birthday` pink) live in the *same row* as the day number, glued
-directly beside it — not a separate corner. A corner-positioned dot read as
-ambiguous at this cell width (~44px): it ended up visually closer to the
-*next* day's number than its own. Sized small (4px, 2px gap) specifically
-so a 2-digit day + all 3 dots still fit without touching the cell edge
-(checked against the tightest real case, March 26 2025 — a version launch
-+ two debut rarities + a birthday all landing the same day).
+purple/`--birthday` sky-teal) live in the *same row* as the day number,
+glued directly beside it — not a separate corner. A corner-positioned dot
+read as ambiguous at this cell width (~44px): it ended up visually closer
+to the *next* day's number than its own. Sized small (4px, 2px gap)
+specifically so a 2-digit day + all 3 dots still fit without touching the
+cell edge (checked against the tightest real case, March 26 2025 — a
+version launch + two debut rarities + a birthday all landing the same day).
+
+A 4th dot, `.is-banner` (plain `--text-dim`, deliberately no glow unlike
+the other three — real information, but not the headline event a debut or
+birthday is), fills in for any banner — rerun, Chronicled, Lightrace, all
+sharing this one neutral marker rather than three more dot types — that
+has zero real debuts. Before this, a day like a pure-rerun Chronicled Wish
+showed nothing at all on the grid, indistinguishable from an actually
+empty day. It never increases the max dots-per-cell, though: it only ever
+renders when neither debut dot already did (`!debuts && banners`), so a
+day's dot count tops out at exactly what it did before — no risk of
+re-triggering the March 26 2025 overflow case above.
 
 **Day panel**: debuts render as namecard-background "trading cards"
 (`buildCharacterCard()` in calendar.js) — art lives on its own layer (not
@@ -743,6 +784,66 @@ rather than a mostly-empty 200px box. A reported rendering seam along the
 header's own gradient top/bottom edges (real hardware only, not
 reproducible headless) was NOT fixed by `isolation:isolate` — don't
 re-attempt that exact fix if this resurfaces.
+
+The panel's own content and the mini-grid's dots deliberately read from two
+*different* maps. `debutsByDate` (dots, and the day-cell's "something's
+here" signal) only ever flags true debuts — kept narrow on purpose, to
+keep the grid calm rather than mark every rerun. `bannersByDate` (panel
+content) is broader: every character featured that date, debut or not,
+grouped from `characterAppearances`. This split exists because jumping to
+a character's own rerun/Chronicled/Lightrace row (`jumpToDate`, via
+`buildAppearanceRow`'s version-jump click) used to land on a day with
+*nothing* in the panel — those dates have real banners, just no debut,
+which the old debuts-only content couldn't show. **One date can host more
+than one distinct banner** — Chronicled/Lightrace share their parent
+phase's exact date by design (no separate "banner start date" is tracked
+anywhere), so `buildBannersByDate` groups by `(date, version, phaseLabel)`,
+not date alone; grouping by date alone was a real bug caught here (it
+merged an unrelated regular phase and its same-day Chronicled Wish into
+one list). The panel renders each date's groups as separate
+heading+card-list sections.
+
+`bannersByDate` drives two genuinely different-looking cards, kept
+deliberately separate rather than merged: `buildCharacterCard()`'s big
+namecard-art cards are debuts-only (from `debutsByDate`, unaffected by any
+of this) — a debut stays its own celebratory callout, never diluted by
+everyone else on the same banner. `buildPhaseCard()`/`buildPhaseUnit()`
+(from `bannersByDate`) is the new one: a compact summary of the *entire*
+banner, release or rerun, reusing Timeline's own `.trail-node.phase-card`
+DOM/CSS classes (`buildNode()` in app.js) — duplicated rather than shared
+since app.js's version is tightly coupled to Timeline-only state
+(`characterIndex` population as a side effect, `buildRays()`/`GLOW_CONFIG`
+from glow-config.js, which this page doesn't load — release characters
+here just get the plain ring glow, no sunburst rays). Exists because an
+18-character Chronicled Wish as individual art cards would be a lot of
+scrolling for one day.
+
+Layout deliberately diverges from Timeline's own, though — the initial cut
+reused Timeline's centered `.phase-five-group` and column-split
+`.phase-four-group` (chronicled/lightrace) wholesale, but that read as
+over-designed at this card's smaller scale. `.calendar-phase-card` (the
+marker class from the stacking fix above) now also forces both groups
+left-aligned, flat, flex-wrap rows — no column-split at all, for any
+variant — letting them wrap to as many per line as the day panel's width
+allows, rather than Timeline's fixed two-column split built for a wider
+card. Each character unit is clickable (`.char-trigger` + `dataset.character`, same delegated listener
+as the debut cards/birthday chips) and pushes their own history onto the
+panel stack.
+
+**Real gotcha worth remembering**: Timeline's phase-card CSS gates its
+row→column stacking (and the Chronicled/Lightrace 4-star wrap fix) behind
+viewport-width media queries (`@media (max-width:768px)` etc.) — correct
+for Timeline, where the card's available width tracks the viewport. But
+the day panel's popup stays narrow (max ~560px) *regardless* of viewport
+width, so on a wide desktop screen those media queries never fire even
+though the phase card's actual rendered width sits well inside the danger
+zone that caused the original chronicled-overflow bug (see the Chronicled
+Wish banners section above). Fixed by giving `buildPhaseCard()`'s cards a
+`.calendar-phase-card` marker class and forcing the stacked layout
+unconditionally in calendar.css, not gated by any media query. Worth
+remembering any time a Timeline component (viewport-width-based
+breakpoints) gets reused inside a container whose own width doesn't track
+the viewport.
 
 Clicking a debut card or birthday chip drills into that character's own
 appearance history — the exact same `.char-appear-list` component Timeline's

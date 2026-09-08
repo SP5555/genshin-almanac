@@ -19,6 +19,19 @@ function formatDate(isoDate) {
 	return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+// Same 21-day cadence as landing.js's PHASE_LENGTH_DAYS (duplicated there
+// as a literal rather than calling this — see landing.js). Walks every
+// historical phase, so it leans on phase-notes.json's date overrides for
+// the known exceptions (1.3's 3-phase structure, 3.0-3.2's compressed
+// cadence — see CLAUDE.md).
+function getPhaseStartDate(entry, phaseIndex, phaseNotes) {
+	let override = (phaseNotes[`${entry.version}-${phaseIndex + 1}`] || {}).date;
+	if (override) return override;
+	let d = new Date(entry.date + "T00:00:00Z");
+	d.setUTCDate(d.getUTCDate() + phaseIndex * 21);
+	return d.toISOString().slice(0, 10);
+}
+
 // Lightweight stand-in for app.js's characterIndex tracking — that only gets
 // built as a side effect of rendering the entire 52-version timeline, which
 // neither the landing page nor the calendar page do. Counting appearances
