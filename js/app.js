@@ -20,24 +20,6 @@ function groupByMajor(data) {
 	return groups;
 }
 
-function buildRays(count, colorVar) {
-	let wrap = document.createElement("div");
-	wrap.className = "rays-wrap";
-	let cfg = GLOW_CONFIG.rays;
-	let arcSize = 360 / count;
-	for (let i = 0; i < count; i++) {
-		let ray = document.createElement("div");
-		ray.className = "ray";
-		let angle = i * arcSize + Math.random() * arcSize;
-		ray.style.setProperty("--ray-angle", `${angle.toFixed(1)}deg`);
-		ray.style.setProperty("--ray-delay", `${(Math.random() * cfg.delayMaxS).toFixed(2)}s`);
-		ray.style.setProperty("--ray-dur", `${(cfg.durationMinS + Math.random() * (cfg.durationMaxS - cfg.durationMinS)).toFixed(2)}s`);
-		ray.style.setProperty("--ray-color", colorVar);
-		wrap.appendChild(ray);
-	}
-	return wrap;
-}
-
 function normalizeChar(name) {
 	let notes = characterNotes[name] || {};
 	return { name, rateDown: !!notes.rateDown, preexisting: !!notes.preexisting };
@@ -216,10 +198,7 @@ function buildAppearanceRow(entry) {
 	ver.tabIndex = 0;
 	ver.setAttribute("role", "button");
 	ver.setAttribute("aria-label", `Jump to ${entry.version} ${entry.phaseLabel} card`);
-	ver.addEventListener("click", () => jumpToCard(entry.version, entry.phaseLabel));
-	ver.addEventListener("keydown", e => {
-		if (e.key === "Enter" || e.key === " ") { e.preventDefault(); jumpToCard(entry.version, entry.phaseLabel); }
-	});
+	onActivate(ver, () => jumpToCard(entry.version, entry.phaseLabel));
 	label.appendChild(ver);
 
 	let meta = document.createElement("div");
@@ -257,9 +236,6 @@ function openCharPanel(character) {
 	header.innerHTML = "";
 	content.innerHTML = "";
 
-	let namecardPath = `assets/namecards/${character.replace(/\s/g, "").toLowerCase()}.jpg`;
-	header.style.backgroundImage = `linear-gradient(to bottom, rgba(13,13,20,0.45), rgba(13,13,20,0.94)), url(${namecardPath})`;
-
 	let element = characterElements[character];
 	if (element) {
 		content.style.backgroundImage =
@@ -269,30 +245,7 @@ function openCharPanel(character) {
 	}
 
 	let rarity = entries[0].rarity;
-
-	let avatarWrap = document.createElement("div");
-	avatarWrap.className = "avatar-wrap avatar-wrap-lg";
-	avatarWrap.appendChild(faceImg(character, "phase-face-lg is-release" + (rarity === "4" ? " rarity-four" : "")));
-	header.appendChild(avatarWrap);
-
-	let nameEl = document.createElement("h2");
-	nameEl.className = "detail-panel-name";
-	nameEl.textContent = character;
-	header.appendChild(nameEl);
-
-	let tagsWrap = document.createElement("div");
-	tagsWrap.className = "detail-panel-tags";
-	let rarityTag = document.createElement("span");
-	rarityTag.className = "detail-panel-badge " + (rarity === "5" ? "is-five" : "is-four");
-	rarityTag.textContent = rarity === "5" ? "5-Star" : "4-Star";
-	tagsWrap.appendChild(rarityTag);
-	if (notes.rateDown) {
-		let poolTag = document.createElement("span");
-		poolTag.className = "rate-down-tag";
-		poolTag.textContent = "Rate-down";
-		tagsWrap.appendChild(poolTag);
-	}
-	header.appendChild(tagsWrap);
+	buildCharacterHeader(header, character, rarity, notes);
 
 	if (notes.preexisting) {
 		let note = document.createElement("p");
@@ -347,212 +300,13 @@ function jumpToCard(version, phaseLabel) {
 }
 
 function initCharPanel() {
-	document.getElementById("timelineRoot").addEventListener("click", e => {
-		let trigger = e.target.closest(".char-trigger");
-		if (trigger) openCharPanel(trigger.dataset.character);
-	});
-	document.getElementById("timelineRoot").addEventListener("keydown", e => {
-		if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("char-trigger")) {
-			e.preventDefault();
-			openCharPanel(e.target.dataset.character);
-		}
-	});
+	onDelegatedActivate(document.getElementById("timelineRoot"), ".char-trigger", trigger => openCharPanel(trigger.dataset.character));
 	document.getElementById("detailPanelClose").addEventListener("click", closeCharPanel);
 	document.getElementById("detailPanelBackdrop").addEventListener("click", closeCharPanel);
 	document.addEventListener("keydown", e => {
 		if (e.key === "Escape") closeCharPanel();
 	});
-
-	let grabber = document.getElementById("detailPanelGrabber");
-	let panel = document.getElementById("detailPanel");
-	let dragging = false;
-	let startY = 0;
-	let dragDistance = 0;
-
-	grabber.addEventListener("pointerdown", e => {
-		dragging = true;
-		startY = e.clientY;
-		dragDistance = 0;
-		panel.style.transition = "none";
-		grabber.setPointerCapture(e.pointerId);
-	});
-	grabber.addEventListener("pointermove", e => {
-		if (!dragging) return;
-		dragDistance = Math.max(0, e.clientY - startY);
-		panel.style.transform = `translateY(${dragDistance}px)`;
-	});
-	function endGrabberDrag() {
-		if (!dragging) return;
-		dragging = false;
-		let shouldDismiss = dragDistance > panel.offsetHeight * 0.25;
-		panel.style.transition = "";
-		panel.style.transform = "";
-		if (shouldDismiss) closeCharPanel();
-	}
-	grabber.addEventListener("pointerup", endGrabberDrag);
-	grabber.addEventListener("pointercancel", endGrabberDrag);
-}
-
-function highlightMatches(name, strippedQuery) {
-	let frag = document.createDocumentFragment();
-	if (!strippedQuery) {
-		frag.appendChild(document.createTextNode(name));
-		return frag;
-	}
-
-	let map = [];
-	let stripped = "";
-	for (let i = 0; i < name.length; i++) {
-		if (!/\s/.test(name[i])) {
-			map.push(i);
-			stripped += name[i].toLowerCase();
-		}
-	}
-
-	let cursor = 0;
-	let i = 0;
-	while (i < stripped.length) {
-		let idx = stripped.indexOf(strippedQuery, i);
-		if (idx === -1) break;
-		let startOrig = map[idx];
-		let endOrig = map[idx + strippedQuery.length - 1] + 1;
-		if (startOrig > cursor) frag.appendChild(document.createTextNode(name.slice(cursor, startOrig)));
-		let mark = document.createElement("span");
-		mark.className = "char-search-match";
-		mark.textContent = name.slice(startOrig, endOrig);
-		frag.appendChild(mark);
-		cursor = endOrig;
-		i = idx + strippedQuery.length;
-	}
-	if (cursor < name.length) frag.appendChild(document.createTextNode(name.slice(cursor)));
-	return frag;
-}
-
-function strip(s) {
-	return s.toLowerCase().replace(/\s+/g, "");
-}
-
-// Ranks a character's match against the query into 4 tiers so primary-name
-// matches always outrank alias matches, not just whichever string happened
-// to start with the query: 0 = name starts with query, 1 = name contains
-// it, 2 = an alias starts with it, 3 = an alias only contains it. `key` is
-// the matched string (name, or the best-matching alias) used to alphabetize
-// within a tier.
-function matchInfo(name, strippedQuery) {
-	let nameStripped = strip(name);
-	if (nameStripped.includes(strippedQuery)) {
-		return { tier: nameStripped.startsWith(strippedQuery) ? 0 : 1, key: nameStripped };
-	}
-	let matches = (characterAliases[name] || [])
-		.map(strip)
-		.filter(a => a.includes(strippedQuery));
-	if (matches.length === 0) return null;
-	let starts = matches.filter(a => a.startsWith(strippedQuery));
-	let pool = (starts.length ? starts : matches).sort();
-	return { tier: starts.length ? 2 : 3, key: pool[0] };
-}
-
-function initSearch() {
-	let input = document.getElementById("charSearchInput");
-	let results = document.getElementById("charSearchResults");
-	let currentMatches = [];
-	let activeIndex = -1;
-
-	function applyActiveClass() {
-		[...results.children].forEach((el, i) => el.classList.toggle("is-active", i === activeIndex));
-	}
-
-	function updateActiveHighlight() {
-		applyActiveClass();
-		let activeEl = results.children[activeIndex];
-		if (activeEl) activeEl.scrollIntoView({ block: "nearest" });
-	}
-
-	function selectResult(name) {
-		if (!name) return;
-		openCharPanel(name);
-		input.value = "";
-		currentMatches = [];
-		activeIndex = -1;
-		results.innerHTML = "";
-		results.classList.remove("has-results");
-		input.blur();
-	}
-
-	input.addEventListener("input", () => {
-		let strippedQuery = input.value.trim().toLowerCase().replace(/\s+/g, "");
-		activeIndex = -1;
-		results.innerHTML = "";
-		results.classList.remove("has-results");
-		currentMatches = [];
-		if (!strippedQuery) return;
-
-		currentMatches = Object.keys(characterIndex)
-			.map(name => ({ name, info: matchInfo(name, strippedQuery) }))
-			.filter(x => x.info)
-			.sort((a, b) => {
-				if (a.info.tier !== b.info.tier) return a.info.tier - b.info.tier;
-				if (a.info.key !== b.info.key) return a.info.key.localeCompare(b.info.key);
-				return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-			})
-			.map(x => x.name);
-		if (currentMatches.length === 0) return;
-
-		currentMatches.forEach((name, i) => {
-			let item = document.createElement("div");
-			item.className = "char-search-result";
-			item.appendChild(faceImg(name, "char-search-avatar"));
-
-			let textWrap = document.createElement("div");
-			textWrap.className = "char-search-result-text";
-
-			let nameWrap = document.createElement("span");
-			nameWrap.className = "char-search-name";
-			nameWrap.appendChild(highlightMatches(name, strippedQuery));
-			textWrap.appendChild(nameWrap);
-
-			let aliases = (characterAliases[name] || []).filter(a => strip(a).includes(strippedQuery));
-			if (aliases.length) {
-				let aliasWrap = document.createElement("span");
-				aliasWrap.className = "char-search-alias";
-				aliases.forEach((alias, idx) => {
-					if (idx > 0) aliasWrap.appendChild(document.createTextNode(", "));
-					aliasWrap.appendChild(highlightMatches(alias, strippedQuery));
-				});
-				textWrap.appendChild(aliasWrap);
-			}
-
-			item.appendChild(textWrap);
-			item.addEventListener("click", () => selectResult(name));
-			item.addEventListener("mouseenter", () => {
-				activeIndex = i;
-				applyActiveClass();
-			});
-			results.appendChild(item);
-		});
-		results.classList.add("has-results");
-	});
-
-	results.addEventListener("mouseleave", () => {
-		activeIndex = -1;
-		applyActiveClass();
-	});
-
-	input.addEventListener("keydown", e => {
-		if (currentMatches.length === 0) return;
-		if (e.key === "ArrowDown") {
-			e.preventDefault();
-			activeIndex = Math.min(activeIndex + 1, currentMatches.length - 1);
-			updateActiveHighlight();
-		} else if (e.key === "ArrowUp") {
-			e.preventDefault();
-			activeIndex = Math.max(activeIndex - 1, 0);
-			updateActiveHighlight();
-		} else if (e.key === "Enter") {
-			e.preventDefault();
-			selectResult(currentMatches[activeIndex === -1 ? 0 : activeIndex]);
-		}
-	});
+	initPanelGrabberDrag(closeCharPanel);
 }
 
 function buildMarkerCol(markerEl) {
@@ -803,7 +557,7 @@ async function bootstrap() {
 
 		init(data);
 		initCharPanel();
-		initSearch();
+		initCharSearch(() => Object.keys(characterIndex), characterAliases, openCharPanel);
 	} catch (err) {
 		console.error(err);
 		document.getElementById("timelineRoot").textContent = "Failed to load banner data — please refresh the page.";

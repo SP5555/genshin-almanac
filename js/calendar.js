@@ -83,6 +83,9 @@ let characterDebutDate = {};
 // character-notes.json's raw contents — kept at module scope since
 // renderCharacterPanel() needs it too, not just the build functions below.
 let characterNotes = {};
+// Character name -> array of alternate names, for the shared char-search
+// (see initCharSearch() in shared.js — same data Timeline's search uses).
+let characterAliases = {};
 // Character name -> ordered list of every appearance, a pure-data mirror
 // of app.js's characterIndex (see buildCharacterAppearances below).
 let characterAppearances = {};
@@ -96,15 +99,27 @@ let characterAppearances = {};
 // mark every rerun.
 let bannersByDate = new Map();
 
+// Scans chronicled (and lightrace's "5" array) too, not just banner[] — a
+// character can be preexisting and only ever reran via Chronicled (e.g.
+// Diluc, Jean: real 5-stars with no regular featured phase in data.json).
 function buildCharacterRarity(data) {
 	let map = {};
+	function record(name, rarity) {
+		if (!(name in map)) map[name] = rarity;
+	}
 	for (let entry of data) {
 		for (let phase of entry.banner) {
 			for (let rarity of ["5", "4"]) {
-				for (let name of phase[rarity]) {
-					if (!(name in map)) map[name] = rarity;
-				}
+				for (let name of phase[rarity]) record(name, rarity);
 			}
+		}
+		if (entry.chronicled) {
+			for (let rarity of ["5", "4"]) {
+				for (let name of (entry.chronicled[rarity] || [])) record(name, rarity);
+			}
+		}
+		if (entry.lightrace) {
+			for (let name of (entry.lightrace["5"] || [])) record(name, "5");
 		}
 	}
 	return map;
@@ -232,18 +247,20 @@ function getBirthdaysForDate(isoDate) {
 
 async function loadCalendarData() {
 	try {
-		let [dataRes, metaRes, notesRes, phaseNotesRes, elementsRes, birthdaysRes] = await Promise.all([
+		let [dataRes, metaRes, notesRes, phaseNotesRes, elementsRes, birthdaysRes, aliasesRes] = await Promise.all([
 			fetch("data/data.json"),
 			fetch("data/version-notes.json"),
 			fetch("data/character-notes.json"),
 			fetch("data/phase-notes.json"),
 			fetch("data/character-elements.json"),
 			fetch("data/character-birthdays.json"),
+			fetch("data/character-aliases.json"),
 		]);
 		let data = dataRes.ok ? await dataRes.json() : null;
 		if (data) data.forEach(entry => { versionLaunches.set(entry.date, entry.version); });
 		if (metaRes.ok) versionMeta = await metaRes.json();
 		if (elementsRes.ok) characterElements = await elementsRes.json();
+		if (aliasesRes.ok) characterAliases = await aliasesRes.json();
 		if (data) characterRarity = buildCharacterRarity(data);
 		if (birthdaysRes.ok) birthdaysByMonthDay = buildBirthdaysByMonthDay(await birthdaysRes.json());
 		let notes = notesRes.ok ? await notesRes.json() : {};
@@ -486,10 +503,6 @@ function buildCharacterCard(name, variant, badges) {
 	return card;
 }
 
-function rarityBadge(rarity) {
-	return { className: "detail-panel-badge " + (rarity === "5" ? "is-five" : "is-four"), text: rarity === "5" ? "5-Star" : "4-Star" };
-}
-
 // Same DOM/CSS as app.js's own version (.char-appear-*, shared in
 // style.css) — the only real difference is the version text jumps to that
 // phase's calendar date (jumpToDate) instead of a Timeline phase card.
@@ -515,10 +528,7 @@ function buildAppearanceRow(entry) {
 	ver.tabIndex = 0;
 	ver.setAttribute("role", "button");
 	ver.setAttribute("aria-label", `Jump to ${entry.version} ${entry.phaseLabel} on the calendar`);
-	ver.addEventListener("click", () => jumpToDate(entry.date));
-	ver.addEventListener("keydown", e => {
-		if (e.key === "Enter" || e.key === " ") { e.preventDefault(); jumpToDate(entry.date); }
-	});
+	onActivate(ver, () => jumpToDate(entry.date));
 	label.appendChild(ver);
 
 	let meta = document.createElement("div");
@@ -560,9 +570,6 @@ function renderCharacterPanel(name) {
 	header.classList.remove("is-compact");
 	content.scrollTop = 0;
 
-	let namecardPath = `assets/namecards/${name.replace(/\s/g, "").toLowerCase()}.jpg`;
-	header.style.backgroundImage = `linear-gradient(to bottom, rgba(13,13,20,0.45), rgba(13,13,20,0.94)), url(${namecardPath})`;
-
 	let element = characterElements[name];
 	if (element) {
 		content.style.backgroundImage =
@@ -572,30 +579,7 @@ function renderCharacterPanel(name) {
 	}
 
 	let rarity = characterRarity[name];
-
-	let avatarWrap = document.createElement("div");
-	avatarWrap.className = "avatar-wrap avatar-wrap-lg";
-	avatarWrap.appendChild(faceImg(name, "phase-face-lg is-release" + (rarity === "4" ? " rarity-four" : "")));
-	header.appendChild(avatarWrap);
-
-	let nameEl = document.createElement("h2");
-	nameEl.className = "detail-panel-name";
-	nameEl.textContent = name;
-	header.appendChild(nameEl);
-
-	let tagsWrap = document.createElement("div");
-	tagsWrap.className = "detail-panel-tags";
-	let rarityTag = document.createElement("span");
-	rarityTag.className = "detail-panel-badge " + (rarity === "5" ? "is-five" : "is-four");
-	rarityTag.textContent = rarity === "5" ? "5-Star" : "4-Star";
-	tagsWrap.appendChild(rarityTag);
-	if (notes.rateDown) {
-		let poolTag = document.createElement("span");
-		poolTag.className = "rate-down-tag";
-		poolTag.textContent = "Rate-down";
-		tagsWrap.appendChild(poolTag);
-	}
-	header.appendChild(tagsWrap);
+	buildCharacterHeader(header, name, rarity, notes);
 
 	if (notes.preexisting) {
 		let note = document.createElement("p");
@@ -786,6 +770,7 @@ function renderDayPanel(isoDate) {
 	header.style.backgroundImage = "";
 	content.style.backgroundImage = "";
 	header.classList.remove("is-compact");
+	header.classList.remove("is-character");
 	content.scrollTop = 0;
 
 	let dateObj = new Date(isoDate + "T00:00:00");
@@ -889,17 +874,27 @@ function renderDayPanel(isoDate) {
 	}
 }
 
-// Entry point for opening the panel fresh from a day-cell click — resets
-// the stack to just this day. Pushing/popping only re-renders content;
-// this is the one place that toggles is-open/the backdrop/scroll-lock.
-function openDayPanel(isoDate) {
-	panelStack = [{ type: "day", isoDate }];
+// Entry point for opening the panel fresh — resets the stack to just one
+// view. Pushing/popping only re-renders content; this is the one place
+// that toggles is-open/the backdrop/scroll-lock.
+function openPanelFresh(view) {
+	panelStack = [view];
 	renderPanelTop();
 	document.getElementById("detailPanel").classList.add("is-open");
 	document.getElementById("detailPanel").setAttribute("aria-hidden", "false");
 	document.getElementById("detailPanelBackdrop").classList.add("is-open");
 	document.body.classList.add("panel-open");
 	document.documentElement.classList.add("panel-open");
+}
+
+function openDayPanel(isoDate) {
+	openPanelFresh({ type: "day", isoDate });
+}
+
+// Search-result entry point (see initCharSearch() in shared.js) — same
+// fresh-open behavior as a day cell, just landing directly on a character.
+function openCharacterPanel(name) {
+	openPanelFresh({ type: "character", name });
 }
 
 function closeDayPanel() {
@@ -919,16 +914,7 @@ function closeDayPanel() {
 
 function initDayPanel() {
 	let grid = document.getElementById("calendarMonthGrid");
-	grid.addEventListener("click", e => {
-		let cell = e.target.closest(".calendar-day-cell.is-clickable");
-		if (cell) openDayPanel(cell.dataset.date);
-	});
-	grid.addEventListener("keydown", e => {
-		if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("calendar-day-cell")) {
-			e.preventDefault();
-			openDayPanel(e.target.dataset.date);
-		}
-	});
+	onDelegatedActivate(grid, ".calendar-day-cell.is-clickable", cell => openDayPanel(cell.dataset.date));
 	document.getElementById("detailPanelClose").addEventListener("click", closeDayPanel);
 	document.getElementById("detailPanelBackdrop").addEventListener("click", closeDayPanel);
 	document.querySelectorAll(".detail-panel-back").forEach(btn => btn.addEventListener("click", popPanelView));
@@ -940,48 +926,13 @@ function initDayPanel() {
 	// re-attached per card, since its innerHTML gets fully replaced on
 	// every render.
 	let content = document.getElementById("detailPanelContent");
-	content.addEventListener("click", e => {
-		let trigger = e.target.closest(".calendar-day-card, .calendar-birthday-chip, .char-trigger");
-		if (trigger) pushPanelView({ type: "character", name: trigger.dataset.character });
-	});
-	content.addEventListener("keydown", e => {
-		if (e.key !== "Enter" && e.key !== " ") return;
-		let trigger = e.target.closest(".calendar-day-card, .calendar-birthday-chip, .char-trigger");
-		if (trigger) { e.preventDefault(); pushPanelView({ type: "character", name: trigger.dataset.character }); }
-	});
+	onDelegatedActivate(content, ".calendar-day-card, .calendar-birthday-chip, .char-trigger",
+		trigger => pushPanelView({ type: "character", name: trigger.dataset.character }));
 
-	let grabber = document.getElementById("detailPanelGrabber");
-	let panel = document.getElementById("detailPanel");
-	let dragging = false;
-	let startY = 0;
-	let dragDistance = 0;
-
-	grabber.addEventListener("pointerdown", e => {
-		dragging = true;
-		startY = e.clientY;
-		dragDistance = 0;
-		panel.style.transition = "none";
-		grabber.setPointerCapture(e.pointerId);
-	});
-	grabber.addEventListener("pointermove", e => {
-		if (!dragging) return;
-		dragDistance = Math.max(0, e.clientY - startY);
-		panel.style.transform = `translateY(${dragDistance}px)`;
-	});
-	function endGrabberDrag() {
-		if (!dragging) return;
-		dragging = false;
-		let shouldDismiss = dragDistance > panel.offsetHeight * 0.25;
-		panel.style.transition = "";
-		panel.style.transform = "";
-		// Always a full close, same as tapping the backdrop — never a stack
-		// pop. The mobile-bar's own Back button (see detail-panel-mobile-bar)
-		// is the explicit "go back one level" affordance now; overloading the
-		// swipe gesture to sometimes mean that too just reads as inconsistent.
-		if (shouldDismiss) closeDayPanel();
-	}
-	grabber.addEventListener("pointerup", endGrabberDrag);
-	grabber.addEventListener("pointercancel", endGrabberDrag);
+	// A qualifying swipe is always a full close, same as tapping the
+	// backdrop — never a stack pop. The mobile-bar's own Back button is the
+	// explicit "go back one level" affordance instead.
+	initPanelGrabberDrag(closeDayPanel);
 }
 initDayPanel();
 
@@ -1032,5 +983,6 @@ async function bootstrapCalendar() {
 	await loadCalendarData();
 	buildYearPopovers();
 	setYear(getYearFromUrl());
+	initCharSearch(() => Object.keys(characterAppearances), characterAliases, openCharacterPanel);
 }
 bootstrapCalendar();

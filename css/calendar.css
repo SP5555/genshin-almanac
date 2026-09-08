@@ -279,9 +279,9 @@
    relying on viewport width at all. */
 .calendar-phase-card .phase-card-body{flex-direction: column; align-items: stretch; gap: 12px;}
 .calendar-phase-card .phase-divider{width: 100%; height: 1px; align-self: auto;}
-/* Left-aligned, wrapping rows rather than Timeline's own centered/
-   column-split treatment (the latter existed there specifically for the
-   two-column layout buildPhaseCard() no longer builds — see calendar.js).
+/* Left-aligned, wrapping rows — unlike Timeline's own phase cards, this
+   page's buildPhaseCard() (calendar.js) never column-splits the 4-star
+   group, so Timeline's centered/column-split CSS doesn't apply here.
    .phase-five-group is already row+flex-wrap by default (style.css); only
    needs pinning to the left instead of Timeline's centered variant-only
    rule. .phase-four-group defaults to a *column* (a vertical stacked list)

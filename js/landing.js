@@ -26,21 +26,10 @@ const ELEMENT_COLORS = {
 	Pyro:    { c: "#FF6640", glow: "rgba(255,102,64,0.45)" },
 };
 
-// The actual in-game wish-reveal splash art — dynamic action pose, dramatic
-// effects, genuine transparent-alpha cutout (confirmed via ffprobe:
-// yuva420p) — e.g. "assets/splash/arlecchino.webp", sourced from the
-// Genshin Fandom wiki (File:<Name>_Wish.png; served as WebP despite the
-// .png-looking URL, same as the Server Clocks background). Genuinely
-// uniform across characters — every one checked (7+, including 4-stars) is
-// exactly 2048x1024, since this is HoYoverse's own fixed-size UI template,
-// not just similar-looking promotional art. Two other Fandom assets were
-// tried and rejected first: File:<Name> Card.png bakes the gacha-pull card
-// frame/logo into the image itself (not croppable away), and
-// File:Character <Name> Game.png / Full Wish.png are real splash art but
-// not uniformly sized. Same filename convention as faces/namecards
-// (lowercase, spaces stripped). Only downloaded for characters actually
-// featured on the landing page so far — see CLAUDE.md's art provenance
-// section for the sourcing method and which characters are covered.
+// In-game wish-reveal splash art, e.g. "assets/splash/arlecchino.webp" —
+// same filename convention as faces/namecards. Only downloaded for
+// characters actually featured on the landing page so far; see
+// data/SOURCES.md for where these come from and how to add more.
 function splashPath(character) {
 	return `assets/splash/${character.replace(/\s/g, "").toLowerCase()}.webp`;
 }

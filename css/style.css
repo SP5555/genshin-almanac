@@ -670,8 +670,18 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 .detail-panel-header::before{top: 0; background: linear-gradient(to bottom, var(--bg-alt), transparent);}
 .detail-panel-header::after{bottom: 0; background: linear-gradient(to top, var(--bg-alt), transparent);}
 .detail-panel-header > *{position: relative; z-index: 1;}
+/* Asymmetric layout for a character (avatar left, name/tags right) instead
+   of the day-panel header's centered column — the two share this element,
+   so this only applies once .is-character marks which one is showing. */
+.detail-panel-header.is-character{flex-direction: row; align-items: center; justify-content: flex-start; text-align: left;}
+.detail-panel-header-text{display: flex; flex-direction: column; gap: 10px; min-width: 0; flex: 1;}
 .detail-panel-name{font-size: 24px; font-weight: bold; color: var(--text);}
-.detail-panel-tags{display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;}
+/* align-items:center, not the flex default stretch — .detail-panel-badge
+   and .rate-down-tag are different heights (more so once the >=768px
+   breakpoint below grows the badge), and neither tag centers its own text
+   within a taller stretched box on its own. */
+.detail-panel-tags{display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;}
+.detail-panel-header.is-character .detail-panel-tags{justify-content: flex-start;}
 .detail-panel-badge{font-size: 11px; font-weight: bold; padding: 3px 10px; border-radius: var(--radius-full); text-transform: uppercase; letter-spacing: 0.5px;}
 .detail-panel-badge.is-five{background-color: rgba(255,194,71,0.15); color: var(--five);}
 .detail-panel-badge.is-four{background-color: rgba(193,123,240,0.15); color: var(--four);}

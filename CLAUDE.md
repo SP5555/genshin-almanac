@@ -427,9 +427,25 @@ Click any avatar → side drawer (desktop) / bottom sheet (mobile). The panel
 component itself (`#detailPanel` + `.detail-panel-*` classes, all in
 style.css) is shared with the Calendar page's day panel — named
 `detailPanel`, not `charPanel`, for that reason; `.detail-panel-name`/
-`-tags`/`-badge` styling must stay generic (big centered title + pill
-badges), since Calendar reuses it for a date/version headline rather than a
-character name. Appearance rows jump to their timeline card via
+`-tags`/`-badge` styling must stay reusable, since Calendar reuses it for a
+date/version headline rather than a character name. The header itself has
+two layouts on one element: the default centered column (Calendar's
+day/date headline, no avatar) and `.detail-panel-header.is-character`
+(avatar left, a `.detail-panel-header-text` column of name+tags right) —
+since the header persists across a stack navigation rather than getting
+torn down, whichever view renders next has to leave it in the right state:
+`buildCharacterHeader(header, name, rarity, notes)` (shared.js) always adds
+`is-character` itself, so the only explicit cleanup needed is Calendar's
+day view removing it again on the way back. That shared builder is what
+Timeline's `openCharPanel` and Calendar's `renderCharacterPanel` both call
+for the header specifically — they still differ around it (content
+background, preexisting note, stats, appearance list). Its avatar always
+shows the release-style ring + `buildRays()` sunburst (shared.js,
+GLOW_CONFIG-driven — Calendar now loads glow-config.js too) regardless of
+whether *this* appearance was really a release; the header is a hero shot
+for whoever's being viewed, not tied to one specific appearance's release
+status the way a phase-card avatar is. Appearance rows jump to their
+timeline card via
 `jumpToCard()` without closing the panel. Desktop nudges `.timeline-root`
 via `transform: translateX(300px)` (not margin — see gotcha #1) so a
 jumped-to card isn't hidden behind the drawer.
@@ -526,10 +542,20 @@ required for correct paint order (see gotcha #2).
 ### Character search
 Sticky pill icon, expands to a text input on hover/focus (`width`
 transition — see gotcha #1 for why not `clip-path`). Filters
-`characterIndex` whitespace-insensitively (strip spaces from both query and
-name before comparing, map matches back onto the original string). Mouse
-and keyboard navigation drive the same `activeIndex`/`.is-active` state, so
-there's exactly one visual "selected" row.
+whitespace-insensitively (strip spaces from both query and name before
+comparing, map matches back onto the original string). Mouse and keyboard
+navigation drive the same `activeIndex`/`.is-active` state, so there's
+exactly one visual "selected" row.
+
+Ported verbatim onto Calendar (`#charSearch` in calendar.html) — the
+matching/ranking/DOM logic (`initCharSearch()`, `matchInfo()`,
+`highlightMatches()`) lives in shared.js, called with `(getCharacterNames,
+characterAliases, onSelect)` since Timeline's `characterIndex` and
+Calendar's `characterAppearances` are two independently-built but
+identically-shaped name→entries indexes (same reason `countAppearancesThrough`/
+`getPhaseStartDate` live there). Calendar's `onSelect` is
+`openCharacterPanel()`, a fresh-stack entry point factored out of
+`openDayPanel()` (both now call a shared `openPanelFresh(view)`).
 
 **Alternate names** (`data/character-aliases.json`, keyed by canonical
 name → array of aliases, e.g. `"Tartaglia": ["Childe"]`): matches rank in
@@ -1027,11 +1053,15 @@ merging into an SPA (see Server Clocks section).
 `css/clocks.css` + `js/clocks.js` are the first realization of the "shared
 base + page-specific stylesheet/script" split — `app.js` itself hasn't been
 split into shared-utilities-vs-timeline-specific yet, since no page has
-needed to reuse its full `characterIndex` building. One piece of it did
-move: `countAppearancesThrough()` now lives in `shared.js`, since landing.js
-and calendar.js both need "how many times has this character appeared
-through this point" without building the entire index. Do the bigger split
-when a page actually needs it (e.g. Character profile pages).
+needed to reuse its full `characterIndex` building. Several standalone
+pieces did move to `shared.js` once a second page needed the same non-
+render logic without the full index: `countAppearancesThrough()`
+(landing.js/calendar.js — appearance counts through a point in time),
+`buildRays()` (calendar.js's character header now uses it too, gated on
+also loading glow-config.js), and the character-search stack
+(`initCharSearch()`/`matchInfo()`/`highlightMatches()` — Calendar's
+`#charSearch` is a verbatim port of Timeline's). Do the bigger split when a
+page actually needs the full index (e.g. Character profile pages).
 
 Header is duplicated per page (not templated) — fine at 2-4 pages, not
 worth the machinery. `data.json` (12.3KB total) isn't worth splitting

@@ -114,6 +114,311 @@ function swapWithFade(container, fadeEls, renderFn, fadeMs = 200) {
 	}, fadeMs);
 }
 
+// Sticky pill character search — shared by Timeline's #charSearch and
+// Calendar's identical port, since both pages already build their own
+// name -> entries index independently (app.js's characterIndex,
+// calendar.js's characterAppearances) and just need the same matching/
+// ranking/DOM logic driven off whichever one they have.
+function highlightMatches(name, strippedQuery) {
+	let frag = document.createDocumentFragment();
+	if (!strippedQuery) {
+		frag.appendChild(document.createTextNode(name));
+		return frag;
+	}
+
+	let map = [];
+	let stripped = "";
+	for (let i = 0; i < name.length; i++) {
+		if (!/\s/.test(name[i])) {
+			map.push(i);
+			stripped += name[i].toLowerCase();
+		}
+	}
+
+	let cursor = 0;
+	let i = 0;
+	while (i < stripped.length) {
+		let idx = stripped.indexOf(strippedQuery, i);
+		if (idx === -1) break;
+		let startOrig = map[idx];
+		let endOrig = map[idx + strippedQuery.length - 1] + 1;
+		if (startOrig > cursor) frag.appendChild(document.createTextNode(name.slice(cursor, startOrig)));
+		let mark = document.createElement("span");
+		mark.className = "char-search-match";
+		mark.textContent = name.slice(startOrig, endOrig);
+		frag.appendChild(mark);
+		cursor = endOrig;
+		i = idx + strippedQuery.length;
+	}
+	if (cursor < name.length) frag.appendChild(document.createTextNode(name.slice(cursor)));
+	return frag;
+}
+
+function searchStrip(s) {
+	return s.toLowerCase().replace(/\s+/g, "");
+}
+
+// Ranks a character's match into 4 tiers so primary-name matches always
+// outrank alias matches: 0 = name starts with query, 1 = name contains it,
+// 2 = an alias starts with it, 3 = an alias only contains it. `key` is the
+// matched string, used to alphabetize within a tier.
+function matchInfo(name, strippedQuery, characterAliases) {
+	let nameStripped = searchStrip(name);
+	if (nameStripped.includes(strippedQuery)) {
+		return { tier: nameStripped.startsWith(strippedQuery) ? 0 : 1, key: nameStripped };
+	}
+	let matches = (characterAliases[name] || [])
+		.map(searchStrip)
+		.filter(a => a.includes(strippedQuery));
+	if (matches.length === 0) return null;
+	let starts = matches.filter(a => a.startsWith(strippedQuery));
+	let pool = (starts.length ? starts : matches).sort();
+	return { tier: starts.length ? 2 : 3, key: pool[0] };
+}
+
+// getCharacterNames — () => string[], called fresh on every keystroke so
+// each page's own index only needs to exist by the time the user types, not
+// by the time this is called. onSelect(name) — what a chosen result does
+// (Timeline opens its char panel directly; Calendar pushes it onto its
+// panel stack).
+function initCharSearch(getCharacterNames, characterAliases, onSelect) {
+	let input = document.getElementById("charSearchInput");
+	let results = document.getElementById("charSearchResults");
+	let currentMatches = [];
+	let activeIndex = -1;
+
+	function applyActiveClass() {
+		[...results.children].forEach((el, i) => el.classList.toggle("is-active", i === activeIndex));
+	}
+
+	function updateActiveHighlight() {
+		applyActiveClass();
+		let activeEl = results.children[activeIndex];
+		if (activeEl) activeEl.scrollIntoView({ block: "nearest" });
+	}
+
+	function selectResult(name) {
+		if (!name) return;
+		onSelect(name);
+		input.value = "";
+		currentMatches = [];
+		activeIndex = -1;
+		results.innerHTML = "";
+		results.classList.remove("has-results");
+		input.blur();
+	}
+
+	input.addEventListener("input", () => {
+		let strippedQuery = searchStrip(input.value.trim());
+		activeIndex = -1;
+		results.innerHTML = "";
+		results.classList.remove("has-results");
+		currentMatches = [];
+		if (!strippedQuery) return;
+
+		currentMatches = getCharacterNames()
+			.map(name => ({ name, info: matchInfo(name, strippedQuery, characterAliases) }))
+			.filter(x => x.info)
+			.sort((a, b) => {
+				if (a.info.tier !== b.info.tier) return a.info.tier - b.info.tier;
+				if (a.info.key !== b.info.key) return a.info.key.localeCompare(b.info.key);
+				return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+			})
+			.map(x => x.name);
+		if (currentMatches.length === 0) return;
+
+		currentMatches.forEach((name, i) => {
+			let item = document.createElement("div");
+			item.className = "char-search-result";
+			item.appendChild(faceImg(name, "char-search-avatar"));
+
+			let textWrap = document.createElement("div");
+			textWrap.className = "char-search-result-text";
+
+			let nameWrap = document.createElement("span");
+			nameWrap.className = "char-search-name";
+			nameWrap.appendChild(highlightMatches(name, strippedQuery));
+			textWrap.appendChild(nameWrap);
+
+			let aliases = (characterAliases[name] || []).filter(a => searchStrip(a).includes(strippedQuery));
+			if (aliases.length) {
+				let aliasWrap = document.createElement("span");
+				aliasWrap.className = "char-search-alias";
+				aliases.forEach((alias, idx) => {
+					if (idx > 0) aliasWrap.appendChild(document.createTextNode(", "));
+					aliasWrap.appendChild(highlightMatches(alias, strippedQuery));
+				});
+				textWrap.appendChild(aliasWrap);
+			}
+
+			item.appendChild(textWrap);
+			item.addEventListener("click", () => selectResult(name));
+			item.addEventListener("mouseenter", () => {
+				activeIndex = i;
+				applyActiveClass();
+			});
+			results.appendChild(item);
+		});
+		results.classList.add("has-results");
+	});
+
+	results.addEventListener("mouseleave", () => {
+		activeIndex = -1;
+		applyActiveClass();
+	});
+
+	input.addEventListener("keydown", e => {
+		if (currentMatches.length === 0) return;
+		if (e.key === "ArrowDown") {
+			e.preventDefault();
+			activeIndex = Math.min(activeIndex + 1, currentMatches.length - 1);
+			updateActiveHighlight();
+		} else if (e.key === "ArrowUp") {
+			e.preventDefault();
+			activeIndex = Math.max(activeIndex - 1, 0);
+			updateActiveHighlight();
+		} else if (e.key === "Enter") {
+			e.preventDefault();
+			selectResult(currentMatches[activeIndex === -1 ? 0 : activeIndex]);
+		}
+	});
+}
+
+// Flickering sunburst rays behind a release portrait — each ray is a
+// separate blade with a randomized angle/delay/duration (baked in as inline
+// CSS vars here, so the flicker itself runs on CSS alone with no recurring
+// JS). Shared by Timeline's phase cards/character header and Calendar's
+// character header (both load glow-config.js for GLOW_CONFIG/the CSS custom
+// properties it sets). Calendar's compact day-panel phase cards deliberately
+// skip this — see CLAUDE.md — but a single-character header has the room.
+function buildRays(count, colorVar) {
+	let wrap = document.createElement("div");
+	wrap.className = "rays-wrap";
+	let cfg = GLOW_CONFIG.rays;
+	let arcSize = 360 / count;
+	for (let i = 0; i < count; i++) {
+		let ray = document.createElement("div");
+		ray.className = "ray";
+		let angle = i * arcSize + Math.random() * arcSize;
+		ray.style.setProperty("--ray-angle", `${angle.toFixed(1)}deg`);
+		ray.style.setProperty("--ray-delay", `${(Math.random() * cfg.delayMaxS).toFixed(2)}s`);
+		ray.style.setProperty("--ray-dur", `${(cfg.durationMinS + Math.random() * (cfg.durationMaxS - cfg.durationMinS)).toFixed(2)}s`);
+		ray.style.setProperty("--ray-color", colorVar);
+		wrap.appendChild(ray);
+	}
+	return wrap;
+}
+
+// The detail panel's character-view header (avatar+rays on the left,
+// name+tags on the right) — identical between Timeline's openCharPanel and
+// Calendar's renderCharacterPanel, so it's built once here instead of
+// twice. Only the header itself: each caller still sets its own content
+// background, preexisting note, stats, and appearance list around it,
+// since those differ (or don't exist at all) per page. Assumes `header`
+// has already been cleared and glow-config.js has already run.
+function buildCharacterHeader(header, name, rarity, notes) {
+	header.classList.add("is-character");
+
+	let namecardPath = `assets/namecards/${name.replace(/\s/g, "").toLowerCase()}.jpg`;
+	header.style.backgroundImage = `linear-gradient(to bottom, rgba(13,13,20,0.45), rgba(13,13,20,0.94)), url(${namecardPath})`;
+
+	let avatarWrap = document.createElement("div");
+	avatarWrap.className = "avatar-wrap avatar-wrap-lg";
+	avatarWrap.appendChild(buildRays(GLOW_CONFIG.rays.countLg, rarity === "4" ? "var(--four-glow)" : "var(--five-glow)"));
+	avatarWrap.appendChild(faceImg(name, "phase-face-lg is-release" + (rarity === "4" ? " rarity-four" : "")));
+	header.appendChild(avatarWrap);
+
+	let textCol = document.createElement("div");
+	textCol.className = "detail-panel-header-text";
+
+	let nameEl = document.createElement("h2");
+	nameEl.className = "detail-panel-name";
+	nameEl.textContent = name;
+	textCol.appendChild(nameEl);
+
+	let tagsWrap = document.createElement("div");
+	tagsWrap.className = "detail-panel-tags";
+	let badge = rarityBadge(rarity);
+	let rarityTag = document.createElement("span");
+	rarityTag.className = badge.className;
+	rarityTag.textContent = badge.text;
+	tagsWrap.appendChild(rarityTag);
+	if (notes.rateDown) {
+		let poolTag = document.createElement("span");
+		poolTag.className = "rate-down-tag";
+		poolTag.textContent = "Rate-down";
+		tagsWrap.appendChild(poolTag);
+	}
+	textCol.appendChild(tagsWrap);
+
+	header.appendChild(textCol);
+}
+
+function rarityBadge(rarity) {
+	return { className: "detail-panel-badge " + (rarity === "5" ? "is-five" : "is-four"), text: rarity === "5" ? "5-Star" : "4-Star" };
+}
+
+// Wires click + Enter/Space keydown on `el` to the same zero-arg action —
+// the "clickable text that also acts like a button" pattern (e.g. a
+// char-appear-row's jumpable version link).
+function onActivate(el, action) {
+	el.addEventListener("click", action);
+	el.addEventListener("keydown", e => {
+		if (e.key === "Enter" || e.key === " ") { e.preventDefault(); action(); }
+	});
+}
+
+// Same pairing, delegated: fires `handler(trigger)` on a click or Enter/
+// Space keydown anywhere inside `container` whose target matches `selector`.
+function onDelegatedActivate(container, selector, handler) {
+	container.addEventListener("click", e => {
+		let trigger = e.target.closest(selector);
+		if (trigger) handler(trigger);
+	});
+	container.addEventListener("keydown", e => {
+		if (e.key !== "Enter" && e.key !== " ") return;
+		let trigger = e.target.closest(selector);
+		if (trigger) { e.preventDefault(); handler(trigger); }
+	});
+}
+
+// Mobile drag-to-dismiss for the detail panel's grabber pill: 1:1 finger
+// tracking via inline transform, and a qualifying swipe (>25% of the
+// panel's height) calls onDismiss() — always a full close, matching a
+// backdrop tap, never a partial action, on both Timeline's single-level
+// panel and Calendar's panel stack. A non-qualifying release just lets the
+// existing CSS transition snap back into place.
+function initPanelGrabberDrag(onDismiss) {
+	let grabber = document.getElementById("detailPanelGrabber");
+	let panel = document.getElementById("detailPanel");
+	let dragging = false;
+	let startY = 0;
+	let dragDistance = 0;
+
+	grabber.addEventListener("pointerdown", e => {
+		dragging = true;
+		startY = e.clientY;
+		dragDistance = 0;
+		panel.style.transition = "none";
+		grabber.setPointerCapture(e.pointerId);
+	});
+	grabber.addEventListener("pointermove", e => {
+		if (!dragging) return;
+		dragDistance = Math.max(0, e.clientY - startY);
+		panel.style.transform = `translateY(${dragDistance}px)`;
+	});
+	function endGrabberDrag() {
+		if (!dragging) return;
+		dragging = false;
+		let shouldDismiss = dragDistance > panel.offsetHeight * 0.25;
+		panel.style.transition = "";
+		panel.style.transform = "";
+		if (shouldDismiss) onDismiss();
+	}
+	grabber.addEventListener("pointerup", endGrabberDrag);
+	grabber.addEventListener("pointercancel", endGrabberDrag);
+}
+
 function initBackToTop() {
 	let btn = document.getElementById("backToTop");
 	if (!btn) return;
