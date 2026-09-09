@@ -324,7 +324,7 @@ function buildCharacterHeader(header, name, rarity, notes) {
 
 	let avatarWrap = document.createElement("div");
 	avatarWrap.className = "avatar-wrap avatar-wrap-lg";
-	avatarWrap.appendChild(buildRays(GLOW_CONFIG.rays.countLg, rarity === "4" ? "var(--four-glow)" : "var(--five-glow)"));
+	avatarWrap.appendChild(buildRays(GLOW_CONFIG.rays.countHeader, rarity === "4" ? "var(--four-glow)" : "var(--five-glow)"));
 	avatarWrap.appendChild(faceImg(name, "phase-face-lg is-release" + (rarity === "4" ? " rarity-four" : "")));
 	header.appendChild(avatarWrap);
 

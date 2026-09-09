@@ -116,11 +116,17 @@ function deriveSpringConstants(stiffness, damping, stepMs) {
 
 // Carousel spring: same shape (damping ratio ζ) as the 4-star toy's, but
 // slowed down — stiffness÷n², damping^(1/n) preserves ζ exactly while
-// stretching the motion over n times more real time.
+// stretching the motion over n times more real time. Shared by both axes
+// of the carousel's own drag-release feel — horizontal settle
+// (springSettle() below) and the vertical bounce a drag picks up — not the
+// 4-star toy's own (faster) pace directly.
 const CAROUSEL_SLOWDOWN = 2;
-const CAROUSEL_SPRING_STIFFNESS = SPRING_STIFFNESS / (CAROUSEL_SLOWDOWN * CAROUSEL_SLOWDOWN);
-const CAROUSEL_SPRING_DAMPING = Math.pow(SPRING_DAMPING, 1 / CAROUSEL_SLOWDOWN);
-const { decay: CAROUSEL_SPRING_DECAY, omegaD: CAROUSEL_SPRING_OMEGA_D } = deriveSpringConstants(CAROUSEL_SPRING_STIFFNESS, CAROUSEL_SPRING_DAMPING, SPRING_STEP_MS);
+const CAROUSEL_BOUNCE_STIFFNESS = SPRING_STIFFNESS / (CAROUSEL_SLOWDOWN * CAROUSEL_SLOWDOWN);
+const CAROUSEL_BOUNCE_DAMPING = Math.pow(SPRING_DAMPING, 1 / CAROUSEL_SLOWDOWN);
+const { decay: CAROUSEL_BOUNCE_DECAY, omegaD: CAROUSEL_BOUNCE_OMEGA_D } = deriveSpringConstants(CAROUSEL_BOUNCE_STIFFNESS, CAROUSEL_BOUNCE_DAMPING, SPRING_STEP_MS);
+// Same asymptotic rubber-band shape as attachSpringDrag's rubberBand(), just
+// 1D — vertical pull approaches this many px but never quite reaches it.
+const CAROUSEL_BOUNCE_MAX_PULL = 26;
 
 // Exact solution to a damped harmonic oscillator over `dt` seconds, given
 // its current offset from rest (e) and velocity (v) — not an approximation
@@ -150,12 +156,14 @@ function stepSpring(e, v, dt, decay, omegaD) {
 const CAROUSEL_INTERVAL_MS = 5000;
 const CAROUSEL_SETTLE_MS = 1000;
 // How dark an off-center slot gets at dist >= 1 — a literal "spotlight
-// swinging away" dim, layered on top of the existing fade/tilt.
+// swinging away" dim, layered on top of the existing fade.
 const CAROUSEL_MIN_BRIGHTNESS = 0.1;
-// Max 3D tilt (deg) a slot reaches, pivoting around its own center (see
-// .spotlight-carousel's `perspective` in landing.css) — a card turning away
-// in real depth rather than just sliding flat.
-const CAROUSEL_MAX_TILT_DEG = 38;
+// The label rides its own extra fraction of the card's translateX, on top
+// of (not instead of) the card's own — negative here means the label
+// partially cancels the card's motion, so it visibly lags behind and reads
+// as a farther-back layer. 0 would pin it exactly to the card; positive
+// would have it outrun the card instead (a nearer layer).
+const CAROUSEL_LABEL_PARALLAX = -0.15;
 // position-units are "how many carousel widths of drag" — 1.0 = exactly one
 // full slide over. Velocity below FLING_MIN is treated as a plain release
 // (springSettle() runs immediately); above it, momentum coasts (decaying by
@@ -299,6 +307,8 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 		slot.character = character;
 		let fresh = buildSpotlightFiveCard(character, data, versionIdx, phaseIdx, notes);
 		slot.el.replaceChildren(...fresh.childNodes);
+		// Cached once per content swap, not re-queried every render() frame.
+		slot.labelEl = slot.el.querySelector(".spotlight-fivecard-label");
 	};
 	slots.forEach(assign);
 
@@ -312,18 +322,13 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 			// nearly invisible from fading out. Ramping twice as fast makes
 			// the dim itself the visible part of the transition.
 			let brightness = 1 - Math.min(1, dist * 2) * (1 - CAROUSEL_MIN_BRIGHTNESS);
-			// Same "reach full effect by dist 0.4, not 1" fix as brightness
-			// above, for the same reason — ramping the tilt all the way to
-			// dist 1 meant it only got visibly large right as opacity had
-			// already faded the card out, so it never read as depth. The
-			// resting (fully off-center) card is invisible either way, so
-			// front-loading this doesn't cost anything there.
-			let tiltFraction = Math.max(-1, Math.min(1, diff / 0.4));
-			let tilt = tiltFraction * CAROUSEL_MAX_TILT_DEG;
-			slot.el.style.transform = `translateX(${diff * getSlotPx()}px) rotateY(${-tilt}deg)`;
+			slot.el.style.transform = `translateX(${diff * getSlotPx()}px) translateY(${bounceY}px)`;
 			slot.el.style.opacity = String(Math.max(0, 1 - dist));
 			slot.el.style.filter = `brightness(${brightness})`;
 			slot.el.classList.toggle("is-active", slot.offset === 0);
+			// Riding its own extra parallax offset on top of the card's —
+			// see CAROUSEL_LABEL_PARALLAX.
+			slot.labelEl.style.transform = `translateX(${diff * getSlotPx() * CAROUSEL_LABEL_PARALLAX}px)`;
 		});
 		dotEls.forEach((d, i) => d.classList.toggle("is-active", i === baseIndex));
 		applyActiveElement(fiveStars[baseIndex]);
@@ -404,13 +409,14 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 	};
 	// The physical "letting go" moment — a plain drag-release or a momentum
 	// coast that's slowed to a stop, pulling back to whichever character is
-	// nearest. Reuses the exact same tuned underdamped spring as the 4-star
-	// card's drag toy (stepSpring(), driven by real per-frame dt rather than
-	// a fixed step — see that function's comment for why an exact solution
-	// stays correct at any frame rate), so the same signature bounce shows
-	// up here as the visible "give" when momentum runs out, rather than
-	// settle()'s calm, non-bouncy sweep — deliberately kept for auto-
-	// advance/dot-clicks, moves the user's hand didn't make.
+	// nearest. Reuses the same underdamped stepSpring() shape as the 4-star
+	// card's drag toy (driven by real per-frame dt rather than a fixed step
+	// — see that function's comment for why an exact solution stays correct
+	// at any frame rate), just tuned slower (CAROUSEL_BOUNCE_STIFFNESS/
+	// DAMPING above) — the same signature bounce shows up here as the
+	// visible "give" when momentum runs out, rather than settle()'s calm,
+	// non-bouncy sweep — deliberately kept for auto-advance/dot-clicks,
+	// moves the user's hand didn't make.
 	//
 	// Tracks its own `target` + `offset` (position = target + offset)
 	// instead of springing `position` directly at a fixed target, because
@@ -438,7 +444,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 		let frame = now => {
 			let dt = lastFrameTime === null ? 0 : (now - lastFrameTime) / 1000;
 			lastFrameTime = now;
-			let stepped = stepSpring(offset, velocity, dt, CAROUSEL_SPRING_DECAY, CAROUSEL_SPRING_OMEGA_D);
+			let stepped = stepSpring(offset, velocity, dt, CAROUSEL_BOUNCE_DECAY, CAROUSEL_BOUNCE_OMEGA_D);
 			offset = stepped.e; velocity = stepped.v;
 			let settled = Math.abs(offset) < restOffset && Math.abs(velocity) < restVelocity;
 			if (settled) offset = 0;
@@ -514,10 +520,42 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 		while (velocityHistory.length > 1 && now - velocityHistory[0].t > CAROUSEL_VELOCITY_WINDOW_MS) velocityHistory.shift();
 	};
 
+	// Vertical bounce: an independent spring, driven by its own rAF loop
+	// (not tied to the X-side momentum/settle loop, since it needs to keep
+	// running after release even when X has nothing left to animate, and
+	// vice versa). dragStartY/bounceTargetY track the current pull, exactly
+	// like attachSpringDrag's target — bounceY/bounceVelY never jump
+	// straight to it, always chasing continuously, drag or not.
+	let dragStartY = 0;
+	let bounceTargetY = 0;
+	let bounceY = 0, bounceVelY = 0;
+	let bounceRAF = null;
+	let bounceLastFrame = null;
+	let tickBounce = now => {
+		let dt = bounceLastFrame === null ? 0 : (now - bounceLastFrame) / 1000;
+		bounceLastFrame = now;
+		let step = stepSpring(bounceY - bounceTargetY, bounceVelY, dt, CAROUSEL_BOUNCE_DECAY, CAROUSEL_BOUNCE_OMEGA_D);
+		bounceY = bounceTargetY + step.e;
+		bounceVelY = step.v;
+		let restVelocity = 0.4 * (1000 / SPRING_STEP_MS);
+		if (!dragging && Math.abs(bounceY) < 0.4 && Math.abs(bounceVelY) < restVelocity) {
+			bounceY = 0; bounceVelY = 0;
+			bounceRAF = null;
+			bounceLastFrame = null;
+			render();
+			return;
+		}
+		render();
+		bounceRAF = requestAnimationFrame(tickBounce);
+	};
+	let startBounce = () => { if (bounceRAF === null) bounceRAF = requestAnimationFrame(tickBounce); };
+
 	carousel.addEventListener("pointerdown", e => {
 		stopAutoAdvance();
 		stopAnimation();
 		carousel.classList.add("is-dragging");
+		dragStartY = e.clientY;
+		startBounce();
 		// Capture so pointermove/pointerup still fire on this element even if
 		// the drag continues outside the carousel's bounds.
 		carousel.setPointerCapture(e.pointerId);
@@ -533,6 +571,11 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 		lastPointerX = e.clientX;
 		position -= dx / getSlotPx();
 		resolveRotation();
+		// Vertical pull, rubber-banded the same asymptotic way as
+		// attachSpringDrag's rubberBand() — total offset from drag start,
+		// not a per-event delta, so it tracks the actual pull distance.
+		let rawDy = e.clientY - dragStartY;
+		bounceTargetY = CAROUSEL_BOUNCE_MAX_PULL * (1 - 1 / (Math.abs(rawDy) / CAROUSEL_BOUNCE_MAX_PULL + 1)) * Math.sign(rawDy);
 		render();
 		let now = performance.now();
 		velocityHistory.push({ x: e.clientX, t: now });
@@ -547,6 +590,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 		if (!dragging) return;
 		dragging = false;
 		carousel.classList.remove("is-dragging");
+		bounceTargetY = 0;
 
 		let now = performance.now();
 		pruneVelocityHistory(now);

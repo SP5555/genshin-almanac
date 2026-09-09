@@ -5,6 +5,7 @@ var GLOW_CONFIG = {
 	rays: {
 		countLg: 8,        // number of ray blades behind a 5-star release portrait
 		countSm: 8,        // number of ray blades behind a 4-star release portrait
+		countHeader: 16,   // number of ray blades behind the detail panel's character header avatar (bigger, only ever one on screen at once)
 		widthLg: 8,        // px width of each 5-star ray blade
 		widthSm: 4,        // px width of each 4-star ray blade
 		lengthLg: 50,      // % of avatar-wrap radius each 5-star ray reaches at peak

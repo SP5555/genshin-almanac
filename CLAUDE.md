@@ -99,26 +99,58 @@ currently running, computed rather than hand-maintained:
   override file already got rejected for.
 
 ### Spotlight carousel
-Physics-driven, drag/momentum/3D-tilt — deliberately heavier than every
-other interactive bit on this page (see "Trivia ticker" below for the
-opposite call). Fixed 3-slot ring buffer (prev/center/next) rather than one
-DOM node per character — needed because a 2-character banner has the same
-character visible on both sides at once, which breaks any "which side does
-this go on" logic; content reassignment only happens inside
-`resolveRotation()` the instant a slot is fully offscreen (`dist ≥ 1.5`).
-Multi-step jumps (e.g. dot-clicking 2 characters over) run as **one**
-continuous rAF sweep, not chained CSS transitions — chaining caused a
-visible dead-stop at the midpoint character before re-accelerating.
-`settle()`'s eased curve (drives auto-advance, dot-clicks, and drag-release
-corrections alike) is a true ease-in-out cubic, not ease-out-only — the
-original `1 - (1-t)^3` snapped to full speed instantly and only decelerated
-into the stop, reading as an abrupt kick at the start of every
-programmatic move; symmetric slow-start/fast-middle/slow-stop feels calmer
-for a move nothing prompted.
-3D tilt (`perspective` + `rotateY`) reaches full magnitude by `dist:0.4`,
-not `dist:1` — ramping linearly to `dist:1` meant it only got visibly large
-right as opacity had already faded the card to nothing, so it never read
-as depth (same "front-load the effect" fix applied to the brightness dim).
+Physics-driven, drag/momentum — deliberately heavier than every other
+interactive bit on this page (see "Trivia ticker" below for the opposite
+call). Fixed 3-slot ring buffer (prev/center/next) rather than one DOM node
+per character — needed because a 2-character banner has the same character
+visible on both sides at once, which breaks any "which side does this go
+on" logic; content reassignment only happens inside `resolveRotation()` the
+instant a slot is fully offscreen (`dist ≥ 1.5`). Multi-step jumps (e.g.
+dot-clicking 2 characters over) run as **one** continuous rAF sweep, not
+chained CSS transitions — chaining caused a visible dead-stop at the
+midpoint character before re-accelerating. `settle()`'s eased curve (drives
+auto-advance, dot-clicks, and drag-release corrections alike) is a true
+ease-in-out cubic, not ease-out-only — the original `1 - (1-t)^3` snapped
+to full speed instantly and only decelerated into the stop, reading as an
+abrupt kick at the start of every programmatic move; symmetric slow-start/
+fast-middle/slow-stop feels calmer for a move nothing prompted. A 3D tilt
+(`perspective` + `rotateY`, pivoting each card as it slid) was built, tuned,
+and later removed entirely per direct feedback — no `perspective` on
+`.spotlight-carousel` and no tilt math in `render()` anymore, cards only
+translate/fade/dim.
+
+**Label parallax**: `.spotlight-fivecard-label` rides its own extra
+fraction of the card's `translateX` (`CAROUSEL_LABEL_PARALLAX`, currently
+`-0.15`) — negative means it partially cancels the card's own motion, so it
+visibly lags behind and reads as a layer farther from the viewer than the
+art (positive would have it outrun the card, reading closer). Applied as a
+second `translateX` on the label itself, layered on top of (not replacing)
+the parent card's own transform — the label's cached element reference
+(`slot.labelEl`, set once per content swap in `assign()`, not re-queried
+every `render()` frame) is what makes this cheap.
+
+**Vertical bounce**: dragging the carousel up/down (an axis horizontal
+drag doesn't claim — that's carousel navigation) picks up a spring-back
+wobble across the whole carousel at once, all 3 slots moving by the same
+`bounceY` value every frame. Driven by its own independent
+`requestAnimationFrame` loop (`tickBounce`), separate from the horizontal
+momentum/settle loop, since it needs to keep animating after release even
+when the X side has nothing left to do. `springSettle()` (horizontal
+drag-release) and this vertical bounce now share one spring config —
+`CAROUSEL_BOUNCE_DECAY`/`CAROUSEL_BOUNCE_OMEGA_D`, derived from
+`SPRING_STIFFNESS`/`SPRING_DAMPING` slowed by `CAROUSEL_SLOWDOWN` — not the
+4-star toy's own (faster) pace directly, even though that's what it's
+ultimately derived from. Vertical pull is rubber-banded the same asymptotic
+way as `attachSpringDrag()`'s `rubberBand()`, just 1D (`CAROUSEL_BOUNCE_MAX_PULL`,
+26px) instead of radial. Whole-carousel (not just the center card) was a
+deliberate choice over per-card, decided on ease alone — `resolveRotation()`
+recycles which DOM slot *is* "center" mid-drag, so isolating just that one
+card would need identity-tracking through that recycling; broadcasting one
+shared value to all 3 slots' already-per-frame-driven transforms needed no
+new state or DOM at all. Runtime cost between the two options is a wash at
+this scale (3 elements, compositor-only `transform` writes) — ease of
+implementation was the actual deciding factor, not performance.
+
 Splash art: `object-fit` (cover or contain) always clips to its own box, no
 matter what an ancestor's `overflow` says — to get cover's exact scale
 *without* the crop, the `<img>` is absolutely positioned inside a
@@ -244,8 +276,9 @@ approximates the same result (exact for `decay`; a few percent off on
 deliberately fast feel (roughly a lighter original tuning run 4x faster,
 chosen to match a 240Hz display); the carousel's own constants apply
 `CAROUSEL_SLOWDOWN` on top of those same two numbers to slow back down —
-at `CAROUSEL_SLOWDOWN=4` this is an *exact* algebraic round-trip to that
-original lighter tuning, not an approximation.
+at an integer `CAROUSEL_SLOWDOWN` this is an *exact* algebraic round-trip
+to that original lighter tuning for `decay` (a few percent off on `omegaD`,
+generally imperceptible), not an approximation.
 
 **The carousel's own spring** — `springSettle()` in `buildSpotlightBanner()`
 — is the physical "letting go" moment: a plain drag-release, or a momentum
@@ -377,6 +410,21 @@ signals "this navigates" there; the chevron additionally "breathes" on
 hover, gated behind `@media (hover:hover) and (prefers-reduced-motion:
 no-preference)` since a touch device's post-tap "sticky hover" state could
 otherwise leave a looping animation visibly stuck on.
+
+Three cards now (Timeline/Calendar/Server Clocks, matching `.page-nav`'s
+order), not two — `.landing-links` is a 2-column grid at ≥600px, so the 3rd
+card would otherwise orphan itself alone in a second row with empty space
+beside it. Fixed the same way the 4-star mini cards' own lone-card case
+was: `grid-column:1/-1` + `justify-self:center` + `max-width:calc(50% - 7px)`
+(half the row, minus half the gap) keeps it the same size as its siblings
+instead of stretching full-width. That fix only applies at 600–899px,
+though — at ≥900px the sidebar forces `.landing-links` back to a single
+column (every card already full-width, alone in its own row, nothing
+orphaned), so `.landing-sidebar .landing-link-card:nth-child(3)` explicitly
+resets it there. Missing that reset was a real bug: the 3rd card (whichever
+one currently sits there — Server Clocks, since Calendar was inserted
+before it) stayed capped to half-width even in the single-column sidebar
+layout, looking narrower than its siblings for no reason.
 
 ## Timeline page (`timeline.html` / `js/app.js`)
 
@@ -591,6 +639,15 @@ per 360°/count arc) to avoid clustering; the gradient has a solid plateau
 (0–18%) before fading, since `filter: blur()` was softening the intended
 peak at the base edge.
 
+`buildRays()` and `buildCharacterHeader()` (the shared detail-panel
+character header — see "Character detail panel") both live in `shared.js`
+now, since Calendar's own character header needs them too — Calendar loads
+`glow-config.js` for this reason alone. The header's avatar uses its own
+`GLOW_CONFIG.rays.countHeader` (16, denser than `countLg`'s 8) rather than
+sharing that count — it's bigger (76px vs. a phase card's 48px) and, unlike
+the Timeline's 540 phase-card instances, only ever one on screen at once,
+so it can afford it without the perf concern `countLg` is tuned around.
+
 ### Header & page nav
 `.site-brand` is a plain gradient-text `<a>` (not `<h1>`), no tagline
 (dropped — content speaks for itself), and always links to `index.html`
@@ -598,8 +655,9 @@ peak at the base edge.
 A small `#brandLiveDot` ripples next to it when the tracked data is live
 (same rule as the Timeline's `.is-live` ripple, computed independently in
 `shared.js` since the dot needs to work on every page). `.page-nav` links
-to Timeline and Server Clocks only — the landing page deliberately has no
-nav entry for itself. Active is a glass pill + soft gold glow (not an
+to Timeline, Calendar, then Server Clocks, in that order, identically on
+all four pages — the landing page deliberately has no nav entry for
+itself. Active is a glass pill + soft gold glow (not an
 underline) — the pill's padding lives on the base `.page-nav-link` rule,
 not just `.is-active`, so every link occupies the same box regardless of
 which one is active and the nav's total width never shifts. Per-page

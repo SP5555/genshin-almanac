@@ -30,6 +30,12 @@
 	   full-width page sections) in favor of the sidebar's own gap. */
 	.landing-sidebar .landing-trivia{margin-top: 0;}
 	.landing-sidebar .landing-links{margin-top: 0; grid-template-columns: 1fr;}
+	/* Undoes the 600-899px lone-3rd-card fix below — single column here
+	   means every card is already full-width and alone in its own row, so
+	   there's no orphaned-card problem left to fix; without this override,
+	   the 3rd card (Server Clocks) stayed capped to ~half-width even in
+	   this single-column layout. */
+	.landing-sidebar .landing-link-card:nth-child(3){grid-column: auto; justify-self: stretch; max-width: none;}
 }
 
 .landing-spotlight-intro{margin-top: 48px; text-align: center;}
@@ -142,10 +148,6 @@
 .spotlight-carousel{
 	position: relative; z-index: 1;
 	display: grid; grid-template-columns: 1fr;
-	/* Gives the rotateY() tilt in landing.js's render() real depth instead
-	   of a flat skew — a smaller value would exaggerate the tilt more, a
-	   larger one would flatten it out. */
-	perspective: 1200px;
 }
 /* Only added when there's more than one card to drag between — a single-
    5-star phase has no carousel behavior wired up at all (see
@@ -473,7 +475,16 @@
 	display: grid; grid-template-columns: 1fr; gap: 14px;
 	margin-top: 48px;
 }
-@media (min-width: 600px){ .landing-links{grid-template-columns: 1fr 1fr;} }
+/* 3 cards over 2 columns orphans the 3rd alone on its own row — spanning
+   both tracks but capping its own width to what a card would be if there
+   WERE two sharing the row (half, minus half the gap) keeps it the same
+   size as its siblings, centered, instead of stretching to fill the full
+   row. Same fix as the 4-star mini cards' lone-card case (see CLAUDE.md);
+   a no-op once the sidebar layout below forces this back to 1 column. */
+@media (min-width: 600px){
+	.landing-links{grid-template-columns: 1fr 1fr;}
+	.landing-link-card:nth-child(3){grid-column: 1 / -1; justify-self: center; max-width: calc(50% - 7px);}
+}
 .landing-link-card{
 	display: block; padding: 20px 22px;
 	background-color: var(--glass); border: 1px solid var(--glass-border);
