@@ -7,8 +7,8 @@ codebase; keep additions zero-build/vanilla-JS unless asked to modernize.
 
 Renamed from "GI Gacha Timeline" (repo `SP5555/GI-Gacha-Timeline`, domain
 gigachatimeline.netlify.app) to "Genshin Almanac" (repo
-`SP5555/genshin-almanac`, live at genshin-almanac.netlify.app — confirmed
-2026-08-24) around 2026-08-23.
+`SP5555/genshin-almanac`, live at genshin-almanac.netlify.app) around
+2026-08-23.
 
 `npm run dev` (`live-server`) is **required** for local testing — `data/*.json`
 loads via `fetch()`, which is CORS-blocked on `file://`. No effect on the
@@ -18,1096 +18,78 @@ deployed site (Netlify serves over https, no `netlify.toml` needed).
 that would be expensive to re-derive (research, gotchas, rejected
 approaches) — not a narrated history of routine implementation. The code
 and git log already show what changed; this file should only hold what
-they can't tell you.
+they can't tell you. Same goes for inline code comments and the per-page
+docs below: state the current fact, not the sequence of attempts that led
+to it.
 
 ## Directory layout
 
 - `index.html` — landing page (the site's actual root/entry point).
-  `timeline.html` — the full banner Timeline (this used to be `index.html`,
-  renamed when the landing page was built — see "Landing page" below).
-  `clocks.html` — Server Clocks page. `calendar.html` — Calendar page.
+  `timeline.html` — the full banner Timeline (used to be `index.html`,
+  renamed when the landing page was built). `clocks.html` — Server Clocks
+  page. `calendar.html` — Calendar page.
 - `css/reset.css` + `css/style.css` — shared base (palette, header, footer,
   detail panel, timeline, back-to-top button, brand live-dot). `css/clocks.css`
   / `css/landing.css` / `css/calendar.css` — page-specific styles for those
   three pages.
 - `js/shared.js` — cross-page utilities, loaded by all four pages: the
   back-to-top button, the header brand's live-status dot,
-  `faceImg()`/`facePath()`/`formatDate()`/`countAppearancesThrough()`
-  (each moved out of `app.js` once a second page needed it),
-  `swapWithFade()` (a generic fade-out/swap-DOM/resize/fade-in animation —
-  moved here once Calendar's detail-panel stack needed the identical
-  technique the landing page's trivia ticker had already built
-  independently; see "Trivia ticker" and Calendar's "Day panel" below for
-  its two callers), and `previewNow()` (see "Testing date/time-sensitive
-  UI" below). `js/app.js`
-  — Timeline page logic, still
-  the only thing that knows how to render the full 52-version DOM.
-  `js/glow-config.js` — release-glow ray tuning knobs, kept as `.js` not
-  JSON since it applies its own values as CSS custom properties.
-  `js/clocks.js` — Server Clocks logic. `js/landing.js` — landing page
-  logic. `js/calendar.js` — Calendar page logic. None of the four depend on
-  each other.
-- `data/*.json` — plain JSON, no comments/trailing commas — semantics
-  documented below since JSON can't hold comments. `data/SOURCES.md` — art
-  asset sourcing reference (APIs, file patterns, codenames), split out so
-  it's only loaded when actually sourcing new art — see "Art provenance"
-  below.
+  `faceImg()`/`facePath()`/`formatDate()`/`countAppearancesThrough()`,
+  `swapWithFade()` (generic fade-out/swap-DOM/resize/fade-in animation),
+  and `previewNow()` (see "Testing date/time-sensitive UI"). `js/app.js` —
+  Timeline page logic, still the only thing that knows how to render the
+  full 52-version DOM. `js/glow-config.js` — release-glow ray tuning knobs,
+  kept as `.js` not JSON since it applies its own values as CSS custom
+  properties. `js/clocks.js` — Server Clocks logic. `js/landing.js` —
+  landing page logic. `js/calendar.js` — Calendar page logic. None of the
+  four depend on each other.
+- `data/*.json` — plain JSON, no comments/trailing commas. `data/SOURCES.md`
+  — art asset sourcing reference (APIs, file patterns, codenames) and the
+  data-accuracy research behind `data.json`'s dates/rosters, split out so
+  it's only loaded when actually sourcing new art or adding a new version.
 - `assets/faces/<name>.png`, `assets/namecards/<name>.jpg`,
   `assets/elements/<element>.svg`, `assets/regions/<region>.jpg`,
   `assets/backgrounds/server-clocks.webp`, `assets/fonts/zh-cn.ttf`.
 - `scripts/validate-data.js` (`npm run validate`) — cross-checks the
   `data/*.json` files against each other; see "Data validation" below.
-
-## Landing page (`index.html` / `js/landing.js` / `css/landing.css`)
-
-Built 2026-08-24, once the site had enough real pages (Timeline + Server
-Clocks) that a directory made sense — see "Multi-page architecture" below
-for why that timing mattered. `index.html` no longer *is* the Timeline; it's
-a lightweight page of its own, and the header brand link now points here
-from every page instead of self-linking. Deliberately has no `.page-nav`
-entry for itself — there's nothing to navigate *to* from the page you're
-already on, and clicking the wordmark already goes here from anywhere.
-
-**Spotlight card**: shows whichever phase of the latest `data.json` entry is
-currently running, computed rather than hand-maintained:
-- Phase length confirmed at **21 days** (cross-checked, not the 20 I'd
-  half-remembered) via a source giving exact dates for 7.0 that matched our
-  own verified data exactly (Aug 12 → Sep 1 Phase 1, Sep 2 → Sep 22 Phase 2).
-  `getCurrentPhaseIndex()` in `landing.js` uses `version.date + 21×N days`
-  to pick the phase.
-- **Deliberately only needs to be right for the live version**, not all 52
-  historical ones — historical phases don't have a "current phase" concept
-  at all, they just render on the Timeline as-is. That's what makes this
-  cheap: the formula only has to hold for whichever version is live *right
-  now*, and the irregular historical versions (2.7's delay, 3.0–3.2's
-  shortened cycles, any 3-phase version) don't need to be retroactively
-  researched. If a *future* version turns out irregular, that's a one-off
-  fix at that time, not a blocker now — same philosophy as the update-card
-  estimate and the live-ripple heuristic.
-- Release-vs-rerun status (the same "Release"/"Rerun N" badges the Timeline
-  shows) needed a real per-character appearance count, but pulling in
-  `app.js`'s `characterIndex` would mean rendering the entire timeline just
-  to get it (see "Multi-page architecture" below — that's flagged as
-  unbuilt for exactly this reason). Fix: `countAppearancesThrough()` scans
-  `data.json` only up to the current version/phase for just the handful of
-  characters actually shown here — same *correctness*, without needing the
-  full historical index or `app.js` at all.
-- Background reuses the Timeline's per-version region-art recipe, but reads
-  the *current* version's region from `version-notes.json` dynamically
-  rather than hardcoding today's region (Snezhnaya) — otherwise it'd go
-  stale the moment a new region drops, same mistake the update-card
-  override file already got rejected for.
-
-### Spotlight carousel
-Physics-driven, drag/momentum — deliberately heavier than every other
-interactive bit on this page (see "Trivia ticker" below for the opposite
-call). Fixed 3-slot ring buffer (prev/center/next) rather than one DOM node
-per character — needed because a 2-character banner has the same character
-visible on both sides at once, which breaks any "which side does this go
-on" logic; content reassignment only happens inside `resolveRotation()` the
-instant a slot is fully offscreen (`dist ≥ 1.5`). Multi-step jumps (e.g.
-dot-clicking 2 characters over) run as **one** continuous rAF sweep, not
-chained CSS transitions — chaining caused a visible dead-stop at the
-midpoint character before re-accelerating. `settle()`'s eased curve (drives
-auto-advance, dot-clicks, and drag-release corrections alike) is a true
-ease-in-out cubic, not ease-out-only — the original `1 - (1-t)^3` snapped
-to full speed instantly and only decelerated into the stop, reading as an
-abrupt kick at the start of every programmatic move; symmetric slow-start/
-fast-middle/slow-stop feels calmer for a move nothing prompted. A 3D tilt
-(`perspective` + `rotateY`, pivoting each card as it slid) was built, tuned,
-and later removed entirely per direct feedback — no `perspective` on
-`.spotlight-carousel` and no tilt math in `render()` anymore, cards only
-translate/fade/dim.
-
-**Label parallax**: `.spotlight-fivecard-label` rides its own extra
-fraction of the card's `translateX` (`CAROUSEL_LABEL_PARALLAX`, currently
-`-0.15`) — negative means it partially cancels the card's own motion, so it
-visibly lags behind and reads as a layer farther from the viewer than the
-art (positive would have it outrun the card, reading closer). Applied as a
-second `translateX` on the label itself, layered on top of (not replacing)
-the parent card's own transform — the label's cached element reference
-(`slot.labelEl`, set once per content swap in `assign()`, not re-queried
-every `render()` frame) is what makes this cheap.
-
-**Vertical bounce**: dragging the carousel up/down (an axis horizontal
-drag doesn't claim — that's carousel navigation) picks up a spring-back
-wobble across the whole carousel at once, all 3 slots moving by the same
-`bounceY` value every frame. Driven by its own independent
-`requestAnimationFrame` loop (`tickBounce`), separate from the horizontal
-momentum/settle loop, since it needs to keep animating after release even
-when the X side has nothing left to do. `springSettle()` (horizontal
-drag-release) and this vertical bounce now share one spring config —
-`CAROUSEL_BOUNCE_DECAY`/`CAROUSEL_BOUNCE_OMEGA_D`, derived from
-`SPRING_STIFFNESS`/`SPRING_DAMPING` slowed by `CAROUSEL_SLOWDOWN` — not the
-4-star toy's own (faster) pace directly, even though that's what it's
-ultimately derived from. Vertical pull is rubber-banded the same asymptotic
-way as `attachSpringDrag()`'s `rubberBand()`, just 1D (`CAROUSEL_BOUNCE_MAX_PULL`,
-26px) instead of radial. Whole-carousel (not just the center card) was a
-deliberate choice over per-card, decided on ease alone — `resolveRotation()`
-recycles which DOM slot *is* "center" mid-drag, so isolating just that one
-card would need identity-tracking through that recycling; broadcasting one
-shared value to all 3 slots' already-per-frame-driven transforms needed no
-new state or DOM at all. Runtime cost between the two options is a wash at
-this scale (3 elements, compositor-only `transform` writes) — ease of
-implementation was the actual deciding factor, not performance.
-
-Splash art: `object-fit` (cover or contain) always clips to its own box, no
-matter what an ancestor's `overflow` says — to get cover's exact scale
-*without* the crop, the `<img>` is absolutely positioned inside a
-fixed-aspect-ratio wrapper, sized by height alone (width left to its
-natural 2:1 ratio) so it bleeds past the wrapper's sides symmetrically,
-clipped only by `.spotlight-banner` itself. Must be `position:absolute`,
-not a flex child sized by `height:100%` — a flex child's percentage height
-resolving against a purely `aspect-ratio`-derived container height is
-circular (the container's content-size pass sees the image's raw 1024px
-intrinsic height before `aspect-ratio` constrains it), inflating the
-wrapper to the wrong size. Both this and the 4-star cards' splash art
-zoom slightly (`scale()`) on hovering the card — `transform`-only, and
-safely clipped by the card's own `overflow:hidden` the same way the art's
-normal off-wrap bleed already is. Each variant's hover rule has to restate
-its own base `translate()` alongside the added `scale()`, since a bare
-`scale()` would replace the centering transform outright rather than
-combining with it.
-
-**4-star mini cards** (below the carousel) use the same splash art + the
-same crop technique (now squared to `aspect-ratio:1/1` — the existing
-"sized by height, centered, clipped by the card's own overflow:hidden"
-approach already behaves exactly like `object-fit:cover` once the box gets
-narrower than the source's 2:1 ratio, so squaring it up needed no new
-technique, just the one ratio number) — real art instead of a circular
-face icon, still clearly secondary by scale alone. Release-vs-rerun is the
-tag text only (`Release`/`Rerun N`, same convention the 5-star cards
-use), not a separate grayscale-filter/colored-ring distinction — one
-convention for that fact, not two.
-
-Cards are fluid width (`flex:1 1 45%` below 600px, `flex:1 1 0` at
-≥600px), not fixed pixels — deliberately spans the same full width as the
-carousel above it. The mobile "2 on top, 1 on bottom" fallback below 600px
-falls out of plain flexbox for free: `flex-basis:45%` fits two per row
-(grown to ~50% each), a third has no room and wraps alone. **The lone card
-is capped, not stretched**: `max-width:calc(50% - 6px)` (50% of the row,
-minus half the 12px gap — exactly what a card grows to when there ARE two
-per row) plus `margin:0 auto` keeps it the same size as its siblings,
-centered with empty space either side, instead of letting `flex-grow`
-blow it up to a full 100%-width row. That stretch was tried first and
-rejected: at 2x the width, the `aspect-ratio:1/1` image wrap scaled up
-with it, making that one character's art visibly bigger than the other
-two for no reason tied to the character itself. Checked the real
-distribution before relying on "usually exactly 3": 104 of ~110 phases in
-`data.json` (incl. `chronicled`) have exactly 3 four-stars; rarer counts
-(up to 13, chronicled banners) still wrap via the same `flex-wrap`. The
-element watermark's `background-size` is a percentage (`130% 130%`), not a
-fixed pixel value, for the same fluid-width reason.
-
-The name/tag label overlaps the art itself, reclaiming that height for the
-splash art instead of pushing the card taller — but as an
-`position:absolute; bottom:8px` overlay on `.spotlight-fourcard` itself,
-**not** the `.spotlight-fivecard-label` carousel's `margin-top:-Npx` trick.
-That negative-margin approach only overlaps correctly if the label is
-always the same height, and it isn't: preexisting-roster characters (e.g.
-Sucrose — see below) skip the tag entirely, so their label is just the
-name, shorter than the two-line name+tag case the margin was tuned for. A
-fixed negative margin sized for the tall case over-pulls the short case,
-which — since the label still sits in normal flex flow — shrinks that
-card's total height and clips the bottom of its own art (caught exactly
-this way: Sucrose's card came out 22px shorter than Alyosha's/Lynette's,
-with ~11px of her splash art cut off). Taking the label out of flow
-entirely with `position:absolute` sizes the card off the image wrap alone,
-so every card is identical regardless of that character's label height —
-worth remembering as the general fix whenever an overlapping caption's
-content length can vary (the carousel's `.spotlight-fivecard-label` has the
-same latent risk, just not yet hit live, since no currently-preexisting
-5-star lacks every tag). Text-shadow (not a background box) keeps the name
-legible against whatever's directly behind it, mirroring the fivecard name.
-
-Preexisting-roster characters (e.g. Sucrose) show no tag at all, same as
-on the carousel — calling their first tracked appearance "Release" would
-be wrong and a "Rerun N" count would be meaningless without knowing their
-real 1.0 debut, so the tag is omitted rather than shown incorrectly.
-
-Splash art is draggable, purely decorative — `attachSpringDrag(handleEl,
-targetEl, options)` in landing.js, written generically (not fourcard-
-specific, so it's reusable on any future element): `handleEl` takes the
-pointer events, `targetEl` gets the transform, `options` exposes
-`maxPull`/`stiffness`/`damping`/`rest`/class names/`baseTransform`.
-Currently wired up as `attachSpringDrag(card, dragLayer)` — `dragLayer` is
-a dedicated wrapper around the `<img>`, not the `<img>` itself, so the
-spring's per-frame transform never shares a property with the image's own
-CSS-transitioned hover-zoom (see the transition trap below). One
-continuous spring simulation for the whole gesture, not "snap to cursor
-while dragging, then spring back after release" — dragging never sets the
-position directly, it only moves a `target` (the mouse offset, radially
-rubber-banded — iOS-scroll-bounce formula, direction-preserving, so a
-diagonal pull caps to a circle rather than a per-axis square) that a
-damped spring continuously chases, both during the drag and after release
-(target just snaps to (0,0) then). Position itself is never clamped
-anywhere — the rubber-band ceiling on the target is the only bound. Mouse-
-only, skipped on pure-touch devices (`matchMedia`, double-checked per-event
-via `pointerType`) since a touch drag would fight the page's vertical
-scroll.
-
-**Physics**: `stepSpring(e, v, dt, decay, omegaD)` (module scope in
-landing.js) is the *exact* closed-form solution to a damped harmonic
-oscillator over any elapsed `dt`, not a discretized approximation — this
-makes it frame-rate independent by construction, since a naive "one step
-per `requestAnimationFrame` callback" version runs faster on a higher-
-refresh display (more callbacks per real second). `decay`/`omegaD`
-(continuous decay rate and damped angular frequency) come from tuned
-discrete `stiffness`/`damping` constants via `deriveSpringConstants()`,
-using eigenvalue analysis of the discrete recurrence's transition matrix
-`[[1-damping*stiffness, damping], [-damping*stiffness, damping]]` — only
-valid while its eigenvalues stay complex (underdamped); a critically-
-damped/overdamped retune needs a different closed form. Tuned
-**underdamped** on purpose (the differential-equations classification:
-overdamped never crosses equilibrium, critically damped crosses at most
-once, underdamped oscillates several times before settling) for a visible
-multi-swing bounce. `damping` is a per-step velocity-*retention*
-multiplier, not a friction coefficient — a *higher* value is what loosens
-it, easy to get backwards.
-
-**Changing a spring's speed without changing its shape**: scaling `decay`
-and `omegaD` by the same factor compresses/stretches the whole motion in
-time while preserving the exact damping ratio ζ = decay/ω₀ (same swing
-count, same overshoot ratios). Equivalently, scaling the *discrete*
-`stiffness÷n²` and `damping^(1/n)` before deriving decay/omegaD
-approximates the same result (exact for `decay`; a few percent off on
-`omegaD` at `n=4`, generally imperceptible). The 4-star toy's
-`SPRING_STIFFNESS`/`SPRING_DAMPING` are baked-in literals for a
-deliberately fast feel (roughly a lighter original tuning run 4x faster,
-chosen to match a 240Hz display); the carousel's own constants apply
-`CAROUSEL_SLOWDOWN` on top of those same two numbers to slow back down —
-at an integer `CAROUSEL_SLOWDOWN` this is an *exact* algebraic round-trip
-to that original lighter tuning for `decay` (a few percent off on `omegaD`,
-generally imperceptible), not an approximation.
-
-**The carousel's own spring** — `springSettle()` in `buildSpotlightBanner()`
-— is the physical "letting go" moment: a plain drag-release, or a momentum
-coast (`runMomentum()`, plain friction decay) once it slows down, pulling
-back to whichever character is nearest. Distinct from `settle()`'s calm
-ease-in-out sweep (used for auto-advance/dot-clicks — deliberately non-
-bouncy, since those are moves the user's hand didn't make).
-`CAROUSEL_MOMENTUM_STOP_VELOCITY` hands its *actual remaining velocity* to
-the spring, not near-zero, so a real fling's momentum visibly carries into
-the bounce instead of the friction coast doing all the deceleration alone.
-Tracks its own `target`+`offset` (`position = target + offset`) rather
-than springing `position` directly at a fixed target, since a strong
-enough throw can cross into the next character mid-bounce
-(`resolveRotation()` renumbering `baseIndex`) — `target` shifts by that
-same step so `offset` (and its velocity) stays continuous across the
-renumbering instead of jumping.
-
-Two implementation traps for reusing `attachSpringDrag()` on a future
-element: (1) `targetEl` must have **no CSS transition on `transform`** —
-it's driven every frame during the drag and the spring-back, and a
-transition would ease each update, reading as input lag. A hover-zoom (or
-any other transitioned effect) needs its **own separate, nested element**
-instead — see the drag-layer/`<img>` split above. (A save/restore-the-
-inline-transition approach was tried and is a real trap: re-grabbing
-before the spring settles can permanently wipe the transition.) (2)
-`baseTransform` (whatever transform `targetEl` already has) defaults to a
-fresh `getComputedStyle` read at the start of each drag that begins from a
-fully settled state (guarded by `simRAF === null`, not re-read mid-bounce)
-— re-deriving it while the spring is still running would read back its own
-in-flight offset and bake it in as a new "base," visually doubling the
-current offset. On settle, the auto-detected case clears the inline
-transform entirely (not a baked resolved value) so live CSS — including a
-hover-zoom — keeps working afterward; only an explicit
-`options.baseTransform` string gets left in place.
-
-### Trivia ticker
-Deliberately the *lightweight* opposite of the spotlight carousel above —
-plain text, no drag physics, auto-advance/dots/pause-on-hover only. Cards
-come from two sources: real version-anniversary facts (computed) and a
-hand-written pool in `data/trivia.json` (flat string array, 3 sampled per
-load), shuffled together so an anniversary card doesn't always lead. Each
-card swap (`render()`) fades/resizes via the shared `swapWithFade()`
-(`js/shared.js`) — this was the original, landing-page-only implementation
-of that technique, pulled out once Calendar's detail-panel stack needed
-the identical thing (see Calendar's "Day panel" below).
-- **Anniversaries are nearest-match, not exact-date** — checked the real
-  spread first: 52 versions land on only 51 of 365 possible month-days, so
-  a strict "today" match would be empty ~86% of the time. Always shows the
-  nearest past *and* nearest future launch anniversary instead, collapsing
-  to a single "on this day" card on the rare exact hit (this does happen
-  — 1.0 and 3.1 both launched on Sep 28, different years; ties break
-  toward whichever occurrence is chronologically closest to today). No
-  emoji — tried one (🎉) but it wasn't rendering for the user, so trivia
-  text is plain throughout.
-- **The past/future cards state years elapsed, not just the date** —
-  `"2 days ago — version 3.0 (Sumeru) marked 4 years since its Aug 24, 2022
-  launch."` The raw date alone made the reader do the math; stating the
-  age is the actually-interesting fact. This meant a version that launched
-  earlier in the *current* calendar year could win the "nearest past"
-  search (e.g. it released 3 days ago for real) and get worded as "marked
-  0 years since" — nonsense, since it hasn't had an anniversary yet. Fixed
-  at the search step, not the sentence: entries whose `launch.getFullYear()
-  === year` are skipped from the day-count buckets entirely (unless
-  `diffDays===0`, the genuine "launched today" case the exact-match branch
-  above already handles correctly), so the nearest-past/future search falls
-  through to the next real ≥1-year anniversary instead of ever selecting a
-  same-year entry to word awkwardly.
-- **Past/future cards append which characters debuted that version, when
-  any did** — `getDebuts()` checks every character (both rarities) via the
-  existing `countAppearancesThrough()` (===1 through that version's last
-  phase) and excludes `preexisting` characters, same distinction the
-  Release/Rerun tags already make. Originally 5-star-only (reasoning: 4-star
-  debuts happen almost every version, so including them would make nearly
-  every card verbose) — reverted to include both after the 5-star-only
-  version felt too sparse; 5-stars still lead the list (collected in a
-  separate pass, concatenated after) since they're still the more
-  headline-worthy fact, just no longer the only one mentioned. **The clause
-  is appended only when the list is non-empty** (`joinNames()`,
-  Oxford-comma "A", "A and B", "A, B, and C") — even counting both
-  rarities, some versions are still pure reruns of existing characters
-  (checked: 3.8 is the only one left with zero debuts of either rarity), so
-  forcing an "introducing" clause into every card would mean either an
-  empty one or a misleading one; omitting it for those versions is correct,
-  not a gap. Chronicled banners aren't scanned for debuts — by definition
-  they only ever bring back characters from an already-released region, so
-  a chronicled entry can never contain a genuine first appearance.
-- **The progress bar's own CSS animation *is* the auto-advance timer** —
-  its `animationend` event triggers `goTo()`, rather than tracking
-  elapsed/remaining time by hand in JS (`animation-duration` set inline
-  from `TRIVIA_INTERVAL_MS`, matched to a `resetProgress()` helper that
-  restarts it — remove `.is-animating`, force a reflow, re-add it). An
-  earlier hand-rolled `setTimeout`+`remainingMs` version tried to replicate
-  what the browser already does for free when you pause/resume a CSS
-  animation, and was strictly more bug-prone for it (a real bug: the fired
-  timeout not rescheduling itself broke repeat entirely) — worth remembering
-  before reaching for manual timer math again for anything already backed
-  by a pausable CSS animation.
-- **Pausing is a single `setPaused(bool)` that toggles one class**
-  (`animation-play-state:paused`), driven by whichever signal means "the
-  user is engaged with this card" for the current input method — real
-  `mouseenter`/`mouseleave` on hover-capable devices (`matchMedia
-  "(hover:hover)"`), or, on touch, whether the most recent click *anywhere
-  on the page* landed inside `.landing-trivia` (a document-level click
-  listener checking `.contains()`). Touch has no real hover to leave, so a
-  mouseenter/mouseleave pair there pauses on tap and never un-pauses;
-  "last click was inside this card" is the mobile-appropriate substitute,
-  and it naturally covers the whole card (including the label and the
-  dots) for free, not just one sub-element.
-- Skips auto-advance entirely (dots still work) under
-  `prefers-reduced-motion`, and the progress bar isn't even built in that
-  case — showing a filling bar for a state that never advances would be
-  misleading.
-
-### Sidebar layout (desktop)
-Below 900px, everything is single-column exactly as it always was — no
-behavior differs. At ≥900px, `.landing-columns` becomes a flex row: the
-spotlight carousel (`flex:1`) on the left, a 320px sidebar (trivia ticker +
-link cards, stacked) on the right. The spotlight's own label/heading/sub
-text was pulled *out* of that column entirely into a full-width
-`.landing-spotlight-intro` above the split — only the carousel itself is
-the "left column" content.
-
-Link cards get a distinct hover language from the other three glass cards
-here (spotlight banner / 4-star cards / trivia) since they're the only
-ones that are actually clickable navigation: gold border + glow on hover,
-plus a **permanently visible** gold chevron (not hover-only) — hover
-doesn't exist on mobile at all, so the always-on chevron is what actually
-signals "this navigates" there; the chevron additionally "breathes" on
-hover, gated behind `@media (hover:hover) and (prefers-reduced-motion:
-no-preference)` since a touch device's post-tap "sticky hover" state could
-otherwise leave a looping animation visibly stuck on.
-
-Three cards now (Timeline/Calendar/Server Clocks, matching `.page-nav`'s
-order), not two — `.landing-links` is a 2-column grid at ≥600px, so the 3rd
-card would otherwise orphan itself alone in a second row with empty space
-beside it. Fixed the same way the 4-star mini cards' own lone-card case
-was: `grid-column:1/-1` + `justify-self:center` + `max-width:calc(50% - 7px)`
-(half the row, minus half the gap) keeps it the same size as its siblings
-instead of stretching full-width. That fix only applies at 600–899px,
-though — at ≥900px the sidebar forces `.landing-links` back to a single
-column (every card already full-width, alone in its own row, nothing
-orphaned), so `.landing-sidebar .landing-link-card:nth-child(3)` explicitly
-resets it there. Missing that reset was a real bug: the 3rd card (whichever
-one currently sits there — Server Clocks, since Calendar was inserted
-before it) stayed capped to half-width even in the single-column sidebar
-layout, looking narrower than its siblings for no reason.
-
-## Timeline page (`timeline.html` / `js/app.js`)
-
-Vertical timeline: a line down the left, a gradient bubble per major
-version, a smaller bubble per patch, phases as glassmorphic cards. `--line`
-(lavender `#6e5a94`) deliberately ties into the `--four` purple accent.
-
-**`data/data.json`** — one entry per version, `banner` array of phases
-(usually 2, occasionally 3), each phase has `"5"`/`"4"` arrays of
-display-name strings. Keep entries as plain strings — exceptional facts go
-in the notes files below, not inline. Each entry has a verified real-world
-`date` (`YYYY-MM-DD` — see "Data accuracy note") and, for 6 versions, a
-`chronicled` object.
-
-**`data/character-notes.json`** (keyed by character name):
-- `{"rateDown": true}` — 5-star obtainable via the standard rate-down pool,
-  not truly limited (e.g. Tighnari, Dehya, Mizuki, Keqing).
-- `{"preexisting": true}` — character existed before their first *tracked*
-  banner (the 11 characters in the 1.0 launch roster without a featured
-  slot until later). Panel note: *"Already in the game at launch — these
-  appearances are technically reruns, not a debut."*
-
-**`data/phase-notes.json`** (keyed `"<version>-<phase#>"`): `{"filler":
-true}` marks a minor/padding phase (currently only `"1.3-2"`, Keqing's —
-inserted before Hu Tao's funeral-parlor-themed banner to avoid landing near
-Chinese New Year). `{"date": "YYYY-MM-DD"}` overrides a phase's computed
-start date (`entry.date + 21×phaseIndex` — see Calendar's debut layer)
-for the handful of phases where that formula is wrong: 1.3's unusual
-3-phase structure (`1.3-2`/`1.3-3`, the Feb 17 → Mar 2 gap is only 13
-days) and 3.0–3.2's compressed 16-day cadence (`3.0-2`/`3.1-2`/`3.2-2`),
-all verified against 2+ independent sources. Phase 1 never needs an
-override — it's always exactly `entry.date`.
-
-Both notes files are keyed once per fact, not per occurrence — `app.js`
-applies them wherever relevant regardless of how `data.json` changes.
-
-**`data/version-notes.json`** (keyed by major version `"1"`–`"7"`): `region`
-(subtitle), `tagline` (Archon + ideal), `label` (overrides the numeral — v6
-is "Luna" I/II/III), `bgImage` (region background filename).
-
-**Asset filenames**: lowercase, spaces stripped
-(`character.replace(/\s/g,"").toLowerCase()`) for faces/namecards.
-**Display names**: short form for multi-title characters — Shogun,
-Ayaka/Ayato, Kokomi, Yae, Itto, Kazuha, Sara, Heizou, Wanderer.
-
-### Character detail panel
-Click any avatar → side drawer (desktop) / bottom sheet (mobile). The panel
-component itself (`#detailPanel` + `.detail-panel-*` classes, all in
-style.css) is shared with the Calendar page's day panel — named
-`detailPanel`, not `charPanel`, for that reason; `.detail-panel-name`/
-`-tags`/`-badge` styling must stay reusable, since Calendar reuses it for a
-date/version headline rather than a character name. The header itself has
-two layouts on one element: the default centered column (Calendar's
-day/date headline, no avatar) and `.detail-panel-header.is-character`
-(avatar left, a `.detail-panel-header-text` column of name+tags right) —
-since the header persists across a stack navigation rather than getting
-torn down, whichever view renders next has to leave it in the right state:
-`buildCharacterHeader(header, name, rarity, notes)` (shared.js) always adds
-`is-character` itself, so the only explicit cleanup needed is Calendar's
-day view removing it again on the way back. That shared builder is what
-Timeline's `openCharPanel` and Calendar's `renderCharacterPanel` both call
-for the header specifically — they still differ around it (content
-background, preexisting note, stats, appearance list). Its avatar always
-shows the release-style ring + `buildRays()` sunburst (shared.js,
-GLOW_CONFIG-driven — Calendar now loads glow-config.js too) regardless of
-whether *this* appearance was really a release; the header is a hero shot
-for whoever's being viewed, not tied to one specific appearance's release
-status the way a phase-card avatar is. Appearance rows jump to their
-timeline card via
-`jumpToCard()` without closing the panel. Desktop nudges `.timeline-root`
-via `transform: translateX(300px)` (not margin — see gotcha #1) so a
-jumped-to card isn't hidden behind the drawer.
-
-**`.char-appear-list`** (a character's own appearance history) reuses the
-Timeline's own `.vt-marker-col` technique — a fixed-width rail with a
-`::before` line running through it and a marker dot on top — at list scale,
-so the list reads as a personal thread through the site's own timeline
-rather than a plain bullet list. `characterIndex` entries carry `variant`
-(chronicled/lightrace, threaded through from `buildNode`'s own param) and
-`isRelease`, so a dot can pick up that special banner's accent color or an
-extra release-glow ring; chronicled/lightrace never conflicts with the
-release ring since those banners are reruns by definition.
-
-Mobile drag-to-dismiss: Pointer Events (not separate touch/mouse handlers)
-drive 1:1 finger tracking via inline `transform`; on release the existing
-open/close CSS transition finishes the motion. Hit area is bigger (28px
-tall) than the visible pill (36×4px) since a 4px target isn't realistically
-grabbable on touch — no longer full-width, though (see mobile-bar below).
-A qualifying swipe is always a full close, same as tapping the backdrop —
-never a stack pop, even mid-stack (Calendar's panel stack, below). That
-was tried (swipe = pop one level, close only at the root) before the
-mobile-bar's own Back button existed to do that job explicitly; once it
-did, overloading the swipe gesture to sometimes mean two different things
-just read as inconsistent.
-
-Calendar's panel stack (see "Day panel" below) needs a Back button on
-mobile too, not just desktop — but the topbar that houses it is hidden
-entirely there (`.detail-panel-topbar{display:none}`), and the grabber's
-old full-width hit area left no room for one. `.detail-panel-mobile-bar`
-(a `1fr auto 1fr` CSS grid) puts them in one row instead: Back in column 1,
-the grabber (now a narrower ~160px hit zone, still generous, just not
-edge-to-edge) in column 2. The empty side columns keep the grabber's pill
-visually centered whether or not Back is showing — an unused `1fr` track
-still claims its share of the row, unlike an auto-sized one would. Both
-`.detail-panel-back` buttons (mobile-bar's and the desktop topbar's) share
-one class, not unique IDs (same "duplicate IDs would be invalid HTML"
-reasoning as the year-stepper) — `renderPanelTop()`/`initDayPanel()` in
-calendar.js operate on `document.querySelectorAll(".detail-panel-back")`.
-
-**Real gotcha**: the mobile breakpoint's `.detail-panel{transition:...}`
-rewrite silently dropped `height` from the transition list — CSS
-`transition` doesn't merge across rules, a later rule's declaration fully
-replaces an earlier one's, so the desktop-popup rule already including
-`height` (for `swapWithFade()`'s stack-navigation resize) didn't help once
-the mobile block redeclared `transition` with only `transform`. The result
-wasn't a crash, just a silently-instant resize instead of an animated one
-on mobile specifically — worth remembering any time a breakpoint
-overrides a shorthand property like `transition` rather than adding to it.
-
-### Chronicled Wish banners
-6 versions have a `chronicled` field → an extra `--chronicled`-accented card
-after the relevant phase. The 5-star row uses plain CSS flex-wrap rather
-than manual row-splitting — gives the desired "3-3, break to 3-3-2" for
-free. The 4-star group is different: `app.js` pre-splits it into exactly
-two `.phase-four-col` columns (first half / second half of up to a dozen
-names, e.g. 4.5's 12-name Mondstadt roster) rather than relying on wrap,
-since a flat wrapped list of that many icons+names didn't read as a grid.
-
-**Real bug this caused, fixed twice** (found via real-viewport-width
-testing, not just resize-the-window eyeballing): between ~480–768px, those
-two fixed-width columns had no room to shrink once `.phase-five-group`'s
-own `flex-shrink:0`/340px max-width claimed most of the card, and — since
-neither the columns nor their `white-space:nowrap` names could compress —
-they overflowed the card, and the page itself, rather than wrapping.
-First fix (`flex-wrap` on `.phase-four-group` itself) helped but didn't
-fully close it: wrap only kicks in between siblings that already fit
-*somewhere*, and a single column collapsed against a nearly-zero-width
-parent still renders at its own min-content size and overflows anyway.
-Real fix: chronicled cards specifically (not regular phase cards, which
-were always fine in row layout down to 480px) get the same row→column
-stacking treatment as the general `<480px` breakpoint below, just starting
-from the wider, already-established 768px breakpoint — reusing an
-existing threshold rather than inventing a new one.
-
-### Lightrace Wish banners
-Permanent rotating banner type (debuted 6.7, `lightrace` field on that
-entry) — inherits Chronicled's layout wholesale (`buildNode`'s `variant`
-param takes `"chronicled"`/`"lightrace"`, sharing the five/four-group wrap
-and column-split CSS), only the accent color (`--lightrace`, periwinkle)
-differs. Its real mechanic designates from the *entire* 4-star roster (50
-of them at 6.7, confirmed against Fandom), not a curated few — so
-`data.json` deliberately has no `"4"` array for it; the card shows a live-
-derived count (`Object.keys(characterIndex).filter(rarity==="4").length`)
-instead of a name list, which stays correct automatically as future
-versions (and future Lightrace instances) add more 4-stars.
-
-### Ambient region background
-`#regionBgA`/`#regionBgB` (two layers, crossfade 1.6s) driven by the same
-`IntersectionObserver` that tracks the side-nav dots. **Load-bearing**: the
-starfield/dark background lives on `<body>`, not `.timeline-root` —
-required for correct paint order (see gotcha #2).
-
-### Character search
-Sticky pill icon, expands to a text input on hover/focus (`width`
-transition — see gotcha #1 for why not `clip-path`). Filters
-whitespace-insensitively (strip spaces from both query and name before
-comparing, map matches back onto the original string). Mouse and keyboard
-navigation drive the same `activeIndex`/`.is-active` state, so there's
-exactly one visual "selected" row.
-
-Ported verbatim onto Calendar (`#charSearch` in calendar.html) — the
-matching/ranking/DOM logic (`initCharSearch()`, `matchInfo()`,
-`highlightMatches()`) lives in shared.js, called with `(getCharacterNames,
-characterAliases, onSelect)` since Timeline's `characterIndex` and
-Calendar's `characterAppearances` are two independently-built but
-identically-shaped name→entries indexes (same reason `countAppearancesThrough`/
-`getPhaseStartDate` live there). Calendar's `onSelect` is
-`openCharacterPanel()`, a fresh-stack entry point factored out of
-`openDayPanel()` (both now call a shared `openPanelFresh(view)`).
-
-**Alternate names** (`data/character-aliases.json`, keyed by canonical
-name → array of aliases, e.g. `"Tartaglia": ["Childe"]`): matches rank in
-four tiers — name-starts-with, name-contains, alias-starts-with,
-alias-contains — so a real name match always outranks an alias match
-rather than the two competing on equal footing. The result row's alias
-subtitle only shows whichever alias *actually matched the query*, not the
-character's full alias list — a character with several aliases (there are
-a few) would otherwise dump all of them under every result regardless of
-relevance.
-
-### Timeline intro
-`.timeline-intro` (title + one-line subtitle, mirrors Server Clocks'
-`.clocks-intro`) was added purely for cross-page consistency once the site
-had enough pages that Timeline being the only one without any framing text
-started to stand out.
-
-### Release-glow rays
-`buildRays()` renders `count` absolutely-positioned ray divs per release
-character (4/5★, 8/4★) — 540 total across the un-virtualized 52-version
-timeline. **Fix**: `content-visibility: auto` on `.rays-wrap` specifically
-(not `.vt-block` or any layout-height-contributing ancestor — `.rays-wrap`
-is `position:absolute` so it never affects the `offsetTop` chains
-`jumpToCard()` depends on). Cut frame time from ~36ms to ~22-28ms.
-
-Rejected (don't re-attempt): a single `repeating-conic-gradient` per
-character measured *slower* despite fewer DOM nodes, and couldn't preserve
-independent per-ray flicker. Two orbiting dots were performance-neutral but
-looked worse.
-
-Two cosmetic fixes: ray angles use stratified sampling (one random angle
-per 360°/count arc) to avoid clustering; the gradient has a solid plateau
-(0–18%) before fading, since `filter: blur()` was softening the intended
-peak at the base edge.
-
-`buildRays()` and `buildCharacterHeader()` (the shared detail-panel
-character header — see "Character detail panel") both live in `shared.js`
-now, since Calendar's own character header needs them too — Calendar loads
-`glow-config.js` for this reason alone. The header's avatar uses its own
-`GLOW_CONFIG.rays.countHeader` (16, denser than `countLg`'s 8) rather than
-sharing that count — it's bigger (76px vs. a phase card's 48px) and, unlike
-the Timeline's 540 phase-card instances, only ever one on screen at once,
-so it can afford it without the perf concern `countLg` is tuned around.
-
-### Header & page nav
-`.site-brand` is a plain gradient-text `<a>` (not `<h1>`), no tagline
-(dropped — content speaks for itself), and always links to `index.html`
-(the landing page) regardless of which page it's on — not self-referential.
-A small `#brandLiveDot` ripples next to it when the tracked data is live
-(same rule as the Timeline's `.is-live` ripple, computed independently in
-`shared.js` since the dot needs to work on every page). `.page-nav` links
-to Timeline, Calendar, then Server Clocks, in that order, identically on
-all four pages — the landing page deliberately has no nav entry for
-itself. Active is a glass pill + soft gold glow (not an
-underline) — the pill's padding lives on the base `.page-nav-link` rule,
-not just `.is-active`, so every link occupies the same box regardless of
-which one is active and the nav's total width never shifts. Per-page
-framing lives in each page's own body content, not the shared header.
-
-### Live "current version" indicator
-Pulsing ripple on the most recently *launched* `data.json` entry's patch
-marker, but only if its `date` is within 42 days of today — so a
-stale/behind dataset stops confidently claiming an old version is live
-rather than showing it forever. Real patch lengths vary (see "Data accuracy
-note"), so this can be off by a few days around historical-exception
-patches — accepted, not worth a per-version override for a cosmetic
-indicator.
-
-"Most recently launched" is deliberately not just `data[data.length-1]` —
-`init()` walks backward from the end for the last entry whose `date` isn't
-in the future, since a version can be pre-staged in `data.json` ahead of
-its official date (announced but not live yet). Same edge case, same fix
-pattern, as the Server Clocks update-card below — both independently need
-to distinguish "the last entry" from "the last *launched* entry."
-
-## Server Clocks page (`clocks.html` / `js/clocks.js` / `css/clocks.css`)
-
-Fully independent of `app.js`. Background: single static image
-(`assets/backgrounds/server-clocks.webp` — Fandom served WebP despite the
-`.png` source URL), same blur/dark-tint recipe as the region background, no
-crossfade since there's only one image.
-
-**Server facts** (researched via game8.co/Sportskeeda, cross-checked): 4
-genuinely separate servers — America (UTC-5), Europe (UTC+1), Asia (UTC+8),
-TW/HK/MO (UTC+8, shares Asia's offset but is a distinct server). Daily
-reset: 4:00 AM each server's own time, independently (4 clocks).
-Version-update maintenance: **one shared real-world instant** for all
-servers at once, 06:00 China Standard Time — one clock, not four.
-
-- Reset/maintenance math uses fixed-offset arithmetic (`nextServerReset()`,
-  `cstDateToUtcInstant()`), deliberately not `Intl` timezone lookups — no
-  real IANA zone stays pinned at a fixed offset forever (DST), unlike these
-  synthetic server offsets.
-- Next-update estimate = last known version's launch instant + 42 days,
-  anchored to 06:00 CST (not midnight UTC — that drifted the day-count by
-  up to 8 hours). No manually-maintained "confirmed date" override field —
-  prototyped and deliberately rejected same-day, since it would recreate
-  the manual-upkeep burden that made the site fall 17 versions behind once
-  (see "Ideas discussed for future work"). Badge reads "Estimated" →
-  "Overdue" (counts up instead of freezing at zero) once the 42-day window
-  passes with no new version in `data.json`.
-- Weekday strip (7 letters, Mon-first) marks the current in-game day, which
-  flips at the 4am reset, not midnight. Colors deliberately avoid
-  `--four`/`--five` (the site's star-rarity colors) since no weekday
-  actually outranks another — the six regular days share one neutral
-  (`--line`), only Sunday (every domain open) gets its own (`--five`).
-- Detected viewer timezone shown once near the top (`Intl.DateTimeFormat`
-  with `timeZoneName`), e.g. "PDT (UTC-7)", since every clock says "your
-  time."
-- Ring/bar fill-in: both start at their "empty" CSS value and only animate
-  to the real value once each card's entrance animation finishes
-  (`animationend`) — setting the real value synchronously on build (the
-  original approach) never triggers a CSS transition, since there's no
-  intervening paint of the empty state. `prefers-reduced-motion` skips the
-  wait and sets values immediately.
-- Cross-document View Transitions (`@view-transition{navigation:auto}` in
-  `style.css`) animate between `index.html`↔`clocks.html` navigations with
-  zero JS/router — why the site didn't need to merge into an SPA for
-  smooth page transitions.
-- Same stacking-context bug as gotcha #2 bit `.clocks-intro`/section
-  headings here too (fixed via `position:relative;z-index:1` on
-  `.clocks-root`) — can hit *any* plain text on a page with a fixed
-  full-viewport background, not just the spots already patched.
-
-Not yet built: weekly reset (Monday 4am, per-server like daily reset — 4
-more clocks; likely worth combining into the existing daily card per server
-rather than a separate 8-card section) and Spiral Abyss reset (16th of each
-month, 4am server time).
-
-## Calendar page (`calendar.html` / `js/calendar.js` / `css/calendar.css`)
-The banner history as a year-view grid instead of a line — deliberately
-leaning into the site's time/history angle rather than adding
-theorycrafting/build-tag features other Genshin sites already cover better.
-Three event layers are plotted: version launches (straight from
-`data.json`), character debuts, and birthdays (see below). A dedicated
-Month/Year zoom toggle was considered and initially parked, then built
-once the compact cell design (below) was solid — see "Month view" further
-down.
-
-**Year stepper**: range is `2020` (1.0's real launch year) to
-`previewNow().getFullYear() + 1`, computed live rather than a hardcoded
-upper bound. The year label opens a popover (not a native `<select>`) for
-jumping the full range in one click. Two stepper instances exist — one
-above the grid, one below — since scrolling through all 12 months on
-mobile just to change year is real friction; both are kept in sync by
-operating on every matching element via class rather than unique IDs
-(duplicate IDs would be invalid HTML anyway). The bottom instance's
-popover opens *upward*, not down — it sits right above the footer, so
-opening downward the way the top one does would push it toward/past the
-footer instead of over already-scrolled-past content.
-
-A **"Today" button** sits in each stepper (`jumpToToday()` in calendar.js) —
-deliberately not an auto-scroll on page load. Auto-scrolling to the current
-month on every load was built and then reconsidered before shipping: it
-would fight a reader who opens the page to browse from the top, or reload a
-bookmarked link and get yanked away from wherever they'd scrolled to.
-`jumpToToday()` is a thin wrapper around **`jumpToDate(isoDate)`** — the
-generic "jump to a specific day" primitive: switches year first if needed
-(`setYear()` is synchronous, so the new cells exist immediately after),
-`scrollIntoView()`s that exact day cell, and gives it a temporary highlight
-ring (`.calendar-day-cell.is-highlighted`, 1.8s, `--four`) — the *same*
-glow-highlight language as Timeline's `jumpToCard()`/`.is-highlighted`
-(app.js/style.css), reused so "you just landed here" reads identically
-everywhere on the site. `--four` rather than `--five` specifically so the
-transient jump-ring never gets confused with `.is-today`'s permanent gold
-wash when both land on the same cell (the common case). `jumpToDate()` is
-meant to be the one thing any future jump-across-the-grid feature (a
-character/date search, etc.) calls — don't build a second version of this.
-
-Two real bugs worth remembering if this pattern gets reused elsewhere:
-1. The popover's own `display: flex` (author CSS) silently overrides the
-   browser's default `[hidden]{display:none}` (user-agent CSS) — origin is
-   checked before specificity in the cascade, so author styles win
-   regardless. Toggling `hidden` in JS did nothing visually; the popover
-   kept fully rendering and painting. Fixed with an explicit
-   `.calendar-year-popover[hidden]{display:none;}` rule.
-2. The page's entrance animation (`animation:...both`) leaves the stepper
-   with a lingering `transform:translateY(0)` after it finishes
-   (`animation-fill-mode:both` keeps the final keyframe) — any non-`none`
-   transform promotes an element into its own stacking context, which
-   trapped the popover's `z-index:10` inside it, unable to rise above the
-   month grid (later in DOM order, painted on top of the whole stepper
-   regardless of the popover's own z-index). Same class of gotcha as #2
-   below, just triggered by an animation's fill-mode instead of a direct
-   `transform` rule. Fixed by giving the stepper itself `position:relative;
-   z-index:5`, so its whole box — popover included — paints above the grid.
-
-**Day cells**: Sunday-first (not the Monday-first convention Server
-Clocks' weekday strip uses — that was specific to Genshin's own reset
-schedule, doesn't apply here). Fixed height, not `aspect-ratio:1/1` — every
-cell stays visually identical whether or not it carries an event, but
-freed from being forced square, since with ~8-9 launches a year against
-365 days almost every cell is empty and needs to stay calm rather than
-compete for space. Day number sits in the top-left corner (freeing the
-cell's remaining space for a version label like "7.0"); a border only
-appears on cells that actually have something on them, so the border
-itself is the "something is here" signal rather than uniform chrome on
-every day. The event label sits with `bottom:12px`, not centered in the
-remaining space below the number nor flush against the true bottom edge —
-purely mathematical centering there read as too low, since the eye doesn't
-weigh the label/edge whitespace symmetrically.
-
-**Character debuts**: derived, not stored — a debut's date is just its
-phase's start date (`entry.date + 21×phaseIndex`, with `phase-notes.json`'s
-`date` override for the irregular phases — see Timeline's `data.json`
-notes above). `buildDebutsByDate()`/`getPhaseLabel()` in calendar.js mirror
-app.js's own filler-skipping phase-count logic so captions match what
-Timeline would call the same phase. Chronicled/Lightrace are never scanned
-(reruns by definition, can't contain a real debut).
-
-**Birthdays**: `data/character-birthdays.json` (name → `"MM-DD"`, no year —
-recurs annually). Sourced from Game8's consolidated birthday table,
-cross-checked; verify freshly against 2+ sources before trusting it for any
-newly-added character, since that kind of table lags new releases. A
-birthday only shows from the character's real debut date onward, not
-retroactively — gated by full `YYYY-MM-DD` string comparison, not just
-year (a year-only cutoff let a birthday show *before* the exact debut date
-within that debut year — caught via the 11 "preexisting" characters, whose
-birthday could otherwise land before the real Sep 28, 2020 launch if only
-the bare year 2020 was checked; they use that real launch date as their
-cutoff instead of their later first-tracked-banner date). Bennett's Feb 29
-needs no leap-year special case — `buildMonthCard` only ever generates a
-Feb 29 cell in years that actually have one.
-
-**Day-cell markers**: up to 3 small dots (5★/4★ debut, birthday — gold/
-purple/`--birthday` sky-teal) live in the *same row* as the day number,
-glued directly beside it — not a separate corner. A corner-positioned dot
-read as ambiguous at this cell width (~44px): it ended up visually closer
-to the *next* day's number than its own. Sized small (4px, 2px gap)
-specifically so a 2-digit day + all 3 dots still fit without touching the
-cell edge (checked against the tightest real case, March 26 2025 — a
-version launch + two debut rarities + a birthday all landing the same day).
-
-A 4th dot, `.is-banner` (plain `--text-dim`, deliberately no glow unlike
-the other three — real information, but not the headline event a debut or
-birthday is), fills in for any banner — rerun, Chronicled, Lightrace, all
-sharing this one neutral marker rather than three more dot types — that
-has zero real debuts. Before this, a day like a pure-rerun Chronicled Wish
-showed nothing at all on the grid, indistinguishable from an actually
-empty day. It never increases the max dots-per-cell, though: it only ever
-renders when neither debut dot already did (`!debuts && banners`), so a
-day's dot count tops out at exactly what it did before — no risk of
-re-triggering the March 26 2025 overflow case above.
-
-**Day panel**: debuts render as namecard-background "trading cards"
-(`buildCharacterCard()` in calendar.js) — art lives on its own layer (not
-the card's own `background`), with `overflow:hidden` clipping its
-hover-zoom `transform:scale()` and, as a side effect, avoiding the
-border-radius+background seam class of bug a literal `background-image` +
-`border-radius` + `border` combo can produce. A static scrim layer keeps
-text legible through the zoom. Hover glow color is keyed to which rarity
-debuted (`.is-five`/`.is-four`). Birthdays deliberately do NOT use this
-card — see "Birthdays" above for why (a debut is a one-time historical
-fact, a birthday is light and recurring) and `buildBirthdayChip()`'s own
-lighter ringed-avatar-row treatment instead. The date is always a small
-top-left corner label, never the headline — a launch day promotes
-"Version X.Y launch" into `.detail-panel-name`'s big centered role
-instead; any other day (the vast majority) gets a compact 64px header
-rather than a mostly-empty 200px box. A reported rendering seam along the
-header's own gradient top/bottom edges (real hardware only, not
-reproducible headless) was NOT fixed by `isolation:isolate` — don't
-re-attempt that exact fix if this resurfaces.
-
-The panel's own content and the mini-grid's dots deliberately read from two
-*different* maps. `debutsByDate` (dots, and the day-cell's "something's
-here" signal) only ever flags true debuts — kept narrow on purpose, to
-keep the grid calm rather than mark every rerun. `bannersByDate` (panel
-content) is broader: every character featured that date, debut or not,
-grouped from `characterAppearances`. This split exists because jumping to
-a character's own rerun/Chronicled/Lightrace row (`jumpToDate`, via
-`buildAppearanceRow`'s version-jump click) used to land on a day with
-*nothing* in the panel — those dates have real banners, just no debut,
-which the old debuts-only content couldn't show. **One date can host more
-than one distinct banner** — Chronicled/Lightrace share their parent
-phase's exact date by design (no separate "banner start date" is tracked
-anywhere), so `buildBannersByDate` groups by `(date, version, phaseLabel)`,
-not date alone; grouping by date alone was a real bug caught here (it
-merged an unrelated regular phase and its same-day Chronicled Wish into
-one list). The panel renders each date's groups as separate
-heading+card-list sections.
-
-`bannersByDate` drives two genuinely different-looking cards, kept
-deliberately separate rather than merged: `buildCharacterCard()`'s big
-namecard-art cards are debuts-only (from `debutsByDate`, unaffected by any
-of this) — a debut stays its own celebratory callout, never diluted by
-everyone else on the same banner. `buildPhaseCard()`/`buildPhaseUnit()`
-(from `bannersByDate`) is the new one: a compact summary of the *entire*
-banner, release or rerun, reusing Timeline's own `.trail-node.phase-card`
-DOM/CSS classes (`buildNode()` in app.js) — duplicated rather than shared
-since app.js's version is tightly coupled to Timeline-only state
-(`characterIndex` population as a side effect, `buildRays()`/`GLOW_CONFIG`
-from glow-config.js, which this page doesn't load — release characters
-here just get the plain ring glow, no sunburst rays). Exists because an
-18-character Chronicled Wish as individual art cards would be a lot of
-scrolling for one day.
-
-Layout deliberately diverges from Timeline's own, though — the initial cut
-reused Timeline's centered `.phase-five-group` and column-split
-`.phase-four-group` (chronicled/lightrace) wholesale, but that read as
-over-designed at this card's smaller scale. `.calendar-phase-card` (the
-marker class from the stacking fix above) now also forces both groups
-left-aligned, flat, flex-wrap rows — no column-split at all, for any
-variant — letting them wrap to as many per line as the day panel's width
-allows, rather than Timeline's fixed two-column split built for a wider
-card. Each character unit is clickable (`.char-trigger` + `dataset.character`, same delegated listener
-as the debut cards/birthday chips) and pushes their own history onto the
-panel stack.
-
-**Real gotcha worth remembering**: Timeline's phase-card CSS gates its
-row→column stacking (and the Chronicled/Lightrace 4-star wrap fix) behind
-viewport-width media queries (`@media (max-width:768px)` etc.) — correct
-for Timeline, where the card's available width tracks the viewport. But
-the day panel's popup stays narrow (max ~560px) *regardless* of viewport
-width, so on a wide desktop screen those media queries never fire even
-though the phase card's actual rendered width sits well inside the danger
-zone that caused the original chronicled-overflow bug (see the Chronicled
-Wish banners section above). Fixed by giving `buildPhaseCard()`'s cards a
-`.calendar-phase-card` marker class and forcing the stacked layout
-unconditionally in calendar.css, not gated by any media query. Worth
-remembering any time a Timeline component (viewport-width-based
-breakpoints) gets reused inside a container whose own width doesn't track
-the viewport.
-
-Clicking a debut card or birthday chip drills into that character's own
-appearance history — the exact same `.char-appear-list` component Timeline's
-character panel has (grander timeline-line, release glow, banner-type
-coloring included), via a **UI stack** on the shared detail panel
-(`panelStack`/`pushPanelView()`/`popPanelView()`/`renderPanelTop()` in
-calendar.js) rather than opening a second overlapping popup. Each stack
-entry is `{type: "day"|"character", ...}`; `openDayPanel()` is the only
-thing that *resets* the stack (to a single day entry) and toggles the
-panel's open state — pushing/popping only ever re-renders content. A
-**Back** button (`#detailPanelBack`, shared HTML/CSS with Timeline's panel
-but only ever un-hidden by calendar.js — Timeline has no "previous view"
-to return to) appears whenever stack depth > 1. On mobile the topbar
-(Back included) is hidden entirely — the drag-to-dismiss gesture is the
-only affordance there, so `endGrabberDrag()` pops one stack level on a
-qualifying swipe instead of always closing; only swiping from the stack's
-root actually closes the panel.
-
-A push/pop animates via the shared `swapWithFade()` (`js/shared.js` — see
-its own doc comment for the full mechanics) rather than snapping straight
-to the new content: `swapPanelView()` calls it with `.detail-panel` as the
-resizing container and `[header, content]` as what fades. Both toggle the
-shared `.is-fading` convention (`.detail-panel-header.is-fading`/
-`.detail-panel-content.is-fading`, style.css). On desktop this also
-re-centers the popup vertically through the resize for free, since
-`top:50%` + `translate(-50%,-50%)` recomputes off the element's own
-(animating) height automatically. `openDayPanel()` itself never animates —
-only a push/pop (an already-open panel navigating) does; opening fresh
-always renders immediately at natural size.
-
-This needed a full per-character appearance history inside calendar.js,
-which only existed as a side effect of rendering Timeline's entire DOM
-(`characterIndex` in app.js) — rather than duplicate that render path,
-`buildCharacterAppearances()` is a pure-data mirror: same per-version scan
-order as app.js's `buildPatchRow()` (phases, then chronicled, then
-lightrace) so rerun counts line up identically, built once at bootstrap
-like every other calendar.js index. Its rows reuse `jumpToDate()` (not
-Timeline's `jumpToCard()`, which has no equivalent here) for the
-version-jump click — chronicled/lightrace rows jump to their *parent
-phase's* start date, since no exact "chronicled banner start date" is
-tracked anywhere on this site (same reason `buildDebutsByDate` never scans
-them for debuts).
-
-### Month view (desktop-only zoom mode)
-A Year/Month toggle (`.calendar-view-toggle`, `display:none` below 900px —
-the same breakpoint the sidebar/3-column year grid already uses) swaps the
-12-small-card grid for one large `.calendar-month-card.is-big` — the exact
-same glass-card language as the compact grid's 12 small ones, just one
-instead of twelve, filling the container width they collectively did.
-Designed via a Claude Design canvas first (two sketched directions —
-spelled-out event text vs. character-face thumbnails — the user picked
-event text; the thumbnail direction stays on file as a second page in that
-canvas, not built).
-
-**State**: `viewMode` (`"year"`/`"month"`) and `currentMonth` are
-session-only, not persisted in the URL like `currentYear` is — reloading
-always starts back in year mode. Deliberate: a persisted month view
-landing on a <900px viewport would need its own fallback logic for no
-real benefit (the toggle wouldn't even be reachable there to switch back).
-A `resize` listener still forces back to year mode if the window narrows
-below 900px mid-session while already in month mode, so the toggle
-disappearing never strands the reader on an un-navigable view.
-`renderCalendar()` is the single dispatcher every state setter
-(`setYear`/`setMonth`/`setViewMode`) goes through — it picks
-`renderCalendarYear()` or the new `renderCalendarMonth()` based on
-`viewMode`, so neither setter has to know which view is currently active.
-
-**Two independent stepper groups, not one combined "Month Year" stepper**
-— `.calendar-stepper-group` × 2 (month, year), separated by a wider gap
-plus a thin vertical divider (centered in that gap via a negative offset,
-not extra padding) so they read as two distinct controls. Lets a reader
-jump May 2025 → May 2026 in one click instead of stepping through 12
-months. The year group is a *verbatim reuse* of the year-view's own
-arrow/label/popover markup (`.calendar-year-label-wrap` /
-`.calendar-year-popover`) — since `buildYearPopovers()` and that wrap's
-click wiring already operate on "every matching element" rather than a
-specific instance, this third occurrence gets the full year-picker
-popover for free, no new JS. Clicking one of its year options calls the
-same `setYear()` the year-view's own arrows use — it already preserves
-`currentMonth` through `renderCalendar()`'s dispatcher, so no month-aware
-variant was needed. The month group's own popover is a flat 12-month grid
-for `currentYear` (no year sub-header — that's the other group's job now;
-an earlier version of this popover *did* have one, before the two-group
-split, and was simplified away once year got its own control). Both
-labels share one CSS rule for everything except `width` — the year label
-is a fixed `92px` (a year is always 4 digits, same width every time), the
-month label a fixed `160px` (wide enough for "September," the longest
-name) — a *fixed* width, not `min-width`, is what stops the label
-resizing (and shoving its own arrows sideways) as the text changes;
-merging the shared properties into one rule is what keeps the two from
-drifting back out of sync with each other later.
-
-**Real bug worth remembering**: the month-nav arrows share `.calendar-year-arrow`
-with the year-view's own arrows purely for pill styling, but the
-year-view's click listeners originally selected on the bare
-`.calendar-year-arrow.is-prev`/`.is-next` combination — which the month
-arrows also carry. Every "next month" click was silently *also* firing
-`setYear(currentYear + 1)`, landing one year ahead of where it should
-(reported as "Sep '26 → Oct '27" — read at first as a day-number bug, it
-was actually the year tagging along). Fixed by scoping those selectors
-(and `updateYearLabel()`'s disabled-state ones) to
-`.calendar-year-stepper .calendar-year-arrow...` specifically, so they can
-only ever match the year-view's own arrows. Worth remembering any time a
-new element reuses an existing class purely for shared styling — an
-existing *unscoped* selector elsewhere that happens to match the same
-class combination will fire too.
-
-**Same z-index gotcha as the year-stepper, initially missed**: the reveal
-animation's `animation-fill-mode:both` leaves a lingering
-`transform:translateY(0)` once it finishes, promoting the element into
-its own stacking context and trapping a child popover's `z-index` inside
-it (same mechanism as the year-stepper's own documented fix above). Giving
-`.calendar-month-stepper` the reveal animation without also giving it the
-matching `position:relative;z-index:5` (which `.calendar-year-stepper` has
-specifically for this reason) reintroduced the exact same bug in the new
-component. Worth checking for on any new element that both gets this
-page's reveal animation *and* houses its own popover.
-
-**`buildBigDayCell()`** mirrors `buildMonthCard()`'s per-day data lookups
-exactly (`debutsByDate`/`bannersByDate`/`getBirthdaysForDate`) but renders
-real text where the compact grid only had room for a dot: a debut gets its
-version+phase badge and character names spelled out (5-star gold, 4-star
-`--four` purple, both bold); a banner with no real debut (rerun/
-Chronicled/Lightrace) gets the badge alone, keeping the same "quiet, not
-the headline" restraint as the `.is-banner` dot it pairs with — full
-rosters stay one click away in the day panel either way, same as the
-compact grid. Root element keeps `.calendar-day-cell.is-clickable` (plus a
-new `.is-big` sizing modifier) so the *existing* delegated listener in
-`initDayPanel()` — bound to `#calendarMonthGrid` by id, already surviving
-`replaceChildren()` — picks it up with zero new click/keydown wiring.
-`joinNames()` (Oxford-comma list join) moved from `landing.js` to
-`shared.js` once this needed the same joining for a cell's birthday names
-— same "hoist once a second page needs it" pattern as
-`countAppearancesThrough()`/`buildRays()` elsewhere in this file.
-
-**`jumpToDate()` needed a real fix, not just a wrapper**: it only ever
-checked/set `currentYear`, so in month mode looking at a different month
-than the target date, the cell genuinely isn't in the DOM (unlike year
-mode, where all 12 months always are) and the jump silently no-op'd. Now
-derives the target month from the ISO date and calls `setMonth()` first
-when in month mode — fixes every caller for free (`jumpToToday()`, and the
-character panel's appearance-row version-jump click).
-
-Weekday row: each letter is its own bordered chip
-(`border`+`border-radius`+`--glass` background), not a plain label under
-a single rule beneath the whole row — a real box per letter is what
-actually reads as a distinct "header," not just a different shade of the
-same gray the day numbers use. Month view spells out full names
-("Sunday"..."Saturday", `CALENDAR_WEEKDAY_NAMES`) instead of the compact
-grid's single letters (`CALENDAR_WEEKDAY_LETTERS`) — real horizontal room
-for it once cells aren't jammed 3-per-row.
+- `docs/` — one file per page, holding that page's implementation notes
+  (data schemas it owns, physics/animation internals, real bugs caught and
+  fixed, rejected approaches). Read the relevant one before working on that
+  page; this file only holds what's true across all of them:
+  - [`docs/landing.md`](docs/landing.md) — `index.html` / `js/landing.js` /
+    `css/landing.css` (spotlight carousel physics, trivia ticker, sidebar).
+  - [`docs/timeline.md`](docs/timeline.md) — `timeline.html` / `js/app.js`
+    (data.json schema, detail panel, chronicled/lightrace banners, search,
+    release-glow rays).
+  - [`docs/clocks.md`](docs/clocks.md) — `clocks.html` / `js/clocks.js` /
+    `css/clocks.css` (server/reset facts, timezone math).
+  - [`docs/calendar.md`](docs/calendar.md) — `calendar.html` /
+    `js/calendar.js` / `css/calendar.css` (year/month grid, debuts,
+    birthdays, day panel, panel stack).
 
 ## Design decisions
 - Header is `position: relative`, not `sticky` — deliberate, so it doesn't
   occupy permanent viewport space.
-- `--line` is lavender, chosen over slate-grey/bronze/icy-blue options to
-  tie into `--four`.
+- `--line` is lavender, chosen to tie into `--four`.
 - Breakpoints are shared across pages on purpose (`480`/`600`/`768`/`900`
   only) — fewer distinct widths means fewer places the layout visibly
-  jumps as the window resizes. The char-panel drawer and Server Clocks'
-  grid used to switch at their own one-off `700`/`720` and were folded
-  into `768` to match.
+  jumps as the window resizes.
 
 ## CSS/animation gotchas
 1. **Animate only `transform`/`opacity`.** Anything else (`width`,
    `margin`, `background-attachment:fixed`) forces main-thread layout every
-   frame. Bit the panel nudge (`margin-left`→`transform`), the
-   region-background reveal (stray `background-attachment:fixed`), and the
-   search bar (tried `clip-path`, reverted for an unrelated
-   intermittent-snap issue). An element with no prior `will-change` can
-   also show a one-off "cold start" dropped frame on its first transition.
+   frame. Bit the panel nudge (`margin-left`→`transform`) and the region-
+   background reveal (stray `background-attachment:fixed`). An element
+   with no prior `will-change` can also show a one-off "cold start" dropped
+   frame on its first transition.
 2. **`position:fixed` vs. a plain element's background — paint order isn't
    DOM order, until a `transform` changes that.** A non-transformed
    element's background paints *below* a `position:fixed` sibling
    regardless of DOM order; the moment it gets a `transform` (even
    conditionally), it's promoted into its own stacking context and can
-   paint *above* instead. Bit the region-bg (invisible from a stray
-   `z-index:-1`), the footer disappearing behind it (fixed via
-   `position:relative;z-index:1`), and the panel-open nudge transform
-   promoting `.timeline-root` above the region-bg. **Rule**: never put a
-   background that must stay under the region layer on an element that
-   might ever receive a `transform` — put it on `<body>`.
+   paint *above* instead. **Rule**: never put a background that must stay
+   under the region layer on an element that might ever receive a
+   `transform` — put it on `<body>`.
 3. **`position:sticky`** is the right tool for "docks below X, then sticks
    to the viewport edge" — no scroll listener needed. Give the sticky
    wrapper `height:0;overflow:visible` so it doesn't also push content
@@ -1127,45 +109,41 @@ for it once cells aren't jammed 3-per-row.
    viewBox — including `filter:drop-shadow()` glow on a child near the
    edge. Set `overflow:visible` on the `<svg>` itself.
 7. **Multiple `backdrop-filter:blur()` elements on one page can visibly
-   "bleed"/ghost onto each other** in Chrome — reported as a faint white
-   gradient flashing across the unrelated 4-star cards whenever hovering a
-   landing link card, only at desktop widths where both sit in the same
-   flex-row layout. Not reproducible in headless/software-rendered
-   Chromium (this needs real GPU compositing), so treat it as a real class
-   of bug even without being able to see it locally. Fix: `isolation:
-   isolate` on the blurred elements so each composites independently
-   instead of sharing a backdrop bitmap with layout siblings; also make
-   sure any property that changes on `:hover` (e.g. `box-shadow`) is in
-   the element's `transition` list rather than popping in instantly, since
-   an abrupt style change is what seems to trigger the shared-bitmap
-   recompute in the first place.
+   "bleed"/ghost onto each other** in Chrome (real GPU compositing only,
+   not reproducible headless — treat it as a real class of bug regardless).
+   Fix: `isolation:isolate` on the blurred elements so each composites
+   independently instead of sharing a backdrop bitmap with layout
+   siblings; also make sure any property that changes on `:hover` (e.g.
+   `box-shadow`) is in the element's `transition` list rather than popping
+   in instantly, since an abrupt style change seems to trigger the
+   shared-bitmap recompute in the first place.
 
-## Art provenance
+## Art provenance & data accuracy
 Moved to `data/SOURCES.md` — API endpoints, file-naming patterns,
-codenames, and rejected asset sources (with why), kept out of this file so
-sourcing new art doesn't require loading all of CLAUDE.md. Read it before
-sourcing any new character/region art.
+codenames, rejected asset sources (with why), and how `data.json`'s
+dates/rosters were verified (confidence levels, the 1.0 launch roster),
+kept out of this file so routine sessions don't need to load it. Read it
+before sourcing any new character/region art, or before adding a new
+version to `data.json`.
 
 ## Data validation
 `npm run validate` (`scripts/validate-data.js`) cross-checks `data.json`
 against `character-notes.json`, `character-elements.json`,
-`character-aliases.json`, and `phase-notes.json`.
-Split into one file per concern under `scripts/checks/` (`character-notes.js`,
-`character-elements.js`, `character-aliases.js`, `phase-notes.js`,
-`character-assets.js`), each exporting a `(ctx) => problems[]` function;
-`validate-data.js` itself is just the runner — loads the JSON once, builds
-`ctx`, calls every check, reports. `scripts/checks/util.js` holds the shared
-bits every check needs: `readJSON`/`assetPath`/`slug`, and
-`buildCanonicalData()` — deriving the canonical character/phase set from
-`data.json` (including `chronicled` *and* `lightrace` entries, not just
-`banner[]` — an earlier ad-hoc check that forgot `chronicled` produced false
-positives) is common enough to every check that it's computed once in the
-runner rather than per-check. Checks: orphaned keys, characters missing an
-element (or an element with no matching `assets/elements/*.svg`), alias
-strings reused across two characters, stale `phase-notes` keys, and missing
-face/namecard art (which fail *silently* in the UI — neither has an
-`onerror` fallback). Not wired into CI yet, so it only catches things when
-someone remembers to run it.
+`character-aliases.json`, and `phase-notes.json`. Split into one file per
+concern under `scripts/checks/` (`character-notes.js`, `character-elements.js`,
+`character-aliases.js`, `phase-notes.js`, `character-assets.js`), each
+exporting a `(ctx) => problems[]` function; `validate-data.js` itself is
+just the runner — loads the JSON once, builds `ctx`, calls every check,
+reports. `scripts/checks/util.js` holds the shared bits every check needs:
+`readJSON`/`assetPath`/`slug`, and `buildCanonicalData()` — deriving the
+canonical character/phase set from `data.json` (including `chronicled`
+*and* `lightrace` entries, not just `banner[]`) once in the runner rather
+than per-check. Checks: orphaned keys, characters missing an element (or
+an element with no matching `assets/elements/*.svg`), alias strings reused
+across two characters, stale `phase-notes` keys, and missing face/namecard
+art (which fail *silently* in the UI — neither has an `onerror`
+fallback). Not wired into CI yet, so it only catches things when someone
+remembers to run it.
 
 Add a new check by dropping a file in `scripts/checks/` (same
 `(ctx) => problems[]` shape) and requiring it in `validate-data.js`'s
@@ -1181,19 +159,12 @@ any page's URL while running `npm run dev` to preview it as of that instant
 — time keeps flowing forward normally from there (a fixed offset applied
 to the real clock, computed once at load) rather than freezing, so
 `setInterval`-driven countdowns still tick realistically during testing.
-Gated to `localhost`/`127.0.0.1` (the dev-server hostname) so it's
-structurally inert on the deployed site regardless of what URL a visitor
-tries — not just hidden, the offset is hardcoded to 0 off that hostname
-check. Parsing a *stored* date from `data.json` should still use a plain
-`new Date(...)` — only reads of the current moment go through this.
-Per-URL only, not persisted across navigation — add the param to whatever
-page you're actually testing.
-
-## Data accuracy note
-Moved to `data/SOURCES.md` (same file as art provenance — both are only
-needed when actually adding new version/character data or art, not on
-every session) — how `data.json`'s dates/rosters were verified, confidence
-levels, and the 1.0 launch roster. Read it before adding a new version.
+Gated to `localhost`/`127.0.0.1` so it's structurally inert on the
+deployed site regardless of what URL a visitor tries — the offset is
+hardcoded to 0 off that hostname check, not just hidden. Parsing a
+*stored* date from `data.json` should still use a plain `new Date(...)` —
+only reads of the current moment go through this. Per-URL only, not
+persisted across navigation.
 
 ## Ideas discussed for future work (not started)
 - Weapon banners aren't tracked (character banners only).
@@ -1202,47 +173,36 @@ levels, and the 1.0 launch roster. Read it before adding a new version.
   just unbuilt: plenty of other Genshin sites already do plain stats
   dashboards, and the data being there doesn't matter if the presentation
   reads as generic. Only worth revisiting with a genuinely distinctive
-  presentation angle, not just "the numbers are interesting."
+  presentation angle.
 - The manual per-patch update process (hand-editing `data.json` +
   hand-sourcing art) is why the site fell 17 versions behind once — worth a
   scripted/automated data pipeline if picking this up as a project.
 - Multi-page candidates still on the table: **Region/lore explorer**
   (browse by nation, reusing the region-background/glow visual language
-  already built for the Timeline/landing pages) — real gap: no
-  character→region mapping exists yet (`character-elements.json` is
-  element, not nation; needs a new `character-regions.json` with an
-  explicit `"Unaffiliated"` sentinel for characters like Skirk, not
-  omission). **Character profile pages** (dedicated shareable URLs) are
-  the next-cheapest candidate after that.
-- "On this day" — the *concept* is now partly built as the landing trivia
-  ticker's anniversary cards (see "Trivia ticker" above) and, more fully,
-  as the Calendar page's year-view grid. A dedicated single-date page would
-  still need the same nearest-match handling (only 51/365 days have an
-  exact hit).
-- Calendar (built, all three event layers — launches/debuts/birthdays —
-  live) is the newest differentiator; Region/lore explorer is the next
-  candidate for a genuinely *new* page.
+  already built for Timeline/landing) — real gap: no character→region
+  mapping exists yet (`character-elements.json` is element, not nation;
+  needs a new `character-regions.json` with an explicit "Unaffiliated"
+  sentinel for characters like Skirk, not omission). **Character profile
+  pages** (dedicated shareable URLs) are the next-cheapest candidate after
+  that.
+- "On this day" — partly built as the landing trivia ticker's anniversary
+  cards and, more fully, as the Calendar page's year-view grid. A dedicated
+  single-date page would still need the same nearest-match handling.
 
 ## Multi-page architecture
 Separate physical HTML pages (not a JS router/SPA) — zero-build, Netlify
 serves multi-page static sites with no config. Smooth transitions between
 pages come from the native cross-document View Transitions API, not from
-merging into an SPA (see Server Clocks section).
+merging into an SPA (see `docs/clocks.md`).
 
-`css/clocks.css` + `js/clocks.js` are the first realization of the "shared
-base + page-specific stylesheet/script" split — `app.js` itself hasn't been
-split into shared-utilities-vs-timeline-specific yet, since no page has
-needed to reuse its full `characterIndex` building. Several standalone
-pieces did move to `shared.js` once a second page needed the same non-
-render logic without the full index: `countAppearancesThrough()`
-(landing.js/calendar.js — appearance counts through a point in time),
-`buildRays()` (calendar.js's character header now uses it too, gated on
-also loading glow-config.js), the character-search stack
-(`initCharSearch()`/`matchInfo()`/`highlightMatches()` — Calendar's
-`#charSearch` is a verbatim port of Timeline's), and `joinNames()` (Oxford-
-comma list join — Calendar's Month view needed it for a day cell's
-birthday names). Do the bigger split when a page actually needs the full
-index (e.g. Character profile pages).
+`app.js` itself hasn't been split into shared-utilities-vs-timeline-specific
+yet, since no page has needed to reuse its full `characterIndex` building.
+Several standalone pieces did move to `shared.js` once a second page needed
+the same non-render logic without the full index: `countAppearancesThrough()`,
+`buildRays()`, the character-search stack (`initCharSearch()`/`matchInfo()`/
+`highlightMatches()`), and `joinNames()` (Oxford-comma list join). Do the
+bigger split when a page actually needs the full index (e.g. Character
+profile pages).
 
 Header is duplicated per page (not templated) — fine at 2-4 pages, not
 worth the machinery. `data.json` (12.3KB total) isn't worth splitting
