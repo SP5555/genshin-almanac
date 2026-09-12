@@ -1147,16 +1147,30 @@ sourcing new art doesn't require loading all of CLAUDE.md. Read it before
 sourcing any new character/region art.
 
 ## Data validation
-`npm run validate` (`scripts/validate-data.js`) derives the canonical
-character/phase set from `data.json` (including `chronicled` entries, not
-just `banner[]` — an earlier ad-hoc check that forgot `chronicled` produced
-false positives) and cross-checks it against `character-notes.json`,
-`character-elements.json`, `character-aliases.json`, and `phase-notes.json`:
-orphaned keys, characters missing an element (or an element with no
-matching `assets/elements/*.svg`), alias strings reused across two
-characters, stale `phase-notes` keys, and missing face/namecard art (which
-fail *silently* in the UI — neither has an `onerror` fallback). Not wired
-into CI yet, so it only catches things when someone remembers to run it.
+`npm run validate` (`scripts/validate-data.js`) cross-checks `data.json`
+against `character-notes.json`, `character-elements.json`,
+`character-aliases.json`, and `phase-notes.json`.
+Split into one file per concern under `scripts/checks/` (`character-notes.js`,
+`character-elements.js`, `character-aliases.js`, `phase-notes.js`,
+`character-assets.js`), each exporting a `(ctx) => problems[]` function;
+`validate-data.js` itself is just the runner — loads the JSON once, builds
+`ctx`, calls every check, reports. `scripts/checks/util.js` holds the shared
+bits every check needs: `readJSON`/`assetPath`/`slug`, and
+`buildCanonicalData()` — deriving the canonical character/phase set from
+`data.json` (including `chronicled` *and* `lightrace` entries, not just
+`banner[]` — an earlier ad-hoc check that forgot `chronicled` produced false
+positives) is common enough to every check that it's computed once in the
+runner rather than per-check. Checks: orphaned keys, characters missing an
+element (or an element with no matching `assets/elements/*.svg`), alias
+strings reused across two characters, stale `phase-notes` keys, and missing
+face/namecard art (which fail *silently* in the UI — neither has an
+`onerror` fallback). Not wired into CI yet, so it only catches things when
+someone remembers to run it.
+
+Add a new check by dropping a file in `scripts/checks/` (same
+`(ctx) => problems[]` shape) and requiring it in `validate-data.js`'s
+`checks` array — deliberately an explicit list, not a directory scan, so
+it's obvious from one place which checks actually run.
 
 ## Testing date/time-sensitive UI
 `previewNow()` (`js/shared.js`) is a drop-in replacement for `Date.now()`/
