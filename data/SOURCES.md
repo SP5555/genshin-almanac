@@ -75,8 +75,19 @@ twice via game8.co but not a third source. 7.0 Phase 2's 4-star trio
 sourced ahead of the phase's actual Sep 2, 2026 start (21 days after the
 Aug 12 launch, per `PHASE_LENGTH_DAYS`) so the landing page has real art
 instead of the face-icon fallback the moment `getCurrentPhaseIndex()`
-flips over, with no other code change needed. 7.1 deliberately not added
-— was still beta-leak territory with no datamined icons.
+flips over, with no other code change needed.
+
+A phase's `"4"` array can legitimately be `[]` rather than filled — a
+version's Special Program sometimes confirms 5-stars before 4-stars.
+Leave it as an explicit empty array, not an omitted key: only `app.js`
+guards a missing `"4"`, `landing.js`/`shared.js`/`calendar.js` all assume
+every phase has one and will throw otherwise (e.g. `calendar.js`'s
+bootstrap indexing, the landing spotlight card). `npm run validate`
+already surfaces missing face/namecard art on its own once a new
+character's canonical name exists, so there's no separate note needed
+here for "art not sourced yet" — don't source it until enka.network/Fandom
+actually have consistent, correctly-sized assets up; pulling an
+inconsistent early asset is worse than waiting.
 
 1.0 launch roster (confirmed): Barbara, Fischl, Xiangling, Noelle, Sucrose,
 Xingqiu, Beidou, Ningguang, Chongyun, Razor, Bennett. Genuine within-1.X
