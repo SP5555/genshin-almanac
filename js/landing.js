@@ -153,6 +153,16 @@ function stepSpring(e, v, dt, decay, omegaD) {
 	};
 }
 
+// Asymptotic rubber-band: approaches maxPull as dist grows, never reaches
+// it (iOS-scroll-bounce formula). Takes a plain magnitude rather than a
+// vector — attachSpringDrag()'s own rubberBand() below wraps this for its
+// radial 2D case (scaling the original dx/dy by the banded/actual ratio to
+// stay direction-preserving); the carousel's vertical bounce applies it
+// directly to a signed 1D distance instead.
+function rubberBandMagnitude(dist, maxPull) {
+	return maxPull * (1 - 1 / (dist / maxPull + 1));
+}
+
 const CAROUSEL_INTERVAL_MS = 5000;
 const CAROUSEL_SETTLE_MS = 1000;
 // How dark an off-center slot gets at dist >= 1 — a literal "spotlight
@@ -334,6 +344,21 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 		applyActiveElement(fiveStars[baseIndex]);
 	};
 
+	// De-dupes render() across the X-axis loop (settle/springSettle/
+	// runMomentum, all sharing `animationRAF`) and the Y-axis bounce loop
+	// below (its own independent `bounceRAF`) when both fire in the same
+	// real frame — requestAnimationFrame passes every callback scheduled
+	// for one frame the identical `now`, so a repeat value means this is a
+	// second call for a frame already rendered. Only for rAF-driven
+	// callers; pointermove and one-off setup calls render() directly,
+	// since those never coincide with an rAF callback's own timestamp.
+	let lastRenderedFrame = -1;
+	let renderOnFrame = now => {
+		if (now === lastRenderedFrame) return;
+		lastRenderedFrame = now;
+		render();
+	};
+
 	// Whenever `position` has drifted a full step away from baseIndex,
 	// rotate roles instead of re-deriving each slot's side from scratch.
 	// Recycles whichever slot is CURRENTLY farthest (always safely
@@ -402,7 +427,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 			position += (eased - prevEased) * distance;
 			prevEased = eased;
 			resolveRotation();
-			render();
+			renderOnFrame(now);
 			animationRAF = t < 1 ? requestAnimationFrame(frame) : null;
 		};
 		animationRAF = requestAnimationFrame(frame);
@@ -450,7 +475,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 			if (settled) offset = 0;
 			position = target + offset;
 			target -= resolveRotation();
-			render();
+			renderOnFrame(now);
 			if (settled) { animationRAF = null; return; }
 			animationRAF = requestAnimationFrame(frame);
 		};
@@ -492,7 +517,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 			position += velocity * dt;
 			velocity *= Math.pow(CAROUSEL_FRICTION_PER_MS, dt);
 			resolveRotation();
-			render();
+			renderOnFrame(now);
 			if (Math.abs(velocity) > CAROUSEL_MOMENTUM_STOP_VELOCITY) {
 				animationRAF = requestAnimationFrame(step);
 			} else {
@@ -531,21 +556,23 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 	let bounceY = 0, bounceVelY = 0;
 	let bounceRAF = null;
 	let bounceLastFrame = null;
+	// Same 0.4px perceptual stopping tolerance as the other spring loops in
+	// this file, computed once rather than every tick.
+	let bounceRestVelocity = 0.4 * (1000 / SPRING_STEP_MS);
 	let tickBounce = now => {
 		let dt = bounceLastFrame === null ? 0 : (now - bounceLastFrame) / 1000;
 		bounceLastFrame = now;
 		let step = stepSpring(bounceY - bounceTargetY, bounceVelY, dt, CAROUSEL_BOUNCE_DECAY, CAROUSEL_BOUNCE_OMEGA_D);
 		bounceY = bounceTargetY + step.e;
 		bounceVelY = step.v;
-		let restVelocity = 0.4 * (1000 / SPRING_STEP_MS);
-		if (!dragging && Math.abs(bounceY) < 0.4 && Math.abs(bounceVelY) < restVelocity) {
+		if (!dragging && Math.abs(bounceY) < 0.4 && Math.abs(bounceVelY) < bounceRestVelocity) {
 			bounceY = 0; bounceVelY = 0;
 			bounceRAF = null;
 			bounceLastFrame = null;
-			render();
+			renderOnFrame(now);
 			return;
 		}
-		render();
+		renderOnFrame(now);
 		bounceRAF = requestAnimationFrame(tickBounce);
 	};
 	let startBounce = () => { if (bounceRAF === null) bounceRAF = requestAnimationFrame(tickBounce); };
@@ -571,11 +598,11 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 		lastPointerX = e.clientX;
 		position -= dx / getSlotPx();
 		resolveRotation();
-		// Vertical pull, rubber-banded the same asymptotic way as
-		// attachSpringDrag's rubberBand() — total offset from drag start,
-		// not a per-event delta, so it tracks the actual pull distance.
+		// Vertical pull, rubber-banded (rubberBandMagnitude, shared with
+		// attachSpringDrag's own rubberBand()) — total offset from drag
+		// start, not a per-event delta, so it tracks the actual pull distance.
 		let rawDy = e.clientY - dragStartY;
-		bounceTargetY = CAROUSEL_BOUNCE_MAX_PULL * (1 - 1 / (Math.abs(rawDy) / CAROUSEL_BOUNCE_MAX_PULL + 1)) * Math.sign(rawDy);
+		bounceTargetY = rubberBandMagnitude(Math.abs(rawDy), CAROUSEL_BOUNCE_MAX_PULL) * Math.sign(rawDy);
 		render();
 		let now = performance.now();
 		velocityHistory.push({ x: e.clientX, t: now });
@@ -707,8 +734,7 @@ function attachSpringDrag(handleEl, targetEl, options = {}) {
 	let rubberBand = (dx, dy) => {
 		let dist = Math.hypot(dx, dy);
 		if (dist === 0) return [0, 0];
-		let banded = maxPull * (1 - 1 / (dist / maxPull + 1));
-		let scale = banded / dist;
+		let scale = rubberBandMagnitude(dist, maxPull) / dist;
 		return [dx * scale, dy * scale];
 	};
 
