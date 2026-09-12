@@ -19,6 +19,15 @@ function formatDate(isoDate) {
 	return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+// Oxford-comma join for a short name list: "A", "A and B", "A, B, and C".
+// Moved here from landing.js once calendar.js's Month view needed the same
+// joining for a day cell's birthday names.
+function joinNames(names) {
+	if (names.length === 1) return names[0];
+	if (names.length === 2) return `${names[0]} and ${names[1]}`;
+	return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+}
+
 // Same 21-day cadence as landing.js's PHASE_LENGTH_DAYS (duplicated there
 // as a literal rather than calling this — see landing.js). Walks every
 // historical phase, so it leans on phase-notes.json's date overrides for

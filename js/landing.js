@@ -907,13 +907,6 @@ function formatMonthDayYear(dateStr) {
 	return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-// Oxford-comma join for a short name list: "A", "A and B", "A, B, and C".
-function joinNames(names) {
-	if (names.length === 1) return names[0];
-	if (names.length === 2) return `${names[0]} and ${names[1]}`;
-	return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
-}
-
 // 5-stars first, then 4-stars — both rarities debut here (reads more
 // immersive than headlining only the 5-star), but 5-star debuts are still
 // the more headline-worthy fact so they lead the list rather than being

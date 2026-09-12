@@ -40,6 +40,16 @@
         </p>
       </section>
 
+      <!-- Desktop-only (see calendar.css) — Month view's whole benefit is
+           more room per cell, which mobile's already-full-width month
+           cards have nothing to gain from. -->
+      <div class="calendar-view-toggle not-selectable">
+        <div class="calendar-view-toggle-inner">
+          <button type="button" class="calendar-view-toggle-btn is-active" data-view="year">Year</button>
+          <button type="button" class="calendar-view-toggle-btn" data-view="month">Month</button>
+        </div>
+      </div>
+
       <div class="calendar-year-stepper not-selectable">
         <button type="button" class="calendar-year-arrow is-prev" aria-label="Previous year">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
@@ -51,6 +61,46 @@
         <button type="button" class="calendar-year-arrow is-next" aria-label="Next year">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         </button>
+        <button type="button" class="calendar-today-btn">Today</button>
+      </div>
+
+      <!-- Only one instance (unlike the year-stepper's top+bottom pair) —
+           there's no 12-card scroll to get back from in month mode. Hidden
+           by default; shown via #calendarRoot.is-month-view (calendar.css).
+           Two independent stepper groups (month, year) rather than one
+           combined "Month Year" stepper — lets a reader jump May 2025 ->
+           May 2026 in one click instead of stepping through 12 months.
+           The year group reuses the exact same arrow/label/popover
+           structure as the two year-view steppers (buildYearPopovers()/
+           the .calendar-year-label-wrap wiring already operate on every
+           matching element, so this third instance is picked up for free). -->
+      <div class="calendar-month-stepper not-selectable">
+        <div class="calendar-stepper-group">
+          <button type="button" class="calendar-year-arrow calendar-month-nav-arrow is-prev" aria-label="Previous month">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="calendar-month-label-wrap">
+            <button type="button" class="calendar-month-label" aria-haspopup="true" aria-expanded="false"></button>
+            <div class="calendar-month-popover" hidden>
+              <div class="calendar-month-popover-grid"></div>
+            </div>
+          </div>
+          <button type="button" class="calendar-year-arrow calendar-month-nav-arrow is-next" aria-label="Next month">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+        <div class="calendar-stepper-group">
+          <button type="button" class="calendar-year-arrow calendar-month-year-nav-arrow is-prev" aria-label="Previous year">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="calendar-year-label-wrap">
+            <button type="button" class="calendar-year-label" aria-haspopup="true" aria-expanded="false"></button>
+            <div class="calendar-year-popover" hidden></div>
+          </div>
+          <button type="button" class="calendar-year-arrow calendar-month-year-nav-arrow is-next" aria-label="Next year">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
         <button type="button" class="calendar-today-btn">Today</button>
       </div>
 

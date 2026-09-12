@@ -5,6 +5,8 @@ const CALENDAR_MIN_YEAR = 2020; // 1.0's real launch year
 // Sunday-first (matches Date.getDay()'s native order) — not the Monday-first
 // convention clocks.js uses, which is specific to Genshin's reset schedule.
 const CALENDAR_WEEKDAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
+// Month view has real room for these — the compact 12-card grid doesn't.
+const CALENDAR_WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 // Relative to previewNow(), not hardcoded, so the ?fakeDate= dev override
 // can exercise the upper bound too.
@@ -385,6 +387,7 @@ function buildMonthCard(year, month, today) {
 
 function renderCalendarYear(year) {
 	let grid = document.getElementById("calendarMonthGrid");
+	grid.classList.remove("is-month-mode");
 	grid.replaceChildren();
 	let today = previewNow();
 	for (let month = 0; month < 12; month++) {
@@ -392,14 +395,208 @@ function renderCalendarYear(year) {
 	}
 }
 
+// One large month instead of 12 small cards — same weekday-row/day-grid
+// shape as buildMonthCard's, just building buildBigDayCell()s and with no
+// card/title wrapper (the month name+year already lives in the
+// month-stepper's own label).
+function renderCalendarMonth(year, month) {
+	let grid = document.getElementById("calendarMonthGrid");
+	grid.classList.add("is-month-mode");
+	grid.replaceChildren();
+	let today = previewNow();
+
+	// Same glass-card language as the compact grid's 12 small cards — one
+	// big one instead of 12, filling the same container width they
+	// collectively did.
+	let card = document.createElement("div");
+	card.className = "calendar-month-card is-big";
+
+	let weekdayRow = document.createElement("div");
+	weekdayRow.className = "calendar-weekday-row";
+	CALENDAR_WEEKDAY_NAMES.forEach(name => {
+		let el = document.createElement("span");
+		el.className = "calendar-weekday-letter";
+		el.textContent = name;
+		weekdayRow.appendChild(el);
+	});
+	card.appendChild(weekdayRow);
+
+	let dayGrid = document.createElement("div");
+	dayGrid.className = "calendar-day-grid";
+	let firstWeekday = new Date(year, month, 1).getDay();
+	let daysInMonth = new Date(year, month + 1, 0).getDate();
+	for (let i = 0; i < firstWeekday; i++) {
+		let blank = document.createElement("div");
+		blank.className = "calendar-day-cell is-big is-empty";
+		dayGrid.appendChild(blank);
+	}
+	for (let day = 1; day <= daysInMonth; day++) {
+		dayGrid.appendChild(buildBigDayCell(year, month, day, today));
+	}
+	card.appendChild(dayGrid);
+
+	grid.appendChild(card);
+}
+
+// Month view's enlarged cell — same per-day data/dot logic as
+// buildMonthCard, plus real text where the compact grid only has room for
+// a dot: a debut gets its version+phase badge and character names spelled
+// out (5-star gold, 4-star dim); a banner with no real debut (rerun/
+// Chronicled/Lightrace) gets the badge alone, keeping the same "quiet, not
+// the headline" restraint as the .is-banner dot it pairs with — full
+// rosters stay one click away in the day panel either way. Root keeps
+// .calendar-day-cell.is-clickable so the existing delegated listener in
+// initDayPanel() (bound to #calendarMonthGrid) picks it up with no new
+// wiring.
+function buildBigDayCell(year, month, day, today) {
+	let cell = document.createElement("div");
+	cell.className = "calendar-day-cell is-big is-clickable";
+	cell.tabIndex = 0;
+	cell.setAttribute("role", "button");
+	if (today.getFullYear() === year && today.getMonth() === month && today.getDate() === day) {
+		cell.classList.add("is-today");
+	}
+
+	let top = document.createElement("span");
+	top.className = "calendar-day-top";
+	let num = document.createElement("span");
+	num.className = "calendar-day-number";
+	num.textContent = String(day);
+	top.appendChild(num);
+
+	let isoDate = toIsoDate(new Date(year, month, day));
+	cell.dataset.date = isoDate;
+	let debuts = debutsByDate.get(isoDate);
+	let banners = bannersByDate.get(isoDate);
+	let birthdayNames = getBirthdaysForDate(isoDate);
+
+	if (debuts || banners || birthdayNames) {
+		let dots = document.createElement("span");
+		dots.className = "calendar-day-markers";
+		if (debuts && debuts.five.length > 0) {
+			let dot = document.createElement("span");
+			dot.className = "calendar-day-marker-dot is-five";
+			dots.appendChild(dot);
+		}
+		if (debuts && debuts.four.length > 0) {
+			let dot = document.createElement("span");
+			dot.className = "calendar-day-marker-dot is-four";
+			dots.appendChild(dot);
+		}
+		if (!debuts && banners) {
+			let dot = document.createElement("span");
+			dot.className = "calendar-day-marker-dot is-banner";
+			dots.appendChild(dot);
+		}
+		if (birthdayNames) {
+			let dot = document.createElement("span");
+			dot.className = "calendar-day-marker-dot is-birthday";
+			dots.appendChild(dot);
+		}
+		top.appendChild(dots);
+	}
+	cell.appendChild(top);
+
+	if (debuts || banners) cell.classList.add("has-event");
+
+	if (debuts || banners || birthdayNames) {
+		let body = document.createElement("div");
+		body.className = "calendar-day-body";
+
+		if (debuts) {
+			let badge = document.createElement("span");
+			badge.className = "calendar-day-badge";
+			badge.textContent = `${debuts.version} · ${debuts.phaseLabel}`;
+			body.appendChild(badge);
+
+			if (debuts.five.length > 0) {
+				let line = document.createElement("span");
+				line.className = "calendar-day-five-line";
+				line.textContent = joinNames(debuts.five.map(d => d.name));
+				body.appendChild(line);
+			}
+			if (debuts.four.length > 0) {
+				let line = document.createElement("span");
+				line.className = "calendar-day-four-line";
+				line.textContent = joinNames(debuts.four.map(d => d.name));
+				body.appendChild(line);
+			}
+		} else if (banners) {
+			let banner = banners[0];
+			let badge = document.createElement("span");
+			badge.className = "calendar-day-badge";
+			badge.textContent = `${banner.version} · ${banner.phaseLabel}`;
+			body.appendChild(badge);
+		}
+
+		if (birthdayNames) {
+			let name = document.createElement("span");
+			name.className = "calendar-day-bday-name";
+			name.textContent = joinNames(birthdayNames);
+			body.appendChild(name);
+			let caption = document.createElement("span");
+			caption.className = "calendar-day-bday-caption";
+			caption.textContent = birthdayNames.length === 1 ? "Birthday" : "Birthdays";
+			body.appendChild(caption);
+		}
+
+		cell.appendChild(body);
+	}
+
+	return cell;
+}
+
 let currentYear;
+// 0-11, only meaningful once viewMode is "month".
+let currentMonth;
+let viewMode = "year";
+
+// Same breakpoint the sidebar/3-column year grid already switches on —
+// Month view's whole benefit (more room per cell) is desktop-only, so the
+// toggle simply doesn't exist below this width.
+function isMonthViewAvailable() {
+	return matchMedia("(min-width: 900px)").matches;
+}
 
 // Two stepper instances (top and below the grid) kept in sync by operating
 // on every matching element via class rather than a single getElementById.
+// Scoped to .calendar-year-stepper specifically, not just .calendar-year-arrow
+// bare — the month-stepper's own arrows share that same class for styling
+// (see calendar.css) but carry .is-prev/.is-next too, so an unscoped
+// selector here would also match (and disable/enable) them by year bounds
+// instead of month bounds.
 function updateYearLabel() {
 	document.querySelectorAll(".calendar-year-label").forEach(el => { el.textContent = String(currentYear); });
-	document.querySelectorAll(".calendar-year-arrow.is-prev").forEach(el => { el.disabled = currentYear <= CALENDAR_MIN_YEAR; });
-	document.querySelectorAll(".calendar-year-arrow.is-next").forEach(el => { el.disabled = currentYear >= calendarMaxYear(); });
+	document.querySelectorAll(".calendar-year-stepper .calendar-year-arrow.is-prev").forEach(el => { el.disabled = currentYear <= CALENDAR_MIN_YEAR; });
+	document.querySelectorAll(".calendar-year-stepper .calendar-year-arrow.is-next").forEach(el => { el.disabled = currentYear >= calendarMaxYear(); });
+}
+
+// Keeps the month-stepper's own label/arrow-disabled state in sync,
+// mirroring what updateYearLabel() already does for the year-stepper.
+// Month and year are independently steppable (see the month-stepper's two
+// separate arrow groups in calendar.html) — this label is just the month
+// name now; the year has its own label/arrows right next to it.
+function updateMonthLabel() {
+	let text = new Date(currentYear, currentMonth, 1).toLocaleDateString("en-US", { month: "long" });
+	document.querySelectorAll(".calendar-month-label").forEach(el => { el.textContent = text; });
+	let atMin = currentYear <= CALENDAR_MIN_YEAR && currentMonth <= 0;
+	let atMax = currentYear >= calendarMaxYear() && currentMonth >= 11;
+	document.querySelectorAll(".calendar-month-nav-arrow.is-prev").forEach(el => { el.disabled = atMin; });
+	document.querySelectorAll(".calendar-month-nav-arrow.is-next").forEach(el => { el.disabled = atMax; });
+	document.querySelectorAll(".calendar-month-year-nav-arrow.is-prev").forEach(el => { el.disabled = currentYear <= CALENDAR_MIN_YEAR; });
+	document.querySelectorAll(".calendar-month-year-nav-arrow.is-next").forEach(el => { el.disabled = currentYear >= calendarMaxYear(); });
+}
+
+// Single dispatcher for "re-render whatever's currently showing" — every
+// state setter (setYear/setMonth/setViewMode) goes through this instead of
+// calling renderCalendarYear()/renderCalendarMonth() directly.
+function renderCalendar() {
+	if (viewMode === "month") {
+		renderCalendarMonth(currentYear, currentMonth);
+		updateMonthLabel();
+	} else {
+		renderCalendarYear(currentYear);
+	}
 }
 
 function closeAllYearPopovers() {
@@ -408,6 +605,7 @@ function closeAllYearPopovers() {
 }
 
 function openYearPopover(popover, label) {
+	closeMonthPopover();
 	popover.querySelectorAll(".calendar-year-option").forEach(btn => {
 		btn.classList.toggle("is-active", btn.textContent === String(currentYear));
 	});
@@ -416,14 +614,93 @@ function openYearPopover(popover, label) {
 	popover.querySelector(".calendar-year-option.is-active")?.scrollIntoView({ block: "nearest" });
 }
 
+// Month label's own popover — a flat 12-month grid for currentYear. No
+// year sub-header needed here (unlike an earlier version of this) since
+// year is its own independently-steppable group right next to this one
+// (see the month-stepper's two arrow groups in calendar.html) — jumping
+// years is what that one's for. Only one instance exists (unlike the
+// year-stepper's top+bottom pair — see "One month-stepper, not two"
+// reasoning elsewhere), so no need for the year-popover's "operate on
+// every matching element" treatment, but kept scoped by class anyway for
+// consistency/future-proofing.
+function closeMonthPopover() {
+	document.querySelectorAll(".calendar-month-popover").forEach(p => { p.hidden = true; });
+	document.querySelectorAll(".calendar-month-label").forEach(l => { l.setAttribute("aria-expanded", "false"); });
+}
+
+function buildMonthPopoverGrid(popover) {
+	let grid = popover.querySelector(".calendar-month-popover-grid");
+	grid.replaceChildren();
+	for (let m = 0; m < 12; m++) {
+		let btn = document.createElement("button");
+		btn.type = "button";
+		btn.className = "calendar-month-popover-option";
+		btn.textContent = new Date(currentYear, m, 1).toLocaleDateString("en-US", { month: "short" });
+		if (viewMode === "month" && m === currentMonth) btn.classList.add("is-active");
+		btn.addEventListener("click", () => {
+			setMonth(currentYear, m);
+			closeMonthPopover();
+		});
+		grid.appendChild(btn);
+	}
+}
+
+function openMonthPopover(popover, label) {
+	closeAllYearPopovers();
+	buildMonthPopoverGrid(popover);
+	popover.hidden = false;
+	label.setAttribute("aria-expanded", "true");
+}
+
 function setYear(year) {
 	currentYear = clampYear(year);
 	updateYearLabel();
-	renderCalendarYear(currentYear);
+	renderCalendar();
 	let url = new URL(location.href);
 	url.searchParams.set("year", String(currentYear));
 	history.replaceState(null, "", url);
 	closeAllYearPopovers();
+	closeMonthPopover();
+}
+
+// Month-nav equivalent of setYear() — normalizes under/overflow by
+// carrying into the year (Dec->Jan wraps forward, Jan->Dec wraps back)
+// rather than clamping month directly, so the prev/next arrows can just
+// pass currentMonth-1/+1 without checking bounds themselves.
+function setMonth(year, month) {
+	year += Math.floor(month / 12);
+	month = ((month % 12) + 12) % 12;
+	currentYear = clampYear(year);
+	currentMonth = month;
+	updateYearLabel();
+	updateMonthLabel();
+	renderCalendar();
+	let url = new URL(location.href);
+	url.searchParams.set("year", String(currentYear));
+	history.replaceState(null, "", url);
+	closeAllYearPopovers();
+	closeMonthPopover();
+}
+
+// viewMode is session-only (not persisted in the URL) — reloading always
+// starts back in year mode, which sidesteps a real edge case: a persisted
+// month view landing on a <900px viewport would need its own fallback
+// logic for no real benefit (the toggle wouldn't be reachable there
+// anyway to switch back).
+function setViewMode(mode) {
+	if (mode === "month" && !isMonthViewAvailable()) mode = "year";
+	if (mode === viewMode) return;
+	viewMode = mode;
+	if (viewMode === "month" && currentMonth === undefined) {
+		let now = previewNow();
+		currentMonth = currentYear === now.getFullYear() ? now.getMonth() : 0;
+	}
+	document.querySelectorAll(".calendar-view-toggle-btn").forEach(btn => {
+		btn.classList.toggle("is-active", btn.dataset.view === viewMode);
+	});
+	document.getElementById("calendarRoot").classList.toggle("is-month-view", viewMode === "month");
+	updateMonthLabel();
+	renderCalendar();
 }
 
 function buildYearPopovers() {
@@ -936,8 +1213,22 @@ function initDayPanel() {
 }
 initDayPanel();
 
-document.querySelectorAll(".calendar-year-arrow.is-prev").forEach(btn => btn.addEventListener("click", () => setYear(currentYear - 1)));
-document.querySelectorAll(".calendar-year-arrow.is-next").forEach(btn => btn.addEventListener("click", () => setYear(currentYear + 1)));
+document.querySelectorAll(".calendar-year-stepper .calendar-year-arrow.is-prev").forEach(btn => btn.addEventListener("click", () => setYear(currentYear - 1)));
+document.querySelectorAll(".calendar-year-stepper .calendar-year-arrow.is-next").forEach(btn => btn.addEventListener("click", () => setYear(currentYear + 1)));
+document.querySelectorAll(".calendar-view-toggle-btn").forEach(btn => btn.addEventListener("click", () => setViewMode(btn.dataset.view)));
+document.querySelectorAll(".calendar-month-nav-arrow.is-prev").forEach(btn => btn.addEventListener("click", () => setMonth(currentYear, currentMonth - 1)));
+document.querySelectorAll(".calendar-month-nav-arrow.is-next").forEach(btn => btn.addEventListener("click", () => setMonth(currentYear, currentMonth + 1)));
+// The month-stepper's own year group — setYear() already preserves
+// currentMonth via renderCalendar()'s dispatcher, so stepping the year
+// here just needs to call it directly, same as the year-view's own arrows.
+document.querySelectorAll(".calendar-month-year-nav-arrow.is-prev").forEach(btn => btn.addEventListener("click", () => setYear(currentYear - 1)));
+document.querySelectorAll(".calendar-month-year-nav-arrow.is-next").forEach(btn => btn.addEventListener("click", () => setYear(currentYear + 1)));
+// The toggle only exists at >=900px, but a live resize can still narrow
+// past that mid-session while already in month mode — fall back to year
+// view rather than stranding the reader on a toggle-less month view.
+window.addEventListener("resize", () => {
+	if (viewMode === "month" && !isMonthViewAvailable()) setViewMode("year");
+});
 document.querySelectorAll(".calendar-year-label-wrap").forEach(wrap => {
 	let label = wrap.querySelector(".calendar-year-label");
 	let popover = wrap.querySelector(".calendar-year-popover");
@@ -947,10 +1238,22 @@ document.querySelectorAll(".calendar-year-label-wrap").forEach(wrap => {
 		if (willOpen) openYearPopover(popover, label);
 	});
 });
+document.querySelectorAll(".calendar-month-label-wrap").forEach(wrap => {
+	let label = wrap.querySelector(".calendar-month-label");
+	let popover = wrap.querySelector(".calendar-month-popover");
+	label.addEventListener("click", () => {
+		let willOpen = popover.hidden;
+		closeMonthPopover();
+		if (willOpen) openMonthPopover(popover, label);
+	});
+});
 document.addEventListener("click", e => {
 	if (!e.target.closest(".calendar-year-label-wrap")) closeAllYearPopovers();
+	if (!e.target.closest(".calendar-month-label-wrap")) closeMonthPopover();
 });
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeAllYearPopovers(); });
+document.addEventListener("keydown", e => {
+	if (e.key === "Escape") { closeAllYearPopovers(); closeMonthPopover(); }
+});
 
 function toIsoDate(date) {
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -962,7 +1265,15 @@ function toIsoDate(date) {
 // meant to be reused by any future jump feature (search, etc.).
 function jumpToDate(isoDate) {
 	let year = parseInt(isoDate.slice(0, 4), 10);
-	if (currentYear !== year) setYear(year);
+	let month = parseInt(isoDate.slice(5, 7), 10) - 1;
+	// In month mode only the currently-viewed month is actually in the DOM
+	// (unlike year mode, where all 12 always are) — switch month first or
+	// the querySelector below finds nothing and this silently no-ops.
+	if (viewMode === "month") {
+		if (currentYear !== year || currentMonth !== month) setMonth(year, month);
+	} else if (currentYear !== year) {
+		setYear(year);
+	}
 	let cell = document.querySelector(`.calendar-day-cell[data-date="${isoDate}"]`);
 	if (!cell) return;
 	let reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;

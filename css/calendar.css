@@ -12,10 +12,10 @@
 	from{opacity: 0; transform: translateY(16px);}
 	to{opacity: 1; transform: translateY(0);}
 }
-.calendar-intro, .calendar-year-stepper, .calendar-month-card{
+.calendar-intro, .calendar-year-stepper, .calendar-view-toggle, .calendar-month-stepper, .calendar-month-card{
 	animation: calendar-reveal 0.5s ease both;
 }
-.calendar-year-stepper{animation-delay: 0.08s;}
+.calendar-year-stepper, .calendar-view-toggle, .calendar-month-stepper{animation-delay: 0.08s;}
 /* Capped stagger, not one delay per month — with 12 cards a full per-card
    stagger would take too long to finish feeling responsive; nth-child
    only goes up to a modest cap and every card past that shares the same
@@ -26,7 +26,7 @@
 .calendar-month-card:nth-child(4){animation-delay: 0.23s;}
 .calendar-month-card:nth-child(n+5){animation-delay: 0.26s;}
 @media (prefers-reduced-motion: reduce){
-	.calendar-intro, .calendar-year-stepper, .calendar-month-card{animation: none;}
+	.calendar-intro, .calendar-year-stepper, .calendar-view-toggle, .calendar-month-stepper, .calendar-month-card{animation: none;}
 }
 
 .calendar-root{position: relative; z-index: 1; min-height: 60vh; padding: 20px 0 60px 0; transition: transform 0.4s ease;}
@@ -78,14 +78,22 @@
 .calendar-today-btn:hover{background-color: var(--glass-hover); border-color: var(--glass-border-hover); color: var(--text);}
 
 .calendar-year-label-wrap{position: relative;}
-.calendar-year-label{
+/* Shared base with .calendar-month-label (below) — only `width` differs
+   per selector, not min-width: a fixed width (not min-width) is what stops
+   the label resizing as its text changes and shoving the arrows beside it
+   left/right on every step. The year label only ever shows 4 digits (same
+   width every time regardless of which year), so it gets a much narrower
+   fixed width than the month label needs for "September". */
+.calendar-year-label, .calendar-month-label{
 	font-size: 20px; font-weight: bold; color: var(--five);
 	background-color: var(--glass); border: 1px solid var(--glass-border);
-	padding: 6px 22px; border-radius: var(--radius-full);
-	cursor: pointer; min-width: 92px; text-align: center;
+	padding: 6px 18px; border-radius: var(--radius-full);
+	cursor: pointer; text-align: center; white-space: nowrap;
 	transition: background-color 0.2s, border-color 0.2s;
 }
-.calendar-year-label:hover{background-color: var(--glass-hover); border-color: var(--glass-border-hover);}
+.calendar-year-label{width: 92px;}
+.calendar-month-label{width: 160px;}
+.calendar-year-label:hover, .calendar-month-label:hover{background-color: var(--glass-hover); border-color: var(--glass-border-hover);}
 /* A real popover, not a native <select> — lets jumping from one end of the
    2020-to-current+2 range to the other take one click instead of stepping
    through every year with the prev/next arrows. */
@@ -133,6 +141,83 @@
 	top: auto; bottom: calc(100% + 8px);
 }
 
+/* ---------- month view (desktop-only zoom mode) ---------- */
+/* Hidden below 900px — Month view's whole benefit (more room per cell) is
+   moot on mobile, where the year-view already collapses to one full-width
+   month per row. */
+.calendar-view-toggle{display: none;}
+@media (min-width: 900px){
+	.calendar-view-toggle{display: flex; justify-content: center; margin-top: 24px;}
+}
+.calendar-view-toggle-inner{
+	display: flex; gap: 2px; padding: 3px;
+	background-color: var(--glass); border: 1px solid var(--glass-border);
+	border-radius: var(--radius-full);
+}
+.calendar-view-toggle-btn{
+	font-size: 12.5px; font-weight: bold; color: var(--text-dim);
+	background: none; border: none;
+	padding: 6px 18px; border-radius: var(--radius-full);
+	cursor: pointer; transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+/* Same "this is the active view" language as .page-nav-link.is-active
+   (style.css) — reused so the toggle reads consistently with the site's
+   own nav rather than inventing a second "active" convention. */
+.calendar-view-toggle-btn.is-active{
+	color: var(--five); background-color: var(--glass-hover);
+	box-shadow: 0 0 10px -2px var(--five-glow);
+}
+
+/* Only one instance (unlike the year-stepper's top+bottom pair) — hidden
+   by default, shown only in month mode; the year-steppers do the reverse. */
+.calendar-month-stepper{display: none;}
+/* position+z-index for the exact same reason .calendar-year-stepper has
+   it — the reveal animation's animation-fill-mode:both leaves a lingering
+   transform:translateY(0) once it finishes, which promotes this into its
+   own stacking context and traps the month-popover's z-index:10 inside it,
+   unable to rise above #calendarMonthGrid otherwise. */
+#calendarRoot.is-month-view .calendar-month-stepper{
+	position: relative; z-index: 5;
+	display: flex; align-items: center; justify-content: center; gap: 24px;
+	margin-top: 28px;
+}
+#calendarRoot.is-month-view .calendar-year-stepper{display: none;}
+/* One group for month, one for year — a bigger gap between the two groups
+   (above) than within one (here) is what reads as "two independent
+   controls" rather than one long, ambiguous row of arrows. A thin divider
+   in that gap (not extra spacing — centered in the existing 24px gap via
+   a negative offset) makes the split unambiguous at a glance too. */
+.calendar-stepper-group{display: flex; align-items: center; gap: 14px; position: relative;}
+.calendar-stepper-group + .calendar-stepper-group::before{
+	content: ''; position: absolute; left: -12px; top: 50%; transform: translateY(-50%);
+	width: 1px; height: 22px; background-color: var(--glass-border-hover);
+}
+.calendar-month-label-wrap{position: relative;}
+/* Same recipe as .calendar-year-popover — just a 12-month grid instead of
+   a flat year list. No year sub-header here: year is its own group right
+   next to this one (see .calendar-stepper-group above), so this popover
+   only ever needs to show the current year's months. */
+.calendar-month-popover{
+	position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+	z-index: 10;
+	padding: 10px; border-radius: var(--radius-md);
+	background-color: rgba(13, 13, 20, 0.92); border: 1px solid var(--glass-border);
+	backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+	box-shadow: 0 14px 30px rgba(0,0,0,0.4);
+}
+/* Same cascade-origin gotcha as .calendar-year-popover[hidden] — author
+   display:flex would otherwise beat the UA [hidden]{display:none}. */
+.calendar-month-popover[hidden]{display: none;}
+.calendar-month-popover-grid{display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; width: 168px;}
+.calendar-month-popover-option{
+	font-size: 13px; font-weight: bold; color: var(--text-dim);
+	background: none; border: none; border-radius: var(--radius-sm);
+	padding: 8px 4px; cursor: pointer; text-align: center;
+	transition: background-color 0.15s, color 0.15s;
+}
+.calendar-month-popover-option:hover{background-color: var(--glass-hover); color: var(--text);}
+.calendar-month-popover-option.is-active{color: var(--five); background-color: rgba(255, 194, 71, 0.12);}
+
 /* ---------- month grid ---------- */
 .calendar-month-grid{
 	display: grid; grid-template-columns: 1fr; gap: 16px;
@@ -148,13 +233,23 @@
 	transition: background-color 0.25s, border-color 0.25s;
 }
 .calendar-month-card:hover{background-color: var(--glass-hover); border-color: var(--glass-border-hover);}
+/* One big card instead of 12 small ones reads more like primary page
+   content than a secondary card, so it gets --radius-lg (see style.css's
+   radius scale) and a bit more breathing room than the compact cards. */
+.calendar-month-card.is-big{padding: 20px; border-radius: var(--radius-lg);}
 .calendar-month-title{font-size: 15px; font-weight: bold; color: var(--text); margin-bottom: 10px;}
 
 .calendar-weekday-row, .calendar-day-grid{display: grid; grid-template-columns: repeat(7, 1fr);}
-.calendar-weekday-row{gap: 2px; margin-bottom: 4px;}
+.calendar-weekday-row{gap: 2px; margin-bottom: 8px;}
+/* Each letter is its own bordered chip rather than plain text under a
+   single rule beneath the whole row — a real box (not just an underline)
+   is what actually reads as distinct from the plain, borderless day
+   numbers below it, not just a different shade of the same gray. */
 .calendar-weekday-letter{
 	font-size: 10px; font-weight: bold; color: var(--text-dim); text-align: center;
-	opacity: 0.6;
+	letter-spacing: 0.5px;
+	padding: 4px 0; border: 1px solid var(--glass-border); border-radius: var(--radius-sm);
+	background-color: var(--glass);
 }
 .calendar-day-grid{gap: 2px;}
 /* Not aspect-ratio:1/1 anymore — height is fixed (not just content-driven)
@@ -239,6 +334,38 @@
    the headline event a debut or birthday is, so it stays visually quiet
    rather than competing with them for attention. */
 .calendar-day-marker-dot.is-banner{background-color: var(--text-dim);}
+
+/* ---------- month view's enlarged cell ---------- */
+/* Same day-grid, just a bigger gap now that cells actually have room to
+   breathe — a 900px+-only context (see .calendar-view-toggle above), so
+   this never has to coexist with the compact grid's own narrower gap. */
+#calendarMonthGrid.is-month-mode{display: block;}
+#calendarMonthGrid.is-month-mode .calendar-day-grid{gap: 10px;}
+#calendarMonthGrid.is-month-mode .calendar-weekday-row{gap: 10px; margin-bottom: 8px;}
+.calendar-day-cell.is-big{height: 130px;}
+.calendar-day-cell.is-big .calendar-day-top{top: 8px; left: 10px; right: 10px;}
+.calendar-day-cell.is-big .calendar-day-number{font-size: 15px;}
+.calendar-day-cell.is-big .calendar-day-marker-dot{width: 6px; height: 6px;}
+/* Positioned to clear .calendar-day-top above it — everything a debut/
+   banner/birthday needs to say now that there's real room for it, one
+   click short of the day panel's full detail either way. */
+.calendar-day-body{
+	position: absolute; top: 34px; left: 10px; right: 10px; bottom: 8px;
+	display: flex; flex-direction: column; gap: 5px; overflow: hidden;
+}
+.calendar-day-badge{
+	align-self: flex-start;
+	font-size: 10px; font-weight: bold; color: var(--text-dim);
+	background-color: var(--glass); border: 1px solid var(--glass-border);
+	padding: 2px 9px; border-radius: var(--radius-full);
+}
+.calendar-day-five-line{font-size: 12px; font-weight: bold; color: var(--five); line-height: 1.3;}
+.calendar-day-four-line{font-size: 10.5px; font-weight: bold; color: var(--four); line-height: 1.3;}
+.calendar-day-bday-name{font-size: 12.5px; font-weight: bold; color: var(--birthday);}
+.calendar-day-bday-caption{
+	font-size: 9px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.4px;
+	color: var(--text-dim); opacity: 0.7;
+}
 
 /* Day panel's debut list — each character gets a small "trading card" of
    their own: their namecard art as the background (same technique as the

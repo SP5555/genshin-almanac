@@ -739,11 +739,9 @@ leaning into the site's time/history angle rather than adding
 theorycrafting/build-tag features other Genshin sites already cover better.
 Three event layers are plotted: version launches (straight from
 `data.json`), character debuts, and birthdays (see below). A dedicated
-Month/Year zoom toggle was considered and deliberately parked — its whole
-benefit is desktop-only, since on
-mobile the year-view already collapses to one full-width month per row, so
-it doesn't replace the need to get the compact cell design right everywhere
-first.
+Month/Year zoom toggle was considered and initially parked, then built
+once the compact cell design (below) was solid — see "Month view" further
+down.
 
 **Year stepper**: range is `2020` (1.0's real launch year) to
 `previewNow().getFullYear() + 1`, computed live rather than a hardcoded
@@ -971,6 +969,115 @@ phase's* start date, since no exact "chronicled banner start date" is
 tracked anywhere on this site (same reason `buildDebutsByDate` never scans
 them for debuts).
 
+### Month view (desktop-only zoom mode)
+A Year/Month toggle (`.calendar-view-toggle`, `display:none` below 900px —
+the same breakpoint the sidebar/3-column year grid already uses) swaps the
+12-small-card grid for one large `.calendar-month-card.is-big` — the exact
+same glass-card language as the compact grid's 12 small ones, just one
+instead of twelve, filling the container width they collectively did.
+Designed via a Claude Design canvas first (two sketched directions —
+spelled-out event text vs. character-face thumbnails — the user picked
+event text; the thumbnail direction stays on file as a second page in that
+canvas, not built).
+
+**State**: `viewMode` (`"year"`/`"month"`) and `currentMonth` are
+session-only, not persisted in the URL like `currentYear` is — reloading
+always starts back in year mode. Deliberate: a persisted month view
+landing on a <900px viewport would need its own fallback logic for no
+real benefit (the toggle wouldn't even be reachable there to switch back).
+A `resize` listener still forces back to year mode if the window narrows
+below 900px mid-session while already in month mode, so the toggle
+disappearing never strands the reader on an un-navigable view.
+`renderCalendar()` is the single dispatcher every state setter
+(`setYear`/`setMonth`/`setViewMode`) goes through — it picks
+`renderCalendarYear()` or the new `renderCalendarMonth()` based on
+`viewMode`, so neither setter has to know which view is currently active.
+
+**Two independent stepper groups, not one combined "Month Year" stepper**
+— `.calendar-stepper-group` × 2 (month, year), separated by a wider gap
+plus a thin vertical divider (centered in that gap via a negative offset,
+not extra padding) so they read as two distinct controls. Lets a reader
+jump May 2025 → May 2026 in one click instead of stepping through 12
+months. The year group is a *verbatim reuse* of the year-view's own
+arrow/label/popover markup (`.calendar-year-label-wrap` /
+`.calendar-year-popover`) — since `buildYearPopovers()` and that wrap's
+click wiring already operate on "every matching element" rather than a
+specific instance, this third occurrence gets the full year-picker
+popover for free, no new JS. Clicking one of its year options calls the
+same `setYear()` the year-view's own arrows use — it already preserves
+`currentMonth` through `renderCalendar()`'s dispatcher, so no month-aware
+variant was needed. The month group's own popover is a flat 12-month grid
+for `currentYear` (no year sub-header — that's the other group's job now;
+an earlier version of this popover *did* have one, before the two-group
+split, and was simplified away once year got its own control). Both
+labels share one CSS rule for everything except `width` — the year label
+is a fixed `92px` (a year is always 4 digits, same width every time), the
+month label a fixed `160px` (wide enough for "September," the longest
+name) — a *fixed* width, not `min-width`, is what stops the label
+resizing (and shoving its own arrows sideways) as the text changes;
+merging the shared properties into one rule is what keeps the two from
+drifting back out of sync with each other later.
+
+**Real bug worth remembering**: the month-nav arrows share `.calendar-year-arrow`
+with the year-view's own arrows purely for pill styling, but the
+year-view's click listeners originally selected on the bare
+`.calendar-year-arrow.is-prev`/`.is-next` combination — which the month
+arrows also carry. Every "next month" click was silently *also* firing
+`setYear(currentYear + 1)`, landing one year ahead of where it should
+(reported as "Sep '26 → Oct '27" — read at first as a day-number bug, it
+was actually the year tagging along). Fixed by scoping those selectors
+(and `updateYearLabel()`'s disabled-state ones) to
+`.calendar-year-stepper .calendar-year-arrow...` specifically, so they can
+only ever match the year-view's own arrows. Worth remembering any time a
+new element reuses an existing class purely for shared styling — an
+existing *unscoped* selector elsewhere that happens to match the same
+class combination will fire too.
+
+**Same z-index gotcha as the year-stepper, initially missed**: the reveal
+animation's `animation-fill-mode:both` leaves a lingering
+`transform:translateY(0)` once it finishes, promoting the element into
+its own stacking context and trapping a child popover's `z-index` inside
+it (same mechanism as the year-stepper's own documented fix above). Giving
+`.calendar-month-stepper` the reveal animation without also giving it the
+matching `position:relative;z-index:5` (which `.calendar-year-stepper` has
+specifically for this reason) reintroduced the exact same bug in the new
+component. Worth checking for on any new element that both gets this
+page's reveal animation *and* houses its own popover.
+
+**`buildBigDayCell()`** mirrors `buildMonthCard()`'s per-day data lookups
+exactly (`debutsByDate`/`bannersByDate`/`getBirthdaysForDate`) but renders
+real text where the compact grid only had room for a dot: a debut gets its
+version+phase badge and character names spelled out (5-star gold, 4-star
+`--four` purple, both bold); a banner with no real debut (rerun/
+Chronicled/Lightrace) gets the badge alone, keeping the same "quiet, not
+the headline" restraint as the `.is-banner` dot it pairs with — full
+rosters stay one click away in the day panel either way, same as the
+compact grid. Root element keeps `.calendar-day-cell.is-clickable` (plus a
+new `.is-big` sizing modifier) so the *existing* delegated listener in
+`initDayPanel()` — bound to `#calendarMonthGrid` by id, already surviving
+`replaceChildren()` — picks it up with zero new click/keydown wiring.
+`joinNames()` (Oxford-comma list join) moved from `landing.js` to
+`shared.js` once this needed the same joining for a cell's birthday names
+— same "hoist once a second page needs it" pattern as
+`countAppearancesThrough()`/`buildRays()` elsewhere in this file.
+
+**`jumpToDate()` needed a real fix, not just a wrapper**: it only ever
+checked/set `currentYear`, so in month mode looking at a different month
+than the target date, the cell genuinely isn't in the DOM (unlike year
+mode, where all 12 months always are) and the jump silently no-op'd. Now
+derives the target month from the ISO date and calls `setMonth()` first
+when in month mode — fixes every caller for free (`jumpToToday()`, and the
+character panel's appearance-row version-jump click).
+
+Weekday row: each letter is its own bordered chip
+(`border`+`border-radius`+`--glass` background), not a plain label under
+a single rule beneath the whole row — a real box per letter is what
+actually reads as a distinct "header," not just a different shade of the
+same gray the day numbers use. Month view spells out full names
+("Sunday"..."Saturday", `CALENDAR_WEEKDAY_NAMES`) instead of the compact
+grid's single letters (`CALENDAR_WEEKDAY_LETTERS`) — real horizontal room
+for it once cells aren't jammed 3-per-row.
+
 ## Design decisions
 - Header is `position: relative`, not `sticky` — deliberate, so it doesn't
   occupy permanent viewport space.
@@ -1116,10 +1223,12 @@ pieces did move to `shared.js` once a second page needed the same non-
 render logic without the full index: `countAppearancesThrough()`
 (landing.js/calendar.js — appearance counts through a point in time),
 `buildRays()` (calendar.js's character header now uses it too, gated on
-also loading glow-config.js), and the character-search stack
+also loading glow-config.js), the character-search stack
 (`initCharSearch()`/`matchInfo()`/`highlightMatches()` — Calendar's
-`#charSearch` is a verbatim port of Timeline's). Do the bigger split when a
-page actually needs the full index (e.g. Character profile pages).
+`#charSearch` is a verbatim port of Timeline's), and `joinNames()` (Oxford-
+comma list join — Calendar's Month view needed it for a day cell's
+birthday names). Do the bigger split when a page actually needs the full
+index (e.g. Character profile pages).
 
 Header is duplicated per page (not templated) — fine at 2-4 pages, not
 worth the machinery. `data.json` (12.3KB total) isn't worth splitting
