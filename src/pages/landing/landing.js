@@ -1,3 +1,8 @@
+import "../../shared/chrome.js";
+import { facePath, formatDate, joinNames } from "../../shared/dom.js";
+import { countAppearancesThrough, previewNow, LIVE_WINDOW_DAYS, findLastLaunchedEntry } from "../../shared/dates.js";
+import { swapWithFade } from "../../shared/panel.js";
+
 // Phase length confirmed at 21 days (not a round 20) via cross-checked
 // sources — see CLAUDE.md. Only reliable for the live version's normal
 // 2-phase, ~42-day cycle; historical irregular-length versions (delays,
@@ -847,14 +852,14 @@ function buildSpotlightFourCard(character, data, versionIdx, phaseIdx, notes, el
 	let card = document.createElement("div");
 	card.className = "spotlight-fourcard";
 	if (colors) {
-		card.style.setProperty("--el", colors.c);
 		card.style.setProperty("--el-glow", colors.glow);
 	}
 	if (element) {
-		// Relative to css/landing.css, not the page — a url() inside a custom
-		// property resolves against the stylesheet that consumes it via var(),
-		// not the document, so a document-relative path here 404s silently.
-		card.style.setProperty("--el-icon", `url(../assets/elements/${element.toLowerCase()}.svg)`);
+		// Relative to src/pages/landing/landing.css, not the page — a url()
+		// inside a custom property resolves against the stylesheet that
+		// consumes it via var(), not the document, so a document-relative
+		// path here 404s silently.
+		card.style.setProperty("--el-icon", `url(../../../assets/elements/${element.toLowerCase()}.svg)`);
 	}
 
 	// Same splash art + fallback pattern as buildSpotlightFiveCard() — not
