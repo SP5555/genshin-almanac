@@ -170,14 +170,27 @@ debut gets its version+phase badge and character names spelled out; a
 banner with no real debut gets the badge alone, keeping the same "quiet,
 not the headline" restraint as the `.is-banner` dot.
 
+**Real bug: Chronicled/Lightrace were invisible whenever their date also
+had a real debut.** `bannersByDate.get(isoDate)` is an *array* — a date can
+host more than one distinct banner group, since Chronicled/Lightrace share
+their parent phase's exact date. The cell only ever rendered one thing
+though (`debuts` if present, else `banners[0]`), so a Chronicled/Lightrace
+group sitting in that same array went completely unrendered whenever a
+real debut (or even just a different plain banner) already claimed the
+`if`/`else if`. Fixed by rendering Chronicled/Lightrace groups as their own
+small badge (`.calendar-day-badge.is-chronicled`/`.is-lightrace`, recolored
+only — same restraint as `.char-appear-version`'s own variant coloring)
+*unconditionally*, alongside whatever the debuts/plain-banner branch above
+already rendered, not folded into that branch's either/or.
+
 **`jumpToDate()` needed a real fix, not just a wrapper**: it only ever
 checked/set `currentYear`, so in month mode looking at a different month
 than the target date, the cell genuinely isn't in the DOM and the jump
 silently no-op'd. Now derives the target month from the ISO date and calls
 `setMonth()` first when in month mode — fixes every caller for free.
 
-Weekday row is a bordered chip per letter, not a plain label under one
-rule beneath the whole row — a real box per letter is what reads as a
-distinct header. Month view spells out full weekday names
-(`CALENDAR_WEEKDAY_NAMES`) instead of the compact grid's single letters,
-since there's real room for it.
+Weekday row has one border around the whole row (not per-letter — tried
+first, looked busier) so it reads as a single header bar distinct from the
+plain, borderless day numbers below it. Month view spells out full weekday
+names (`CALENDAR_WEEKDAY_NAMES`) instead of the compact grid's single
+letters, since there's real room for it.

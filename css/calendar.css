@@ -240,16 +240,18 @@
 .calendar-month-title{font-size: 15px; font-weight: bold; color: var(--text); margin-bottom: 10px;}
 
 .calendar-weekday-row, .calendar-day-grid{display: grid; grid-template-columns: repeat(7, 1fr);}
-.calendar-weekday-row{gap: 2px; margin-bottom: 8px;}
-/* Each letter is its own bordered chip rather than plain text under a
-   single rule beneath the whole row — a real box (not just an underline)
-   is what actually reads as distinct from the plain, borderless day
-   numbers below it, not just a different shade of the same gray. */
+/* One border around the whole row, not one per letter — reads as a single
+   header bar (not just an underline) and is what actually reads as
+   distinct from the plain, borderless day numbers below it, not just a
+   different shade of the same gray. */
+.calendar-weekday-row{
+	gap: 2px; margin-bottom: 8px; padding: 4px 0;
+	border: 1px solid var(--glass-border); border-radius: var(--radius-sm);
+	background-color: var(--glass);
+}
 .calendar-weekday-letter{
 	font-size: 10px; font-weight: bold; color: var(--text-dim); text-align: center;
 	letter-spacing: 0.5px;
-	padding: 4px 0; border: 1px solid var(--glass-border); border-radius: var(--radius-sm);
-	background-color: var(--glass);
 }
 .calendar-day-grid{gap: 2px;}
 /* Not aspect-ratio:1/1 anymore — height is fixed (not just content-driven)
@@ -359,6 +361,11 @@
 	background-color: var(--glass); border: 1px solid var(--glass-border);
 	padding: 2px 9px; border-radius: var(--radius-full);
 }
+/* Same recolor-only-not-filled restraint as .char-appear-version's own
+   chronicled/lightrace variants (style.css) — quiet, not a competing
+   headline. */
+.calendar-day-badge.is-chronicled{color: var(--chronicled); border-color: var(--chronicled);}
+.calendar-day-badge.is-lightrace{color: var(--lightrace); border-color: var(--lightrace);}
 .calendar-day-five-line{font-size: 12px; font-weight: bold; color: var(--five); line-height: 1.3;}
 .calendar-day-four-line{font-size: 10.5px; font-weight: bold; color: var(--four); line-height: 1.3;}
 .calendar-day-bday-name{font-size: 12.5px; font-weight: bold; color: var(--birthday);}

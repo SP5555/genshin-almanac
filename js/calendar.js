@@ -522,11 +522,29 @@ function buildBigDayCell(year, month, day, today) {
 				body.appendChild(line);
 			}
 		} else if (banners) {
-			let banner = banners[0];
-			let badge = document.createElement("span");
-			badge.className = "calendar-day-badge";
-			badge.textContent = `${banner.version} · ${banner.phaseLabel}`;
-			body.appendChild(badge);
+			let plainBanner = banners.find(b => !b.variant);
+			if (plainBanner) {
+				let badge = document.createElement("span");
+				badge.className = "calendar-day-badge";
+				badge.textContent = `${plainBanner.version} · ${plainBanner.phaseLabel}`;
+				body.appendChild(badge);
+			}
+		}
+
+		// Chronicled/Lightrace share their parent phase's exact date by
+		// design (see buildBannersByDate) — shown here regardless of what
+		// the debuts/plainBanner branch above already rendered, or a
+		// Chronicled/Lightrace Wish would be entirely invisible on the
+		// (very common) date it shares with a real debut. Theme left off
+		// ("Chronicled Wish", not "...— Mondstadt") to keep the pill short;
+		// full detail is one click away in the day panel either way.
+		if (banners) {
+			banners.filter(b => b.variant).forEach(variantBanner => {
+				let badge = document.createElement("span");
+				badge.className = "calendar-day-badge is-" + variantBanner.variant;
+				badge.textContent = variantBanner.variant === "chronicled" ? "Chronicled Wish" : "Lightrace Wish";
+				body.appendChild(badge);
+			});
 		}
 
 		if (birthdayNames) {
