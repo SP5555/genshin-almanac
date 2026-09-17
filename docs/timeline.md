@@ -1,4 +1,4 @@
-# Timeline page (`timeline.html` / `js/app.js`)
+# Timeline page (`timeline.html` / `src/pages/timeline/timeline.js`)
 
 Implementation notes for this page only — cross-cutting stuff (CSS
 gotchas, design decisions, data schemas) lives in the root `CLAUDE.md`.
@@ -31,7 +31,7 @@ that formula is wrong: 1.3's unusual 3-phase structure and 3.0–3.2's
 compressed 16-day cadence, both verified against 2+ independent sources.
 Phase 1 never needs an override — it's always exactly `entry.date`.
 
-Both notes files are keyed once per fact, not per occurrence — `app.js`
+Both notes files are keyed once per fact, not per occurrence — `timeline.js`
 applies them wherever relevant regardless of how `data.json` changes.
 
 **`data/version-notes.json`** (keyed by major version `"1"`–`"7"`): `region`
@@ -52,7 +52,7 @@ header has two layouts on one element: the default centered column
 `.detail-panel-header.is-character` (avatar + name/tags) — since the
 header persists across a stack navigation rather than getting torn down,
 whichever view renders next has to leave it in the right state.
-`buildCharacterHeader()` (shared.js) is what Timeline's `openCharPanel` and
+`buildCharacterHeader()` (`src/shared/glow.js`) is what Timeline's `openCharPanel` and
 Calendar's `renderCharacterPanel` both call for the header specifically.
 Its avatar always shows the release-style ring + sunburst rays
 (GLOW_CONFIG-driven) regardless of whether *this* appearance was really a
@@ -119,7 +119,7 @@ spaces from both query and name before comparing).
 
 Ported verbatim onto Calendar (`#charSearch`) — the matching/ranking/DOM
 logic (`initCharSearch()`, `matchInfo()`, `highlightMatches()`) lives in
-shared.js, since Timeline's `characterIndex` and Calendar's
+`src/shared/search.js`, since Timeline's `characterIndex` and Calendar's
 `characterAppearances` are two independently-built but identically-shaped
 name→entries indexes.
 
@@ -153,9 +153,11 @@ to avoid clustering; the gradient has a solid plateau before fading, since
 `filter: blur()` was softening the intended peak.
 
 `buildRays()` and `buildCharacterHeader()` (the shared detail-panel
-character header) live in `shared.js`, since Calendar's own character
-header needs them too — Calendar loads `glow-config.js` for this reason
-alone. The header's avatar uses its own denser `GLOW_CONFIG.rays.countHeader`
+character header) live in `src/shared/glow.js`, since Calendar's own
+character header needs them too — Calendar imports `glow.js` for this
+reason alone, which is what pulls in `glow-config.js` (Landing and Server
+Clocks never import `glow.js`, so they never load it). The header's avatar
+uses its own denser `GLOW_CONFIG.rays.countHeader`
 (16 vs. `countLg`'s 8) since it's bigger (76px vs. 48px) and, unlike the
 540 phase-card instances, only ever one on screen at once.
 
@@ -163,7 +165,7 @@ alone. The header's avatar uses its own denser `GLOW_CONFIG.rays.countHeader`
 `.site-brand` is a plain gradient-text `<a>` (not `<h1>`), always links to
 `index.html` regardless of which page it's on. `#brandLiveDot` ripples next
 to it when the tracked data is live (same rule as the Timeline's `.is-live`
-ripple, computed independently in `shared.js` since it needs to work on
+ripple, computed independently in `src/shared/chrome.js` since it needs to work on
 every page). `.page-nav` links to Timeline, Calendar, then Server Clocks,
 identically on all four pages — the landing page has no entry for itself.
 Active state is a glass pill + glow, with the pill's padding on the base

@@ -27,22 +27,44 @@ to it.
 - `index.html` — landing page (the site's actual root/entry point).
   `timeline.html` — the full banner Timeline (used to be `index.html`,
   renamed when the landing page was built). `clocks.html` — Server Clocks
-  page. `calendar.html` — Calendar page.
-- `css/reset.css` + `css/style.css` — shared base (palette, header, footer,
-  detail panel, timeline, back-to-top button, brand live-dot). `css/clocks.css`
-  / `css/landing.css` / `css/calendar.css` — page-specific styles for those
-  three pages.
-- `js/shared.js` — cross-page utilities, loaded by all four pages: the
-  back-to-top button, the header brand's live-status dot,
-  `faceImg()`/`facePath()`/`formatDate()`/`countAppearancesThrough()`,
-  `swapWithFade()` (generic fade-out/swap-DOM/resize/fade-in animation),
-  and `previewNow()` (see "Testing date/time-sensitive UI"). `js/app.js` —
-  Timeline page logic, still the only thing that knows how to render the
-  full 52-version DOM. `js/glow-config.js` — release-glow ray tuning knobs,
-  kept as `.js` not JSON since it applies its own values as CSS custom
-  properties. `js/clocks.js` — Server Clocks logic. `js/landing.js` —
-  landing page logic. `js/calendar.js` — Calendar page logic. None of the
-  four depend on each other.
+  page. `calendar.html` — Calendar page. All four stay at repo root as
+  thin entry points — everything they load lives under `src/`.
+- `src/pages/<page>/<page>.js` + `<page>.css` — one page's own logic and
+  styles, co-located: `landing/`, `timeline/` (`timeline.js`, renamed from
+  the historical `app.js` to match this convention — still the only thing
+  that knows how to render the full 52-version DOM), `calendar/`,
+  `clocks/`. Each page's `.js` is loaded as a real ES module
+  (`<script type="module">`) with explicit `import`s — no more relying on
+  `<script>` tag order to make a shared function available as a global.
+- `src/shared/` — cross-page utilities, split by concern so an import
+  states exactly what a file depends on instead of everything being an
+  implicit global:
+  - `dom.js` — `facePath()`/`faceImg()`/`formatDate()`/`joinNames()`/
+    `rarityBadge()`/`onActivate()`/`onDelegatedActivate()`.
+  - `dates.js` — `getPhaseStartDate()`/`countAppearancesThrough()`/
+    `previewNow()` (see "Testing date/time-sensitive UI")/
+    `findLastLaunchedEntry()`/`LIVE_WINDOW_DAYS`.
+  - `search.js` — the character-search stack (`initCharSearch()`/
+    `matchInfo()`/`highlightMatches()`).
+  - `glow.js` — `buildRays()`/`buildCharacterHeader()`; imports
+    `glow-config.js` itself, so only the pages that actually import
+    `glow.js` (Timeline, Calendar) ever pull in the ray-tuning config —
+    Landing and Server Clocks don't.
+  - `glow-config.js` — release-glow ray tuning knobs, kept as `.js` not
+    JSON since it applies its own values as CSS custom properties.
+  - `panel.js` — `swapWithFade()`/`initPanelGrabberDrag()`.
+  - `chrome.js` — the back-to-top button + header brand live-dot; run on
+    import (every page imports it for the side effect, same as the old
+    shared.js's unconditional calls).
+  - `appearance-row.js` — `buildAppearanceRow()`, a character's one row in
+    their own appearance-history list — shared between Timeline and
+    Calendar (was duplicated byte-for-byte between the two before).
+- `src/styles/reset.css` + `src/styles/base.css` — shared base (palette,
+  header, footer, character search, the phase-card and detail-panel
+  components Calendar reuses from Timeline, back-to-top button, brand
+  live-dot). Timeline-only styles (`.vt-*`, the version side-nav, the
+  timeline intro) live in `src/pages/timeline/timeline.css` instead —
+  `base.css` only holds what's genuinely used by 2+ pages.
 - `data/*.json` — plain JSON, no comments/trailing commas. `data/SOURCES.md`
   — art asset sourcing reference (APIs, file patterns, codenames) and the
   data-accuracy research behind `data.json`'s dates/rosters, split out so
@@ -56,16 +78,17 @@ to it.
   (data schemas it owns, physics/animation internals, real bugs caught and
   fixed, rejected approaches). Read the relevant one before working on that
   page; this file only holds what's true across all of them:
-  - [`docs/landing.md`](docs/landing.md) — `index.html` / `js/landing.js` /
-    `css/landing.css` (spotlight carousel physics, trivia ticker, sidebar).
-  - [`docs/timeline.md`](docs/timeline.md) — `timeline.html` / `js/app.js`
-    (data.json schema, detail panel, chronicled/lightrace banners, search,
-    release-glow rays).
-  - [`docs/clocks.md`](docs/clocks.md) — `clocks.html` / `js/clocks.js` /
-    `css/clocks.css` (server/reset facts, timezone math).
+  - [`docs/landing.md`](docs/landing.md) — `index.html` /
+    `src/pages/landing/` (spotlight carousel physics, trivia ticker,
+    sidebar).
+  - [`docs/timeline.md`](docs/timeline.md) — `timeline.html` /
+    `src/pages/timeline/` (data.json schema, detail panel,
+    chronicled/lightrace banners, search, release-glow rays).
+  - [`docs/clocks.md`](docs/clocks.md) — `clocks.html` /
+    `src/pages/clocks/` (server/reset facts, timezone math).
   - [`docs/calendar.md`](docs/calendar.md) — `calendar.html` /
-    `js/calendar.js` / `css/calendar.css` (year/month grid, debuts,
-    birthdays, day panel, panel stack).
+    `src/pages/calendar/` (year/month grid, debuts, birthdays, day panel,
+    panel stack).
 
 ## Design decisions
 - Header is `position: relative`, not `sticky` — deliberate, so it doesn't
@@ -151,10 +174,10 @@ Add a new check by dropping a file in `scripts/checks/` (same
 it's obvious from one place which checks actually run.
 
 ## Testing date/time-sensitive UI
-`previewNow()` (`js/shared.js`) is a drop-in replacement for `Date.now()`/
-`new Date()` everywhere "now" is read for UI purposes (phase math, daily
-reset countdowns, live indicators) — used across `landing.js`, `clocks.js`,
-and `app.js`. Add `?fakeDate=2026-09-30T14:30:00` (date-only also works) to
+`previewNow()` (`src/shared/dates.js`) is a drop-in replacement for
+`Date.now()`/`new Date()` everywhere "now" is read for UI purposes (phase
+math, daily reset countdowns, live indicators) — imported by all four
+pages. Add `?fakeDate=2026-09-30T14:30:00` (date-only also works) to
 any page's URL while running `npm run dev` to preview it as of that instant
 — time keeps flowing forward normally from there (a fixed offset applied
 to the real clock, computed once at load) rather than freezing, so
@@ -195,12 +218,11 @@ serves multi-page static sites with no config. Smooth transitions between
 pages come from the native cross-document View Transitions API, not from
 merging into an SPA (see `docs/clocks.md`).
 
-`app.js` itself hasn't been split into shared-utilities-vs-timeline-specific
-yet, since no page has needed to reuse its full `characterIndex` building.
-Several standalone pieces did move to `shared.js` once a second page needed
-the same non-render logic without the full index: `countAppearancesThrough()`,
-`buildRays()`, the character-search stack (`initCharSearch()`/`matchInfo()`/
-`highlightMatches()`), and `joinNames()` (Oxford-comma list join). Do the
+`timeline.js` itself hasn't been split into shared-utilities-vs-timeline-
+specific yet, since no page has needed to reuse its full `characterIndex`
+building — see "Directory layout" above for the pieces that already moved
+into `src/shared/` (each a real ES module now, not a global) once a second
+page needed the same non-render logic without the full index. Do the
 bigger split when a page actually needs the full index (e.g. Character
 profile pages).
 

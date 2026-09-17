@@ -1,9 +1,9 @@
-# Server Clocks page (`clocks.html` / `js/clocks.js` / `css/clocks.css`)
+# Server Clocks page (`clocks.html` / `src/pages/clocks/clocks.js` / `src/pages/clocks/clocks.css`)
 
 Implementation notes for this page only — cross-cutting stuff (CSS
 gotchas, design decisions, data schemas) lives in the root `CLAUDE.md`.
 
-Fully independent of `app.js`. Background: single static image
+Fully independent of the other pages' JS. Background: single static image
 (`assets/backgrounds/server-clocks.webp` — Fandom served WebP despite the
 `.png` source URL), same blur/dark-tint recipe as the region background, no
 crossfade since there's only one image.

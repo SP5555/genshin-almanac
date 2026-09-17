@@ -1,4 +1,4 @@
-# Landing page (`index.html` / `js/landing.js` / `css/landing.css`)
+# Landing page (`index.html` / `src/pages/landing/landing.js` / `src/pages/landing/landing.css`)
 
 Implementation notes for this page only — cross-cutting stuff (CSS
 gotchas, design decisions, data schemas) lives in the root `CLAUDE.md`.
@@ -123,7 +123,7 @@ Deliberately the lightweight opposite of the carousel — plain text,
 auto-advance/dots/pause-on-hover only, no drag physics. Cards mix computed
 version-anniversary facts with a hand-written pool in `data/trivia.json`
 (3 sampled per load), shuffled together. Swaps fade/resize via the shared
-`swapWithFade()` (`js/shared.js`) — first built here, later reused by
+`swapWithFade()` (`src/shared/panel.js`) — first built here, later reused by
 Calendar's detail-panel stack.
 
 - **Anniversaries are nearest-match, not exact-date**: only 51 of 365

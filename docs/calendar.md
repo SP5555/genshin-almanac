@@ -1,4 +1,4 @@
-# Calendar page (`calendar.html` / `js/calendar.js` / `css/calendar.css`)
+# Calendar page (`calendar.html` / `src/pages/calendar/calendar.js` / `src/pages/calendar/calendar.css`)
 
 Implementation notes for this page only — cross-cutting stuff (CSS
 gotchas, design decisions, data schemas) lives in the root `CLAUDE.md`.
@@ -50,7 +50,7 @@ so the border itself is the "something is here" signal.
 **Character debuts**: derived, not stored — a debut's date is just its
 phase's start date (same `entry.date + 21×phaseIndex` + `phase-notes.json`
 override as Timeline). `buildDebutsByDate()`/`getPhaseLabel()` mirror
-app.js's own filler-skipping phase-count logic so captions match what
+timeline.js's own filler-skipping phase-count logic so captions match what
 Timeline would call the same phase. Chronicled/Lightrace are never scanned
 (reruns by definition, can't contain a real debut).
 
@@ -99,8 +99,8 @@ same-day Chronicled Wish into one list).
 
 `bannersByDate` also drives `buildPhaseCard()`/`buildPhaseUnit()` — a
 compact summary of the *entire* banner, reusing Timeline's own
-`.trail-node.phase-card` DOM/CSS (`buildNode()` in app.js), duplicated
-rather than shared since app.js's version is tightly coupled to
+`.trail-node.phase-card` DOM/CSS (`buildNode()` in timeline.js), duplicated
+rather than shared since timeline.js's version is tightly coupled to
 Timeline-only state (`characterIndex` population, `buildRays()`). Its
 layout deliberately diverges from Timeline's, though: `.calendar-phase-card`
 forces both five/four groups into left-aligned flat flex-wrap rows, no
@@ -127,7 +127,7 @@ button appears whenever stack depth > 1; on mobile (topbar hidden
 entirely) a qualifying swipe pops one stack level instead of always
 closing, except from the stack's root.
 
-`buildCharacterAppearances()` is a pure-data mirror of app.js's
+`buildCharacterAppearances()` is a pure-data mirror of timeline.js's
 `characterIndex` (same per-version scan order — phases, then chronicled,
 then lightrace — so rerun counts line up identically), built once at
 bootstrap rather than duplicating Timeline's full render path.
