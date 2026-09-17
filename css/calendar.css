@@ -237,13 +237,16 @@
    content than a secondary card, so it gets --radius-lg (see style.css's
    radius scale) and a bit more breathing room than the compact cards. */
 .calendar-month-card.is-big{padding: 20px; border-radius: var(--radius-lg);}
-.calendar-month-title{font-size: 15px; font-weight: bold; color: var(--text); margin-bottom: 10px;}
+.calendar-month-title{font-size: 15px; font-weight: bold; color: var(--text); margin-bottom: 8px;}
 
 .calendar-weekday-row, .calendar-day-grid{display: grid; grid-template-columns: repeat(7, 1fr);}
-/* One border around the whole row, not one per letter — reads as a single
-   header bar (not just an underline) and is what actually reads as
-   distinct from the plain, borderless day numbers below it, not just a
-   different shade of the same gray. */
+/* One shared bar spans the whole row, rather than a bordered chip per
+   letter — at the compact grid's card width, 7 separate boxes packed at a
+   2px gap read as a cramped, checkered strip. A single bar still reads as
+   a distinct header region (not just gray text), without the busy look.
+   Used identically in month view (just a wider gap — see the month-mode
+   override below) rather than giving that wider card its own per-name
+   chip treatment, for visual consistency between the two views. */
 .calendar-weekday-row{
 	gap: 2px; margin-bottom: 8px; padding: 4px 0;
 	border: 1px solid var(--glass-border); border-radius: var(--radius-sm);
@@ -343,6 +346,8 @@
    this never has to coexist with the compact grid's own narrower gap. */
 #calendarMonthGrid.is-month-mode{display: block;}
 #calendarMonthGrid.is-month-mode .calendar-day-grid{gap: 10px;}
+/* Same single shared bar as the compact grid, just a wider gap between
+   the (longer, spelled-out) weekday names now that there's real room. */
 #calendarMonthGrid.is-month-mode .calendar-weekday-row{gap: 10px; margin-bottom: 8px;}
 .calendar-day-cell.is-big{height: 130px;}
 .calendar-day-cell.is-big .calendar-day-top{top: 8px; left: 10px; right: 10px;}
