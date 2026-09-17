@@ -1,3 +1,11 @@
+import "../../shared/chrome.js";
+import { faceImg, joinNames, rarityBadge, onDelegatedActivate } from "../../shared/dom.js";
+import { getPhaseStartDate, countAppearancesThrough, previewNow } from "../../shared/dates.js";
+import { swapWithFade, initPanelGrabberDrag } from "../../shared/panel.js";
+import { buildCharacterHeader } from "../../shared/glow.js";
+import { initCharSearch } from "../../shared/search.js";
+import { buildAppearanceRow } from "../../shared/appearance-row.js";
+
 // Year-view calendar — the same banner history as a spreadsheet-shaped grid
 // instead of a line. Three event layers are plotted: version launches,
 // character debuts, and birthdays.
@@ -86,7 +94,7 @@ let characterDebutDate = {};
 // renderCharacterPanel() needs it too, not just the build functions below.
 let characterNotes = {};
 // Character name -> array of alternate names, for the shared char-search
-// (see initCharSearch() in shared.js — same data Timeline's search uses).
+// (see initCharSearch() in src/shared/search.js — same data Timeline's search uses).
 let characterAliases = {};
 // Character name -> ordered list of every appearance, a pure-data mirror
 // of app.js's characterIndex (see buildCharacterAppearances below).
@@ -798,59 +806,6 @@ function buildCharacterCard(name, variant, badges) {
 	return card;
 }
 
-// Same DOM/CSS as app.js's own version (.char-appear-*, shared in
-// style.css) — the only real difference is the version text jumps to that
-// phase's calendar date (jumpToDate) instead of a Timeline phase card.
-function buildAppearanceRow(entry) {
-	let row = document.createElement("div");
-	row.className = "char-appear-row" + (entry.isFiller ? " is-filler" : "");
-
-	let rail = document.createElement("span");
-	rail.className = "char-appear-rail";
-	let dot = document.createElement("span");
-	dot.className = "char-appear-dot " + (entry.rarity === "5" ? "is-five" : "is-four")
-		+ (entry.isRelease ? " is-release" : "")
-		+ (entry.variant ? ` is-${entry.variant}` : "");
-	rail.appendChild(dot);
-	row.appendChild(rail);
-
-	let label = document.createElement("div");
-	label.className = "char-appear-label";
-
-	let ver = document.createElement("span");
-	ver.className = "char-appear-version is-jumpable" + (entry.variant ? ` is-${entry.variant}` : "");
-	ver.textContent = `${entry.version} — ${entry.phaseLabel}`;
-	ver.tabIndex = 0;
-	ver.setAttribute("role", "button");
-	ver.setAttribute("aria-label", `Jump to ${entry.version} ${entry.phaseLabel} on the calendar`);
-	onActivate(ver, () => jumpToDate(entry.date));
-	label.appendChild(ver);
-
-	let meta = document.createElement("div");
-	meta.className = "char-appear-meta";
-	let status = document.createElement("span");
-	status.className = "char-appear-tag";
-	if (entry.preexisting) {
-		status.textContent = `Rerun ${entry.rerun + 1}`;
-	} else if (entry.rerun === 0) {
-		status.textContent = "Release";
-		status.classList.add("is-release");
-	} else {
-		status.textContent = `Rerun ${entry.rerun}`;
-	}
-	meta.appendChild(status);
-	if (entry.date) {
-		let dateEl = document.createElement("span");
-		dateEl.className = "char-appear-date";
-		dateEl.textContent = formatDate(entry.date);
-		meta.appendChild(dateEl);
-	}
-	label.appendChild(meta);
-
-	row.appendChild(label);
-	return row;
-}
-
 // A character's own appearance history, pushed onto the panel stack from a
 // debut/birthday card click — mirrors app.js's openCharPanel (same shared
 // .detail-panel-* classes). Render-only; opening/showing the panel is
@@ -890,7 +845,7 @@ function renderCharacterPanel(name) {
 
 	let list = document.createElement("div");
 	list.className = "char-appear-list";
-	entries.forEach(entry => list.appendChild(buildAppearanceRow(entry)));
+	entries.forEach(entry => list.appendChild(buildAppearanceRow(entry, () => jumpToDate(entry.date), "on the calendar")));
 	content.appendChild(list);
 }
 
@@ -913,14 +868,16 @@ function buildBirthdayChip(name) {
 }
 
 // Compact summary of a full banner — same DOM/CSS as Timeline's own
-// .trail-node.phase-card (app.js's buildNode), so a banner reads
+// .trail-node.phase-card (timeline.js's buildNode), so a banner reads
 // identically wherever it's shown. Unlike buildCharacterCard above (which
 // is used for debuts only, one big art card per character), this shows
 // every character on the banner at once, release or rerun — the reason it
 // exists: an 18-character Chronicled Wish as individual art cards would be
-// a lot of scrolling for one day. No release-glow rays (buildRays()/
-// GLOW_CONFIG are Timeline-only, gated behind glow-config.js which this
-// page doesn't load) — release characters get the plain ring glow instead.
+// a lot of scrolling for one day. No release-glow rays here — this page
+// does import glow.js (for buildCharacterHeader, see renderCharacterPanel
+// above), it's just a deliberate choice not to call buildRays() for these
+// compact phase-card avatars; release characters get the plain ring glow
+// instead.
 function buildPhaseCard(banner) {
 	let card = document.createElement("div");
 	card.className = "trail-node phase-card calendar-phase-card" + (banner.variant ? ` is-${banner.variant}` : "");
@@ -1037,7 +994,7 @@ function renderPanelTop() {
 }
 
 // Animates a stack navigation (push/pop) via the shared swapWithFade()
-// (shared.js) rather than snapping straight to the new content — header
+// (src/shared/panel.js) rather than snapping straight to the new content — header
 // and content fade out/in together while the panel itself resizes to the
 // new view's natural height.
 function swapPanelView() {
@@ -1186,7 +1143,7 @@ function openDayPanel(isoDate) {
 	openPanelFresh({ type: "day", isoDate });
 }
 
-// Search-result entry point (see initCharSearch() in shared.js) — same
+// Search-result entry point (see initCharSearch() in src/shared/search.js) — same
 // fresh-open behavior as a day cell, just landing directly on a character.
 function openCharacterPanel(name) {
 	openPanelFresh({ type: "character", name });
