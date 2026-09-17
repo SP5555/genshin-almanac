@@ -206,7 +206,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 	banner.className = "spotlight-banner";
 
 	// Two-layer A/B crossfade for both the glow wash and the corner
-	// watermark — same technique as #regionBgA/#regionBgB in app.js's
+	// watermark — same technique as #regionBgA/#regionBgB in timeline.js's
 	// setRegionBackground(): write the new value to whichever layer is
 	// currently inactive, toggle is-active on both, let the CSS opacity
 	// transition handle the rest. A plain custom property swap can't be
@@ -536,7 +536,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 
 	// Pointer Events (not separate touch/mouse handlers) drive both
 	// touch-swipe and mouse-drag from the same code — same convention as the
-	// mobile char-panel drag-to-dismiss in app.js. touch-action:pan-y in CSS
+	// mobile char-panel drag-to-dismiss in timeline.js. touch-action:pan-y in CSS
 	// keeps vertical page scroll native while this handles the horizontal
 	// gesture itself.
 	let dragging = false;
@@ -1209,7 +1209,7 @@ async function bootstrapLanding() {
 		document.getElementById("triviaTicker").replaceWith(buildTriviaTicker(triviaCards));
 
 		// Same background recipe as the Timeline's per-version region art (see
-		// setRegionBackground() in app.js) — always the *current* region rather
+		// setRegionBackground() in timeline.js) — always the *current* region rather
 		// than a hardcoded image, so this doesn't go stale the moment a new
 		// region drops.
 		let major = entry.version.split(".")[0];

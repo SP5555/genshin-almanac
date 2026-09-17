@@ -1,3 +1,12 @@
+import "../../shared/chrome.js";
+import { faceImg, formatDate, onDelegatedActivate } from "../../shared/dom.js";
+import { getPhaseStartDate, previewNow, LIVE_WINDOW_DAYS } from "../../shared/dates.js";
+import { buildRays, buildCharacterHeader } from "../../shared/glow.js";
+import { GLOW_CONFIG } from "../../shared/glow-config.js";
+import { initPanelGrabberDrag } from "../../shared/panel.js";
+import { initCharSearch } from "../../shared/search.js";
+import { buildAppearanceRow } from "../../shared/appearance-row.js";
+
 var characterIndex = {};
 var characterNotes = {};
 var phaseNotes = {};
@@ -172,60 +181,6 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, variant, dat
 	return card;
 }
 
-// Mirrors the Timeline's own .vt-marker-col technique (a rail with a
-// ::before line + marker bubble) at list scale. entry.isRelease gets an
-// extra glow ring; entry.variant (chronicled/lightrace) recolors the dot +
-// version text with that banner's own accent.
-function buildAppearanceRow(entry) {
-	let row = document.createElement("div");
-	row.className = "char-appear-row" + (entry.isFiller ? " is-filler" : "");
-
-	let rail = document.createElement("span");
-	rail.className = "char-appear-rail";
-	let dot = document.createElement("span");
-	dot.className = "char-appear-dot " + (entry.rarity === "5" ? "is-five" : "is-four")
-		+ (entry.isRelease ? " is-release" : "")
-		+ (entry.variant ? ` is-${entry.variant}` : "");
-	rail.appendChild(dot);
-	row.appendChild(rail);
-
-	let label = document.createElement("div");
-	label.className = "char-appear-label";
-
-	let ver = document.createElement("span");
-	ver.className = "char-appear-version is-jumpable" + (entry.variant ? ` is-${entry.variant}` : "");
-	ver.textContent = `${entry.version} — ${entry.phaseLabel}`;
-	ver.tabIndex = 0;
-	ver.setAttribute("role", "button");
-	ver.setAttribute("aria-label", `Jump to ${entry.version} ${entry.phaseLabel} card`);
-	onActivate(ver, () => jumpToCard(entry.version, entry.phaseLabel));
-	label.appendChild(ver);
-
-	let meta = document.createElement("div");
-	meta.className = "char-appear-meta";
-	let status = document.createElement("span");
-	status.className = "char-appear-tag";
-	if (entry.preexisting) {
-		status.textContent = `Rerun ${entry.rerun + 1}`;
-	} else if (entry.rerun === 0) {
-		status.textContent = "Release";
-		status.classList.add("is-release");
-	} else {
-		status.textContent = `Rerun ${entry.rerun}`;
-	}
-	meta.appendChild(status);
-	if (entry.date) {
-		let dateEl = document.createElement("span");
-		dateEl.className = "char-appear-date";
-		dateEl.textContent = formatDate(entry.date);
-		meta.appendChild(dateEl);
-	}
-	label.appendChild(meta);
-
-	row.appendChild(label);
-	return row;
-}
-
 function openCharPanel(character) {
 	let entries = characterIndex[character] || [];
 	if (entries.length === 0) return;
@@ -261,7 +216,7 @@ function openCharPanel(character) {
 
 	let list = document.createElement("div");
 	list.className = "char-appear-list";
-	entries.forEach(entry => list.appendChild(buildAppearanceRow(entry)));
+	entries.forEach(entry => list.appendChild(buildAppearanceRow(entry, () => jumpToCard(entry.version, entry.phaseLabel), "card")));
 	content.appendChild(list);
 
 	document.getElementById("detailPanel").classList.add("is-open");
@@ -467,7 +422,6 @@ function init(data) {
 	let charCount = {};
 	let root = document.getElementById("timelineRoot");
 	let majorBlocks = [];
-	let LIVE_WINDOW_DAYS = 42;
 	let now = previewNow().getTime();
 	// data.json's last entry isn't always the currently-live version — it can be
 	// pre-staged ahead of its official date once announced, same edge case the

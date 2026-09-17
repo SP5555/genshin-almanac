@@ -40,7 +40,7 @@ let versionMeta = {};
 // first appearance. Built once at bootstrap (buildDebutsByDate).
 let debutsByDate = new Map();
 
-// Mirrors app.js's realPhaseCount logic (filler phases don't consume a
+// Mirrors timeline.js's realPhaseCount logic (filler phases don't consume a
 // phase number) so labels match what the Timeline would call the same phase.
 function getPhaseLabel(entry, phaseIndex, phaseNotes) {
 	let isFiller = i => !!(phaseNotes[`${entry.version}-${i + 1}`] || {}).filler;
@@ -97,7 +97,7 @@ let characterNotes = {};
 // (see initCharSearch() in src/shared/search.js — same data Timeline's search uses).
 let characterAliases = {};
 // Character name -> ordered list of every appearance, a pure-data mirror
-// of app.js's characterIndex (see buildCharacterAppearances below).
+// of timeline.js's characterIndex (see buildCharacterAppearances below).
 let characterAppearances = {};
 // "YYYY-MM-DD" -> {version, phaseLabel, variant, five: [...], four: [...]}
 // — every character featured on that date's phase, not just those debuting
@@ -171,11 +171,11 @@ function buildCharacterDebutDate(data, phaseNotes, notes) {
 	return map;
 }
 
-// Pure-data mirror of app.js's characterIndex — built here instead of
-// reusing app.js's, since that only exists as a side effect of rendering
+// Pure-data mirror of timeline.js's characterIndex — built here instead of
+// reusing timeline.js's, since that only exists as a side effect of rendering
 // the entire Timeline DOM (see CLAUDE.md's Multi-page architecture note).
 // Processes phases/chronicled/lightrace in the same per-version order as
-// app.js's buildPatchRow, so rerun counts line up identically.
+// timeline.js's buildPatchRow, so rerun counts line up identically.
 function buildCharacterAppearances(data, notes, phaseNotes) {
 	let index = {};
 	let counts = {};
@@ -211,7 +211,7 @@ function buildCharacterAppearances(data, notes, phaseNotes) {
 		if (entry.lightrace) {
 			let l = entry.lightrace;
 			let date = getPhaseStartDate(entry, l.phase - 1, phaseNotes);
-			// No "4" array by design (see app.js) — every 4-star is eligible.
+			// No "4" array by design (see timeline.js) — every 4-star is eligible.
 			for (let name of (l["5"] || [])) record(name, "5", entry.version, "Lightrace Wish", false, "lightrace", date);
 		}
 	}
@@ -220,7 +220,7 @@ function buildCharacterAppearances(data, notes, phaseNotes) {
 
 // One date can host more than one distinct banner — Chronicled/Lightrace
 // share their parent phase's exact date by design (see
-// buildCharacterAppearances), and app.js's own insertAfterPhase already
+// buildCharacterAppearances), and timeline.js's own insertAfterPhase already
 // anticipates a version with both attached to the same phase. Grouping by
 // date alone would merge unrelated banners together, so each date maps to
 // an array of groups, keyed by (version, phaseLabel) within that date.
@@ -744,7 +744,7 @@ function buildYearPopovers() {
 }
 
 // ---------- day detail panel ----------
-// Reuses the shared detail-panel component from timeline.html/app.js
+// Reuses the shared detail-panel component from timeline.html/timeline.js
 // (style.css) rather than building a second popup/bottom-sheet from scratch.
 
 // Debut card: namecard art on its own layer (so hover-zoom transforms just
@@ -807,7 +807,7 @@ function buildCharacterCard(name, variant, badges) {
 }
 
 // A character's own appearance history, pushed onto the panel stack from a
-// debut/birthday card click — mirrors app.js's openCharPanel (same shared
+// debut/birthday card click — mirrors timeline.js's openCharPanel (same shared
 // .detail-panel-* classes). Render-only; opening/showing the panel is
 // handled once, by whichever function actually opens it fresh.
 function renderCharacterPanel(name) {
@@ -913,7 +913,7 @@ function buildPhaseCard(banner) {
 		body.appendChild(divider);
 
 		// characterAppearances (not characterRarity, which skips chronicled
-		// entries entirely and isn't date-scoped) so this matches app.js's
+		// entries entirely and isn't date-scoped) so this matches timeline.js's
 		// characterIndex-derived count exactly, including chronicled-only
 		// 4-stars (e.g. Amber, Kaeya, Lisa) and excluding anyone who only
 		// debuted after this particular Lightrace instance's own date.
