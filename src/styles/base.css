@@ -501,7 +501,7 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 .detail-panel-close:hover, .detail-panel-back:hover{background-color: var(--glass-hover);}
 /* Author-origin `display:flex` above would otherwise beat the UA
    stylesheet's `[hidden]{display:none}` regardless of specificity (same
-   cascade-origin gotcha as .calendar-year-popover[hidden] — see CLAUDE.md). */
+   cascade-origin gotcha as .calendar-year-popover[hidden] — see AGENTS.md). */
 .detail-panel-back[hidden]{display: none;}
 
 .detail-panel-content{

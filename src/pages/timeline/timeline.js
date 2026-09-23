@@ -1,6 +1,6 @@
 import "../../shared/chrome.js";
 import { faceImg, formatDate, onDelegatedActivate } from "../../shared/dom.js";
-import { getPhaseStartDate, previewNow, LIVE_WINDOW_DAYS } from "../../shared/dates.js";
+import { getPhaseStartDate, previewNow, LIVE_WINDOW_DAYS, findLastLaunchedEntry, versionLaunchInstant } from "../../shared/dates.js";
 import { buildRays, buildCharacterHeader } from "../../shared/glow.js";
 import { GLOW_CONFIG } from "../../shared/glow-config.js";
 import { initPanelGrabberDrag } from "../../shared/panel.js";
@@ -370,7 +370,7 @@ function buildPatchRow(entry, charCount, isLive) {
 	// features characters getting Stellar-Conduct reaction buffs, not a
 	// region theme — so no "— theme" suffix on its label the way Chronicled
 	// gets one. Weapons are part of the real banner too, but this site
-	// deliberately only tracks character banners (see CLAUDE.md), so those
+	// deliberately only tracks character banners (see AGENTS.md), so those
 	// aren't recorded here.
 	if (entry.lightrace) {
 		let l = entry.lightrace;
@@ -423,19 +423,9 @@ function init(data) {
 	let root = document.getElementById("timelineRoot");
 	let majorBlocks = [];
 	let now = previewNow().getTime();
-	// data.json's last entry isn't always the currently-live version — it can be
-	// pre-staged ahead of its official date once announced, same edge case the
-	// Server Clocks update estimate handles. Walk backward for the last entry
-	// that's actually launched rather than assuming the array's last item is it.
-	let launchedEntry = null;
-	for (let i = data.length - 1; i >= 0; i--) {
-		if (new Date(data[i].date + "T00:00:00").getTime() <= now) {
-			launchedEntry = data[i];
-			break;
-		}
-	}
+	let launchedEntry = findLastLaunchedEntry(data, now);
 	let daysSinceLastEntry = launchedEntry
-		? (now - new Date(launchedEntry.date + "T00:00:00").getTime()) / 86400000
+		? (now - versionLaunchInstant(launchedEntry.date)) / 86400000
 		: Infinity;
 	let lastVersion = (launchedEntry && daysSinceLastEntry <= LIVE_WINDOW_DAYS) ? launchedEntry.version : null;
 

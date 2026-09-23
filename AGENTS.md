@@ -20,7 +20,10 @@ approaches) — not a narrated history of routine implementation. The code
 and git log already show what changed; this file should only hold what
 they can't tell you. Same goes for inline code comments and the per-page
 docs below: state the current fact, not the sequence of attempts that led
-to it.
+to it. Docs stay version-agnostic (no "as of version X we added Y")
+unless the version itself is a lifetime note — 1.3's filler phase, 2.7's
+delay, 3.0–3.2's shortened cadence, the 1.0 launch roster. Those don't
+fall out of `data.json` and would be expensive to re-derive.
 
 ## Directory layout
 
@@ -32,7 +35,7 @@ to it.
 - `src/pages/<page>/<page>.js` + `<page>.css` — one page's own logic and
   styles, co-located: `landing/`, `timeline/` (`timeline.js`, renamed from
   the historical `app.js` to match this convention — still the only thing
-  that knows how to render the full 52-version DOM), `calendar/`,
+  that knows how to render the full timeline DOM), `calendar/`,
   `clocks/`. Each page's `.js` is loaded as a real ES module
   (`<script type="module">`) with explicit `import`s — no more relying on
   `<script>` tag order to make a shared function available as a global.
@@ -43,7 +46,7 @@ to it.
     `rarityBadge()`/`onActivate()`/`onDelegatedActivate()`.
   - `dates.js` — `getPhaseStartDate()`/`countAppearancesThrough()`/
     `previewNow()` (see "Testing date/time-sensitive UI")/
-    `findLastLaunchedEntry()`/`LIVE_WINDOW_DAYS`.
+    `findLastLaunchedEntry()`/`versionLaunchInstant()`/`LIVE_WINDOW_DAYS`.
   - `search.js` — the character-search stack (`initCharSearch()`/
     `matchInfo()`/`highlightMatches()`).
   - `glow.js` — `buildRays()`/`buildCharacterHeader()`; imports
@@ -184,10 +187,12 @@ to the real clock, computed once at load) rather than freezing, so
 `setInterval`-driven countdowns still tick realistically during testing.
 Gated to `localhost`/`127.0.0.1` so it's structurally inert on the
 deployed site regardless of what URL a visitor tries — the offset is
-hardcoded to 0 off that hostname check, not just hidden. Parsing a
-*stored* date from `data.json` should still use a plain `new Date(...)` —
-only reads of the current moment go through this. Per-URL only, not
-persisted across navigation.
+hardcoded to 0 off that hostname check, not just hidden. Reads of the
+current moment go through `previewNow()`. "Has this version launched"
+and the 42-day live/stale window go through `versionLaunchInstant()`
+(06:00 CST of `data.json`'s date — the real maintenance start, same as
+Server Clocks). Displayed calendar dates stay YYYY-MM-DD. Per-URL only,
+not persisted across navigation.
 
 ## Ideas discussed for future work (not started)
 - Weapon banners aren't tracked (character banners only).

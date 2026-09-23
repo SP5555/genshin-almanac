@@ -4,7 +4,7 @@
 /**
  * A phase's real-world start date, applying phase-notes.json's override for
  * the handful of historically irregular phases (1.3's 3-phase structure,
- * 3.0-3.2's compressed cadence — see CLAUDE.md). Same 21-day cadence as
+ * 3.0-3.2's compressed cadence — see AGENTS.md). Same 21-day cadence as
  * PHASE_LENGTH_DAYS in src/pages/landing/landing.js (duplicated there as a
  * literal rather than importing this, since that constant also drives
  * unrelated landing-only math).
@@ -74,6 +74,30 @@ export function previewNow() {
 	return new Date(Date.now() + PREVIEW_TIME_OFFSET_MS);
 }
 
+// data.json's "date" is the CST calendar date a version went live.
+// Maintenance starts at 06:00 China Standard Time (UTC+8) for every server
+// at once — same fact Server Clocks uses. Local midnight of that date is
+// many hours late in America; UTC midnight is still two hours after
+// maintenance actually started. Displayed calendar dates stay YYYY-MM-DD;
+// only "has this launched" / "how old is this" comparisons use this instant.
+export const CST_OFFSET_HOURS = 8;
+export const MAINTENANCE_START_HOUR_CST = 6;
+
+/**
+ * @param {string} isoDate - YYYY-MM-DD (CST calendar date)
+ * @param {number} [hourCst]
+ * @returns {Date}
+ */
+export function cstDateToUtcInstant(isoDate, hourCst = MAINTENANCE_START_HOUR_CST) {
+	let [y, m, d] = isoDate.split("-").map(Number);
+	return new Date(Date.UTC(y, m - 1, d, hourCst - CST_OFFSET_HOURS, 0, 0, 0));
+}
+
+/** Epoch ms of a version's real launch (06:00 CST on its data.json date). */
+export function versionLaunchInstant(isoDate) {
+	return cstDateToUtcInstant(isoDate).getTime();
+}
+
 // Same "is the tracked data actually current" rule the timeline's .is-live
 // patch marker and the header brand dot both need.
 export const LIVE_WINDOW_DAYS = 42;
@@ -88,7 +112,7 @@ export const LIVE_WINDOW_DAYS = 42;
  */
 export function findLastLaunchedEntry(data, now) {
 	for (let i = data.length - 1; i >= 0; i--) {
-		if (new Date(data[i].date + "T00:00:00").getTime() <= now) return data[i];
+		if (versionLaunchInstant(data[i].date) <= now) return data[i];
 	}
 	return null;
 }

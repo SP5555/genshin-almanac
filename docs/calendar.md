@@ -1,7 +1,7 @@
 # Calendar page (`calendar.html` / `src/pages/calendar/calendar.js` / `src/pages/calendar/calendar.css`)
 
 Implementation notes for this page only — cross-cutting stuff (CSS
-gotchas, design decisions, data schemas) lives in the root `CLAUDE.md`.
+gotchas, design decisions, data schemas) lives in the root `AGENTS.md`.
 
 The banner history as a year-view grid instead of a line — leaning into
 the site's time/history angle rather than theorycrafting/stats features

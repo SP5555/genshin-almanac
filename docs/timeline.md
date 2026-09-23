@@ -1,7 +1,7 @@
 # Timeline page (`timeline.html` / `src/pages/timeline/timeline.js`)
 
 Implementation notes for this page only — cross-cutting stuff (CSS
-gotchas, design decisions, data schemas) lives in the root `CLAUDE.md`.
+gotchas, design decisions, data schemas) lives in the root `AGENTS.md`.
 
 Vertical timeline: a line down the left, a gradient bubble per major
 version, a smaller bubble per patch, phases as glassmorphic cards. `--line`
@@ -60,7 +60,7 @@ release — the header is a hero shot for whoever's being viewed, not tied
 to one appearance's release status. Appearance rows jump to their timeline
 card via `jumpToCard()` without closing the panel; desktop nudges
 `.timeline-root` via `transform: translateX(300px)` (not `margin` — see
-`CLAUDE.md` CSS gotcha #1) so a jumped-to card isn't hidden behind the
+`AGENTS.md` CSS gotcha #1) so a jumped-to card isn't hidden behind the
 drawer.
 
 `.char-appear-list` reuses Timeline's `.vt-marker-col` rail-with-line
@@ -110,11 +110,11 @@ staying correct automatically as future versions add more 4-stars.
 `#regionBgA`/`#regionBgB` (crossfade 1.6s) driven by the same
 `IntersectionObserver` that tracks the side-nav dots. **Load-bearing**: the
 starfield/dark background lives on `<body>`, not `.timeline-root` —
-required for correct paint order (`CLAUDE.md` CSS gotcha #2).
+required for correct paint order (`AGENTS.md` CSS gotcha #2).
 
 ## Character search
 Sticky pill icon, expands via `width` transition, not `clip-path`
-(`CLAUDE.md` CSS gotcha #1). Filters whitespace-insensitively (strip
+(`AGENTS.md` CSS gotcha #1). Filters whitespace-insensitively (strip
 spaces from both query and name before comparing).
 
 Ported verbatim onto Calendar (`#charSearch`) — the matching/ranking/DOM
@@ -137,7 +137,7 @@ text.
 
 ## Release-glow rays
 `buildRays()` renders `count` absolutely-positioned ray divs per release
-character — 540 total across the un-virtualized 52-version timeline.
+character — hundreds of them across the un-virtualized timeline.
 **Fix**: `content-visibility: auto` on `.rays-wrap` specifically (not any
 layout-height-contributing ancestor — `.rays-wrap` is `position:absolute`
 so this never affects the `offsetTop` chains `jumpToCard()` depends on).
@@ -174,10 +174,9 @@ never shifts.
 
 ## Live "current version" indicator
 Pulsing ripple on the most recently *launched* `data.json` entry's patch
-marker, but only if its `date` is within 42 days of today — so a
+marker, but only if that launch instant is within 42 days of now — so a
 stale/behind dataset stops confidently claiming an old version is live
-forever. "Most recently launched" is deliberately not just
-`data[data.length-1]` — `init()` walks backward from the end for the last
-entry whose `date` isn't in the future, since a version can be pre-staged
-in `data.json` ahead of its official date. Same edge case, same fix
-pattern, as the Server Clocks update-card (`docs/clocks.md`).
+forever. Uses shared `findLastLaunchedEntry()` / `versionLaunchInstant()`
+(06:00 CST of the version's date), same as the header live-dot and
+Server Clocks — a version can be pre-staged in `data.json` ahead of that
+instant.

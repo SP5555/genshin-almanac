@@ -1,7 +1,7 @@
 # Server Clocks page (`clocks.html` / `src/pages/clocks/clocks.js` / `src/pages/clocks/clocks.css`)
 
 Implementation notes for this page only — cross-cutting stuff (CSS
-gotchas, design decisions, data schemas) lives in the root `CLAUDE.md`.
+gotchas, design decisions, data schemas) lives in the root `AGENTS.md`.
 
 Fully independent of the other pages' JS. Background: single static image
 (`assets/backgrounds/server-clocks.webp` — Fandom served WebP despite the
@@ -16,14 +16,16 @@ Version-update maintenance: **one shared real-world instant** for all
 servers at once, 06:00 China Standard Time — one clock, not four.
 
 - Reset/maintenance math uses fixed-offset arithmetic (`nextServerReset()`,
-  `cstDateToUtcInstant()`), deliberately not `Intl` timezone lookups — no
-  real IANA zone stays pinned at a fixed offset forever (DST), unlike these
-  synthetic server offsets.
+  `cstDateToUtcInstant()` in `src/shared/dates.js`), deliberately not `Intl`
+  timezone lookups — no real IANA zone stays pinned at a fixed offset
+  forever (DST), unlike these synthetic server offsets. Landing, Timeline,
+  and the header live-dot use the same 06:00 CST launch instant so they
+  don't disagree with this page about whether a version is live.
 - Next-update estimate = last known version's launch instant + 42 days,
   anchored to 06:00 CST (not midnight UTC — that drifted the day-count by
   up to 8 hours). No manually-maintained "confirmed date" override field —
   deliberately rejected, since it would recreate the manual-upkeep burden
-  that made the site fall 17 versions behind once (see `CLAUDE.md`'s
+  that made the site fall 17 versions behind once (see `AGENTS.md`'s
   "Ideas discussed for future work"). Badge reads "Estimated" → "Overdue"
   (counts up instead of freezing at zero) once the 42-day window passes
   with no new version.
@@ -40,7 +42,7 @@ servers at once, 06:00 China Standard Time — one clock, not four.
 - Cross-document View Transitions (`@view-transition{navigation:auto}` in
   `style.css`) animate page navigations with zero JS/router — why the site
   didn't need to merge into an SPA for smooth page transitions.
-- Same stacking-context bug as `CLAUDE.md` CSS gotcha #2 bit
+- Same stacking-context bug as `AGENTS.md` CSS gotcha #2 bit
   `.clocks-intro`/section headings here too (fixed the same way) — can hit
   any plain text on a page with a fixed full-viewport background.
 

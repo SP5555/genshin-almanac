@@ -173,7 +173,7 @@ function buildCharacterDebutDate(data, phaseNotes, notes) {
 
 // Pure-data mirror of timeline.js's characterIndex — built here instead of
 // reusing timeline.js's, since that only exists as a side effect of rendering
-// the entire Timeline DOM (see CLAUDE.md's Multi-page architecture note).
+// the entire Timeline DOM (see AGENTS.md's Multi-page architecture note).
 // Processes phases/chronicled/lightrace in the same per-version order as
 // timeline.js's buildPatchRow, so rerun counts line up identically.
 function buildCharacterAppearances(data, notes, phaseNotes) {

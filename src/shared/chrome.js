@@ -2,7 +2,7 @@
 // button and the header brand's live-status dot. Importing this module for
 // its side effects is enough — same as the unconditional calls at the
 // bottom of the old shared.js.
-import { previewNow, findLastLaunchedEntry, LIVE_WINDOW_DAYS } from "./dates.js";
+import { previewNow, findLastLaunchedEntry, LIVE_WINDOW_DAYS, versionLaunchInstant } from "./dates.js";
 
 function initBackToTop() {
 	let btn = document.getElementById("backToTop");
@@ -26,7 +26,7 @@ async function initBrandLivePulse() {
 		let now = previewNow().getTime();
 		let launched = findLastLaunchedEntry(data, now);
 		if (!launched) return;
-		let daysSince = (now - new Date(launched.date + "T00:00:00").getTime()) / 86400000;
+		let daysSince = (now - versionLaunchInstant(launched.date)) / 86400000;
 		if (daysSince <= LIVE_WINDOW_DAYS) {
 			dot.classList.add("is-live");
 			dot.title = `${launched.version} is the current live version`;

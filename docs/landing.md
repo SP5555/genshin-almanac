@@ -1,18 +1,19 @@
 # Landing page (`index.html` / `src/pages/landing/landing.js` / `src/pages/landing/landing.css`)
 
 Implementation notes for this page only — cross-cutting stuff (CSS
-gotchas, design decisions, data schemas) lives in the root `CLAUDE.md`.
+gotchas, design decisions, data schemas) lives in the root `AGENTS.md`.
 
 Built once the site had enough real pages (Timeline + Server Clocks) that a
-directory made sense — see `CLAUDE.md`'s "Multi-page architecture". `index.html`
+directory made sense — see `AGENTS.md`'s "Multi-page architecture". `index.html`
 is its own lightweight page, not the Timeline; the header brand link now
 points here from every page. Deliberately no `.page-nav` entry for itself.
 
 **Spotlight card**: shows whichever phase of the latest `data.json` entry
 is currently running, computed rather than hand-maintained.
 - Phase length is **21 days**, cross-checked against an independent source
-  giving 7.0's exact dates. `getCurrentPhaseIndex()` uses `version.date +
-  21×N days`. Deliberately only needs to be correct for the *live*
+  giving a live version's exact dates. `getCurrentPhaseIndex()` uses
+  `versionLaunchInstant()` (06:00 CST of `version.date`) + `21×N days`.
+  Deliberately only needs to be correct for the *live*
   version — historical phases render as-is on the Timeline regardless, so
   irregular historical cycles (2.7's delay, 3.0–3.2's shortened cadence)
   never need retroactive handling. A future irregular version is a one-off
@@ -20,7 +21,7 @@ is currently running, computed rather than hand-maintained.
   live-ripple heuristic below.
 - Release-vs-rerun badges need a real per-character appearance count, but
   building the full `characterIndex` would mean rendering all of Timeline
-  just for that (flagged as unbuilt in `CLAUDE.md`'s "Multi-page
+  just for that (flagged as unbuilt in `AGENTS.md`'s "Multi-page
   architecture" for this reason). `countAppearancesThrough()` scans
   `data.json` only up to the current phase for the handful of characters
   shown here instead.
@@ -65,9 +66,11 @@ raw intrinsic height before `aspect-ratio` constrains it), inflating the
 wrapper. The same technique squares up to `aspect-ratio:1/1` for the
 4-star mini cards below.
 
-**4-star mini cards** use real splash art (not a face icon), fluid width
+**4-star mini cards** use real splash art, fluid width
 (`flex:1 1 45%` below 600px, `flex:1 1 0` above), so the mobile "2 on top,
-1 on bottom" layout falls out of plain flexbox. The lone third card is
+1 on bottom" layout falls out of plain flexbox. Missing wish art shows a
+short note in the art slot rather than the face icon, which read as a
+broken image. The lone third card is
 capped at `max-width:calc(50% - 6px)` + `margin:0 auto`, not stretched
 full-width — stretching scaled up the square art with it, making that one
 character look bigger for no reason tied to the character. Its name/tag

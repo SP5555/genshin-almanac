@@ -3,7 +3,7 @@
 /* Same one-shot staggered fade-up pattern as Server Clocks — short page,
    mostly already in the viewport, so this fits better than wiring up an
    IntersectionObserver for content that's barely off-screen anyway.
-   transform/opacity only, per the animation-perf rule in CLAUDE.md. Month
+   transform/opacity only, per the animation-perf rule in AGENTS.md. Month
    cards are built dynamically by calendar.js — a CSS animation still fires
    the moment each one is actually inserted into the DOM, not at page-load
    time, so this works even though they don't exist yet when the page
@@ -48,7 +48,7 @@
    its own stacking context, which traps the popover's z-index:10 inside
    it, unable to rise above .calendar-month-grid (later in DOM order,
    painted on top of the whole stepper box regardless of the popover's own
-   z-index). Same class of gotcha as CLAUDE.md's paint-order-vs-DOM-order
+   z-index). Same class of gotcha as AGENTS.md's paint-order-vs-DOM-order
    note, just triggered by an animation's fill-mode instead of a direct
    transform rule. */
 .calendar-year-stepper{
@@ -471,7 +471,7 @@
    absolutely-positioned art/scrim above) after plain in-flow ones,
    regardless of DOM order — without this, the art/scrim would paint over
    the avatar and text rather than under them. Same class of gotcha as
-   CLAUDE.md's paint-order note, just triggered by position:absolute
+   AGENTS.md's paint-order note, just triggered by position:absolute
    siblings instead of a transform. */
 .calendar-day-card-info, .calendar-day-card .avatar-wrap{position: relative; z-index: 1;}
 .calendar-day-card-info{display: flex; flex-direction: column; gap: 8px; min-width: 0;}

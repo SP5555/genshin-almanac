@@ -13,7 +13,7 @@
    timeline.css), but this page is short enough to fit in a viewport or two, so a
    one-shot staggered fade-up on load fits better than wiring up an
    IntersectionObserver for content that's mostly already visible anyway.
-   transform/opacity only, per the animation-perf rule in CLAUDE.md. Cards built
+   transform/opacity only, per the animation-perf rule in AGENTS.md. Cards built
    dynamically by clocks.js still animate correctly — a CSS animation starts
    whenever the element is actually inserted into the DOM, not at page-load time. */
 @keyframes clocks-reveal{
@@ -109,7 +109,7 @@
 
 /* ---------- version update card ---------- */
 /* Dashed border + bronze accent, permanently — this is always a computed
-   ~42-day estimate (see CLAUDE.md), never a confirmed date, so it's kept
+   ~42-day estimate (see AGENTS.md), never a confirmed date, so it's kept
    visually distinct from the daily-reset rings on purpose. */
 .update-card{
 	margin-top: 20px;

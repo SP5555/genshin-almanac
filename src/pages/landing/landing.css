@@ -217,7 +217,6 @@
 	filter: drop-shadow(0 10px 18px rgba(0,0,0,0.5));
 	transition: transform 0.35s ease;
 }
-.spotlight-fivecard-img.is-fallback{top: 50%; height: 96px; transform: translate(-50%, -50%);}
 /* Zoom on hover — transform-only (compositor, not layout), and safely
    clipped by .spotlight-banner's own overflow:hidden the same way the
    image's normal off-wrap bleed already is, so scaling up never pokes
@@ -226,7 +225,18 @@
    `scale(1.08)` here would replace the base transform outright rather
    than combining with it. */
 .spotlight-banner:hover .spotlight-fivecard-img{transform: translateX(-50%) scale(1.08);}
-.spotlight-banner:hover .spotlight-fivecard-img.is-fallback{transform: translate(-50%, -50%) scale(1.08);}
+.spotlight-splash-missing{
+	position: absolute; inset: 0;
+	display: flex; align-items: center; justify-content: center;
+	margin: 0; padding: 20px 32px;
+	text-align: center;
+	font-size: 14px; line-height: 1.55;
+	color: var(--text-dim);
+	pointer-events: none;
+}
+.spotlight-fourcard .spotlight-splash-missing{
+	font-size: 11.5px; padding: 10px 12px 52px; line-height: 1.45;
+}
 .spotlight-fivecard-label{
 	position: relative; z-index: 1;
 	display: flex; flex-direction: column; align-items: center; gap: 6px;
@@ -361,13 +371,11 @@
 	filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
 	transition: transform 0.35s ease;
 }
-.spotlight-fourcard-img.is-fallback{top: 50%; height: 56px; transform: translate(-50%, -50%);}
 /* Same hover-zoom treatment as .spotlight-fivecard-img — see that comment
    for the full reasoning. .spotlight-fourcard already clips via its own
    overflow:hidden. Safe to transition here (unlike the drag layer above)
    since nothing else ever writes to this element's transform. */
 .spotlight-fourcard:hover .spotlight-fourcard-img{transform: translateX(-50%) scale(1.08);}
-.spotlight-fourcard:hover .spotlight-fourcard-img.is-fallback{transform: translate(-50%, -50%) scale(1.08);}
 /* Absolutely positioned against .spotlight-fourcard (its nearest
    position:relative ancestor), not a negative margin-top like
    .spotlight-fivecard-label — a fixed negative margin only overlaps
@@ -479,7 +487,7 @@
    both tracks but capping its own width to what a card would be if there
    WERE two sharing the row (half, minus half the gap) keeps it the same
    size as its siblings, centered, instead of stretching to fill the full
-   row. Same fix as the 4-star mini cards' lone-card case (see CLAUDE.md);
+   row. Same fix as the 4-star mini cards' lone-card case (see AGENTS.md);
    a no-op once the sidebar layout below forces this back to 1 column. */
 @media (min-width: 600px){
 	.landing-links{grid-template-columns: 1fr 1fr;}

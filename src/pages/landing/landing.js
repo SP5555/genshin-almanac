@@ -1,10 +1,10 @@
 import "../../shared/chrome.js";
-import { facePath, formatDate, joinNames } from "../../shared/dom.js";
-import { countAppearancesThrough, previewNow, LIVE_WINDOW_DAYS, findLastLaunchedEntry } from "../../shared/dates.js";
+import { formatDate, joinNames } from "../../shared/dom.js";
+import { countAppearancesThrough, previewNow, LIVE_WINDOW_DAYS, findLastLaunchedEntry, versionLaunchInstant } from "../../shared/dates.js";
 import { swapWithFade } from "../../shared/panel.js";
 
 // Phase length confirmed at 21 days (not a round 20) via cross-checked
-// sources — see CLAUDE.md. Only reliable for the live version's normal
+// sources — see AGENTS.md. Only reliable for the live version's normal
 // 2-phase, ~42-day cycle; historical irregular-length versions (delays,
 // shortened recovery patches, 3-phase versions) aren't handled here, since
 // this only ever needs to be right for whichever version is currently live.
@@ -13,7 +13,7 @@ const PHASE_LENGTH_DAYS = 21;
 function getCurrentPhaseIndex(entry, now) {
 	let phases = entry.banner;
 	if (phases.length <= 1) return 0;
-	let start = new Date(entry.date + "T00:00:00Z").getTime();
+	let start = versionLaunchInstant(entry.date);
 	let daysSince = Math.max(0, (now - start) / 86400000);
 	return Math.min(Math.floor(daysSince / PHASE_LENGTH_DAYS), phases.length - 1);
 }
@@ -39,6 +39,28 @@ function splashPath(character) {
 	return `assets/splash/${character.replace(/\s/g, "").toLowerCase()}.webp`;
 }
 
+// Face-icon fallback looked like a broken load. We wait for the real
+// in-game wish art instead of hanging a stand-in, so say that rather
+// than swapping in the square portrait.
+const SPLASH_MISSING_COPY = "Wish art isn't in yet — we'd rather wait for the real portrait than hang a stand-in. It'll show up right here.";
+const SPLASH_MISSING_COPY_COMPACT = "Wish art's still packing — no stand-ins. It'll land right here.";
+
+function attachSplashArt(img, wrap, character, compact) {
+	img.src = splashPath(character);
+	img.alt = character;
+	img.loading = "lazy";
+	img.draggable = false;
+	img.onerror = () => {
+		img.onerror = null;
+		img.remove();
+		wrap.classList.add("is-missing-splash");
+		let note = document.createElement("p");
+		note.className = "spotlight-splash-missing";
+		note.textContent = compact ? SPLASH_MISSING_COPY_COMPACT : SPLASH_MISSING_COPY;
+		wrap.appendChild(note);
+	};
+}
+
 function buildSpotlightFiveCard(character, data, versionIdx, phaseIdx, notes) {
 	let charNotes = notes[character] || {};
 	let count = countAppearancesThrough(data, versionIdx, phaseIdx, character);
@@ -53,17 +75,9 @@ function buildSpotlightFiveCard(character, data, versionIdx, phaseIdx, notes) {
 	imgWrap.className = "spotlight-fivecard-img-wrap";
 	let img = document.createElement("img");
 	img.className = "spotlight-fivecard-img";
-	img.src = splashPath(character);
-	img.alt = character;
-	img.loading = "lazy";
-	// Otherwise the browser's native "drag to save image" gesture hijacks the
-	// carousel's own pointer-drag sequence, firing pointercancel instead of
-	// pointerup partway through.
-	img.draggable = false;
-	// Not every featured character has splash art downloaded yet — fall back
-	// to the square face icon (already sourced for all of them) rather than
-	// showing a broken image.
-	img.onerror = () => { img.onerror = null; img.src = facePath(character); img.classList.add("is-fallback"); };
+	// Native "drag to save image" hijacks the carousel's pointer-drag
+	// (pointercancel instead of pointerup). attachSplashArt sets draggable=false.
+	attachSplashArt(img, imgWrap, character);
 	imgWrap.appendChild(img);
 	card.appendChild(imgWrap);
 
@@ -96,7 +110,7 @@ function buildSpotlightFiveCard(character, data, versionIdx, phaseIdx, notes) {
 // carousel below borrows and slows down), tuned to feel right on a 240Hz
 // display. stiffness/damping are discrete per-step multipliers against
 // SPRING_STEP_MS, not a runtime tick rate — see deriveSpringConstants() for
-// what they mean, and CLAUDE.md for the full differential-equations
+// what they mean, and AGENTS.md for the full differential-equations
 // derivation (damping ratio ζ, per-step vs. per-second, time-dilation).
 const SPRING_STIFFNESS = 0.3104;
 const SPRING_DAMPING = 0.7567769695999043;
@@ -106,7 +120,7 @@ const SPRING_STEP_MS = 1000 / 60;
 // continuous damped-oscillator's real parameters — decay rate and damped
 // angular frequency — via eigenvalue analysis of the discrete recurrence's
 // transition matrix [[1-damping*stiffness, damping], [-damping*stiffness,
-// damping]] (see CLAUDE.md for the full derivation). Only valid for an
+// damping]] (see AGENTS.md for the full derivation). Only valid for an
 // underdamped tuning (complex eigenvalues); a critically-damped or
 // overdamped stiffness/damping pair needs a different closed form.
 function deriveSpringConstants(stiffness, damping, stepMs) {
@@ -667,7 +681,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 // is the hit area (pointer events), `targetEl` is what actually moves.
 // Nothing happens on release except targetEl bouncing back to its resting
 // transform, unlike the carousel's drag (which actually navigates). See
-// CLAUDE.md's Spotlight carousel section for the full physics writeup:
+// AGENTS.md's Spotlight carousel section for the full physics writeup:
 // why it's one continuous simulation rather than "snap during drag, spring
 // after release," the radial (not per-axis) rubber-band cap, the
 // underdamped tuning, and the time-dilation math behind the constants
@@ -862,9 +876,7 @@ function buildSpotlightFourCard(character, data, versionIdx, phaseIdx, notes, el
 		card.style.setProperty("--el-icon", `url(../../../assets/elements/${element.toLowerCase()}.svg)`);
 	}
 
-	// Same splash art + fallback pattern as buildSpotlightFiveCard() — not
-	// every future 4-star will have art downloaded immediately, so this
-	// must degrade to the face icon rather than show a broken image.
+	// Same splash art + missing-note pattern as buildSpotlightFiveCard().
 	// dragLayer/img split: attachSpringDrag() drives dragLayer's transform
 	// every frame (no CSS transition, ever), while img keeps its own
 	// separately-transitioned transform for the hover-zoom — see
@@ -876,11 +888,7 @@ function buildSpotlightFourCard(character, data, versionIdx, phaseIdx, notes, el
 	dragLayer.className = "spotlight-fourcard-drag";
 	let img = document.createElement("img");
 	img.className = "spotlight-fourcard-img";
-	img.src = splashPath(character);
-	img.alt = character;
-	img.loading = "lazy";
-	img.draggable = false;
-	img.onerror = () => { img.onerror = null; img.src = facePath(character); img.classList.add("is-fallback"); };
+	attachSplashArt(img, imgWrap, character, true);
 	dragLayer.appendChild(img);
 	imgWrap.appendChild(dragLayer);
 	card.appendChild(imgWrap);
@@ -1197,7 +1205,7 @@ async function bootstrapLanding() {
 		// card is almost certainly showing an old version/phase rather than
 		// whatever's actually live, so say so instead of confidently
 		// displaying stale info with no indication anything's off.
-		let daysSinceLaunch = (now.getTime() - new Date(entry.date + "T00:00:00Z").getTime()) / 86400000;
+		let daysSinceLaunch = (now.getTime() - versionLaunchInstant(entry.date)) / 86400000;
 		let staleEl = document.getElementById("spotlightStale");
 		if (daysSinceLaunch > LIVE_WINDOW_DAYS) {
 			staleEl.textContent = "This might be old news by now — we may be behind on the latest update.";

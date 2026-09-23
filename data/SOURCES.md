@@ -2,7 +2,7 @@
 
 Where every `assets/*` file comes from (and the gotchas hit finding each
 one), plus how `data/data.json`'s facts were verified. Split out of
-`CLAUDE.md` so a session only needs to load this when actually sourcing
+`AGENTS.md` so a session only needs to load this when actually sourcing
 new art or adding new version/character data — not on every single
 session.
 
@@ -19,12 +19,15 @@ session.
 Face icons: enka.network `UI_AvatarIcon_*` datamine assets, codenames
 resolved via enka's public `store/characters.json`/`store/loc.json` (often
 don't match display names — e.g. Raiden Shogun → `Shougun`, Yanfei →
-`Feiyan`). Namecards use a **separate** codename system (Kirara's avatar
+`Feiyan`; sometimes they do match, which is not a reason to start
+guessing). Namecards use a **separate** codename system (Kirara's avatar
 codename is `Momoka`, namecard codename is `Kirara`) via
-`store/gi/namecards.json`. Element watermarks: Fandom's MediaWiki API (enka
-was missing Cryo). Region backgrounds: same Fandom API family
-(`pageimages`), bypasses the HTTP 402 block on direct fandom.com page
-fetches.
+`store/gi/namecards.json`. Project Amber/yatta serves paletted interlaced
+256px copies under the same `UI_AvatarIcon_*` names; they don't match
+enka's RGBA files, so they aren't a substitute when enka 404s. Element
+watermarks: Fandom's MediaWiki API (enka was missing Cryo). Region
+backgrounds: same Fandom API family (`pageimages`), bypasses the HTTP 402
+block on direct fandom.com page fetches.
 
 **Landing page splash art** (`assets/splash/<name>.webp`): also Fandom, but
 a *different* file per character than any of the above — `File:<Name>_Wish.png`
@@ -32,8 +35,7 @@ a *different* file per character than any of the above — `File:<Name>_Wish.png
 below). This is the actual in-game wish-reveal art (dynamic pose,
 transparent alpha background — confirmed via `ffprobe` showing `yuva420p`)
 and, unlike everything else tried, is **genuinely pixel-uniform**: every
-character checked so far (5-stars and 4-stars alike — spot-checked
-Sucrose/Alyosha/Lynette in addition to the earlier batch) is exactly
+character checked so far (5-stars and 4-stars alike) is exactly
 2048x1024, since it's HoYoverse's own fixed-size UI template rather than
 independently-composed promotional art. `object-fit: contain` is still
 used rather than `cover` — a uniform canvas doesn't guarantee a uniform
@@ -55,37 +57,30 @@ real splash art; `File:Character <Name> Full Wish.png` *is* real splash art
 (same dynamic-pose style as the one that stuck) but not uniformly sized
 across characters (checked: ~1.3:1, not pixel-identical) — easy to confuse
 with `<Name>_Wish.png` since both are "Wish"-named and visually similar,
-but only the latter is on the fixed template. Honey Hunter World
-(`honeyhunterworld.com`) hosts a fourth style — a tight cropped close-up
+but only the latter is on the fixed template. `File:<Name> Portrait.png`
+(~1000×1200 character-menu bust) and `File:<Name> Profile.png` (~2154×1320)
+are the same class of miss: real art, wrong template. Honey Hunter World
+(`honeyhunterworld.com`) hosts another style — a tight cropped close-up
 used for the actual in-game pull reveal animation — but blocks
 hotlinking/scraping (403), so it was never a usable source regardless of
-how it looked.
+how it looked. Wish.png can also lag faces/namecards (Fandom uploads it
+later than enka hosts `UI_AvatarIcon_*`); landing shows a short note in
+the art slot when it's missing, so wait rather than substituting any of
+the above.
 
 Don't re-derive codenames by guessing for future characters/regions — they
 often don't match the display name.
 
 ## Data accuracy
 
-Verified 5.3–7.0 by cross-referencing game8.co/gamewith.net/etc. against
-each other (a single AI-summarized fetch of an aggregator page produced
-garbled version numbers — don't trust that alone). One moderate-confidence
-item: 6.2 Phase 2's 4-star trio (Iansan, Chevreuse, Gaming), confirmed
-twice via game8.co but not a third source. 7.0 Phase 2's 4-star trio
-(Aino, Iansan, Lan Yan) was added once officially revealed — splash art
-sourced ahead of the phase's actual Sep 2, 2026 start (21 days after the
-Aug 12 launch, per `PHASE_LENGTH_DAYS`) so the landing page has real art
-instead of the face-icon fallback the moment `getCurrentPhaseIndex()`
-flips over, with no other code change needed. **7.1 Phase 1 added**
-(Vesna/Vodyanitsa 5★, Chongyun/Diona/Faruzan 4★, Sep 23 2026) once the
-livestream + pre-load datamine made it official — 4-star trio is the same
-moderate-confidence bar as 6.2's (confirmed via two independent game8.co
-pages, not a third source, but matches the requester's own firsthand
-pre-load knowledge). Phase 2 deliberately *not* added — sources
-disagree on its exact 5-stars (Skirk/Escoffier per most, but one otherwise-
-reliable source names Linnea/Zibai reruns instead) and multiple outlets
-explicitly flag no first-party HoYoverse notice exists for it yet as of
-this write-up (Sep 21 2026, 2 days pre-launch) — add once it's actually
-confirmed, same as every other still-unrevealed phase.
+Roster/date facts are verified by cross-referencing at least two
+independent sources (game8.co, gamewith.net, etc.). A single
+AI-summarized fetch of an aggregator page has produced garbled version
+numbers — don't trust that alone. 4-star trios are sometimes only
+two-source confirmed (same moderate-confidence bar as 6.2 Phase 2's
+Iansan/Chevreuse/Gaming); that's acceptable. Unrevealed phases stay out
+of `data.json` until a first-party notice or equivalent exists — don't
+pre-stage a phase whose 5-stars the sources still disagree on.
 
 A phase's `"4"` array can legitimately be `[]` rather than filled — a
 version's Special Program sometimes confirms 5-stars before 4-stars.
@@ -105,7 +100,7 @@ Xingqiu, Beidou, Ningguang, Chongyun, Razor, Bennett. Genuine within-1.X
 debuts: Diona (1.1, despite being easy to assume launch roster), Xinyan
 (1.1), Rosaria (1.4), Yanfei (1.5).
 
-All 52 versions have a verified real launch `date` — not a naive "every 42
-days" formula. Two real exceptions: **2.7 delayed ~20 days** (Shanghai
-COVID lockdown, May 10→31 2022), **3.0–3.2 each ran 35 days** (7 short × 3)
-to recover that delay by 3.3.
+Every version in `data.json` has a verified real launch `date` — not a
+naive "every 42 days" formula. Two real exceptions: **2.7 delayed ~20
+days** (Shanghai COVID lockdown, May 10→31 2022), **3.0–3.2 each ran 35
+days** (7 short × 3) to recover that delay by 3.3.

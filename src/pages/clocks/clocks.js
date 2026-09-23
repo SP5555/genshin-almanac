@@ -1,5 +1,5 @@
 import "../../shared/chrome.js";
-import { previewNow } from "../../shared/dates.js";
+import { previewNow, cstDateToUtcInstant, MAINTENANCE_START_HOUR_CST } from "../../shared/dates.js";
 
 const SERVERS = [
 	{ name: "America", offset: -5 },
@@ -11,19 +11,6 @@ const RESET_LOCAL_HOUR = 4;
 const DAY_MS = 86400000;
 const PREDICTED_CADENCE_DAYS = 42;
 const RING_CIRCUMFERENCE = 2 * Math.PI * 52;
-
-// Version-update maintenance always starts at 06:00 China Standard Time (UTC+8) —
-// the same real-world instant for all four servers at once, confirmed via
-// HoYoverse's own patch-day announcements. data.json's "date" field records the
-// CST calendar date a version went live, so anchor to that exact hour rather than
-// midnight UTC — otherwise the "N days" estimate below drifts by up to 8 hours.
-const MAINTENANCE_START_HOUR_CST = 6;
-const CST_OFFSET_HOURS = 8;
-
-function cstDateToUtcInstant(isoDate, hourCst) {
-	let [y, m, d] = isoDate.split("-").map(Number);
-	return new Date(Date.UTC(y, m - 1, d, hourCst - CST_OFFSET_HOURS, 0, 0, 0));
-}
 
 function nextServerReset(offsetHours, now) {
 	let serverNowMs = now.getTime() + offsetHours * 3600000;
