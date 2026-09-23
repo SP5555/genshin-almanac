@@ -1,196 +1,106 @@
-# Calendar page (`calendar.html` / `src/pages/calendar/calendar.js` / `src/pages/calendar/calendar.css`)
+# Calendar page (`calendar.html` / `src/pages/calendar/`)
 
-Implementation notes for this page only — cross-cutting stuff (CSS
-gotchas, design decisions, data schemas) lives in the root `AGENTS.md`.
+Cross-cutting notes live in `AGENTS.md`. Year-view grid of the same
+banner history: version launches, character debuts, birthdays. Not a
+stats dashboard.
 
-The banner history as a year-view grid instead of a line — leaning into
-the site's time/history angle rather than theorycrafting/stats features
-other Genshin sites already cover better. Three event layers are plotted:
-version launches, character debuts, and birthdays.
+**Year range:** 2020 (1.0's launch year) to `previewNow().getFullYear()
++ 1`. Custom popover, not a native `<select>`. Two stepper instances
+(above/below the grid) kept in sync by class; the bottom popover opens
+upward.
 
-**Year stepper**: range is `2020` (1.0's real launch year) to
-`previewNow().getFullYear() + 1`, computed live. The year label opens a
-popover (not a native `<select>`) for jumping the full range in one click.
-Two stepper instances exist (above/below the grid, since scrolling through
-12 months on mobile just to change year is real friction), kept in sync
-via class rather than unique IDs. The bottom instance's popover opens
-*upward* since it sits right above the footer.
+**Today** is a button (`jumpToToday()` → `jumpToDate(isoDate)`), not an
+auto-scroll on load — that fights browsing from the top and bookmarked
+scroll. Highlight uses `--four`, never `--five`, so it isn't confused
+with `.is-today`. Any future jump-across-the-grid feature should call
+`jumpToDate()`.
 
-A **"Today" button** (`jumpToToday()`), not an auto-scroll on load —
-auto-scrolling was built and reconsidered before shipping, since it'd
-fight a reader browsing from the top or reloading a bookmarked scroll
-position. It wraps **`jumpToDate(isoDate)`**, the generic "jump to a
-specific day" primitive: switches year/month if needed, scrolls, and gives
-a temporary `.is-highlighted` ring — the same glow language as Timeline's
-`jumpToCard()`, `--four` rather than `--five` so it's never confused with
-`.is-today`'s permanent gold wash. Meant to be the one thing any future
-jump-across-the-grid feature calls.
+**Shareable `?date=`:** one param, precision is the view. `2021` year,
+`2021-02` month (desktop ≥900px; below that the page shows year but
+keeps the month in the URL so widening restores it), `2021-02-03` jumps
+and opens that day. Old `?year=` bookmarks still read, then rewrite.
+Close drops back to year or month. Character drill-in stays off the
+URL (panel stack). `fakeDate` is a separate param — "what time it is",
+not "where you're looking."
 
-Two real bugs from this pattern, worth remembering if it's reused
-elsewhere:
-1. A popover's own `display:flex` (author CSS) silently overrides the
-   browser's default `[hidden]{display:none}` — origin is checked before
-   specificity in the cascade, so author styles win regardless. Needs an
-   explicit `[hidden]{display:none;}` rule.
-2. `animation-fill-mode:both` leaves a lingering non-`none` transform after
-   the page's entrance animation finishes, which promotes the element into
-   its own stacking context and traps a child popover's `z-index` below
-   later-painted siblings. Fixed by giving the animated element its own
-   `position:relative;z-index:N`. This exact trap recurred with the Month
-   view's own stepper (below) — check for it on any element that both gets
-   this page's reveal animation *and* houses its own popover.
+Reuse traps for the stepper:
+1. A popover's author `display: flex` overrides `[hidden] { display:
+   none }` (origin beats specificity). Needs an explicit
+   `[hidden] { display: none }`.
+2. `animation-fill-mode: both` leaves a non-`none` transform after the
+   entrance animation, which traps a child popover's `z-index`. Give the
+   animated element its own `position: relative; z-index`. Hits any
+   reveal-animated element that also houses a popover.
 
-**Day cells**: Sunday-first (Server Clocks' weekday strip is Monday-first,
-specific to Genshin's own reset schedule — doesn't apply here). Fixed
-height, not `aspect-ratio:1/1` — with ~8-9 launches a year against 365
-days, almost every cell is empty and needs to stay calm rather than
-compete for space. A border only appears on cells with something on them,
-so the border itself is the "something is here" signal.
+**Day cells** are Sunday-first (Clocks' Monday-first strip is Genshin's
+reset week, not a calendar). Fixed height, not `aspect-ratio: 1/1` —
+almost every cell is empty and should stay calm. Border only on cells
+that have something, so the border *is* the signal.
 
-**Character debuts**: derived, not stored — a debut's date is just its
-phase's start date (same `entry.date + 21×phaseIndex` + `phase-notes.json`
-override as Timeline). `buildDebutsByDate()`/`getPhaseLabel()` mirror
-timeline.js's own filler-skipping phase-count logic so captions match what
-Timeline would call the same phase. Chronicled/Lightrace are never scanned
-(reruns by definition, can't contain a real debut).
+**Debuts** are derived: phase start date, same formula + `phase-notes`
+overrides as Timeline, same filler-skipping labels. Chronicled /
+Lightrace are never scanned.
 
-**Birthdays**: `data/character-birthdays.json` (name → `"MM-DD"`, no
-year). Sourced from Game8's consolidated birthday table, cross-checked —
-verify freshly against 2+ sources for any newly-added character, since
-that kind of table lags new releases. Gated by full `YYYY-MM-DD` string
-comparison, not just year, so a birthday never shows before the
-character's real debut date within that debut year — a year-only cutoff
-let this happen for the 11 "preexisting" characters (caught this way), who
-now use their real Sep 28, 2020 launch date as the cutoff instead of their
-later first-tracked-banner date. Bennett's Feb 29 needs no leap-year
-special case — `buildMonthCard` only ever generates a Feb 29 cell in years
-that actually have one.
+**Birthdays:** `character-birthdays.json` (name → `"MM-DD"`). Game8 table,
+cross-check 2+ sources for new characters (those tables lag). Gated by
+full `YYYY-MM-DD`, not year alone — a year-only cutoff showed 1.0-roster
+birthdays before Sep 28, 2020; preexisting characters use that launch
+date as the cutoff, not their first tracked banner. Bennett's Feb 29
+needs no leap special case: `buildMonthCard` only emits Feb 29 in years
+that have one.
 
-**Day-cell markers**: up to 3 small dots (5★/4★ debut, birthday) sit in
-the same row as the day number, glued directly beside it, not a separate
-corner — a corner position read as ambiguous at this cell width (~44px),
-closer to the *next* day's number than its own. A 4th neutral dot
-(`.is-banner`, no glow, unlike the other three) marks any banner — rerun,
-Chronicled, Lightrace — that has zero real debuts, so those days aren't
-indistinguishable from actually empty ones. It only ever renders when no
-debut dot already did, so it never increases the max dots-per-cell.
+**Markers:** up to three small dots (5★ / 4★ debut, birthday) glued beside
+the day number, not a corner (at ~44px a corner reads as the *next*
+day). A 4th neutral `.is-banner` dot marks a banner day with zero debuts,
+and only then.
 
-**Day panel**: debuts render as namecard-background "trading cards"
-(`buildCharacterCard()`); birthdays get a lighter ringed-avatar-row
-(`buildBirthdayChip()`) instead, since a debut is a one-time historical
-fact and a birthday is light and recurring. A launch day promotes "Version
-X.Y launch" into the panel's big centered headline; any other day gets a
-compact 64px header rather than a mostly-empty 200px box. A reported
-rendering seam along the header's own gradient edges (real hardware only,
-not reproducible headless) was **not** fixed by `isolation:isolate` —
-don't re-attempt that fix if this resurfaces.
+**Day panel:** debuts are namecard "trading cards"; birthdays are lighter
+chips. A launch day promotes "Version X.Y launch" to the headline; other
+days get a compact header. A reported seam on the header gradient (real
+hardware only) was **not** fixed by `isolation: isolate` — don't retry
+that.
 
-The panel content and the grid's dots deliberately read from two different
-maps: `debutsByDate` (dots — narrow on purpose, true debuts only, to keep
-the grid calm) vs. `bannersByDate` (panel content — every character
-featured that date, debut or not). This split exists because jumping to a
-character's own rerun/Chronicled/Lightrace row used to land on a panel
-with nothing in it, since those dates have real banners but no debut.
-**One date can host more than one distinct banner** — Chronicled/Lightrace
-share their parent phase's exact date by design, so `buildBannersByDate`
-groups by `(date, version, phaseLabel)`, not date alone (grouping by date
-alone was a real bug: it merged an unrelated regular phase with its
-same-day Chronicled Wish into one list).
+Grid dots read `debutsByDate` (true debuts, keep the grid calm). Panel
+content reads `bannersByDate` (everyone featured that date). Without the
+split, jumping to a rerun/Chronicled/Lightrace day opened an empty panel.
+**One date can host more than one banner** — Chronicled/Lightrace share
+the parent phase's date — so `bannersByDate` groups by `(date, version,
+phaseLabel)`, not date alone.
 
-`bannersByDate` also drives `buildPhaseCard()`/`buildPhaseUnit()` — a
-compact summary of the *entire* banner, reusing Timeline's own
-`.trail-node.phase-card` DOM/CSS (`buildNode()` in timeline.js), duplicated
-rather than shared since timeline.js's version is tightly coupled to
-Timeline-only state (`characterIndex` population, `buildRays()`). Its
-layout deliberately diverges from Timeline's, though: `.calendar-phase-card`
-forces both five/four groups into left-aligned flat flex-wrap rows, no
-column-split at all, since Timeline's centered/column-split layout read as
-over-designed at this card's smaller scale.
+The compact `.calendar-phase-card` reuses Timeline's phase-card DOM but
+**not** its viewport-width stacking breakpoints: the popup is ~560px
+even on a wide screen, so those queries never fire. Force the stacked
+layout via the marker class. Left-aligned flat wrap, no column-split —
+Timeline's centered/column layout is over-designed at this scale.
 
-**Real gotcha**: Timeline's phase-card CSS gates its stacking fix behind
-viewport-width media queries — correct for Timeline, where the card
-tracks the viewport. The day panel's popup stays narrow (~560px)
-*regardless* of viewport width, so those queries never fire even on a wide
-desktop screen where the card's actual rendered width sits well inside the
-danger zone that caused the original chronicled-overflow bug. Fixed by
-forcing the stacked layout unconditionally via a `.calendar-phase-card`
-marker class rather than gating on a media query — worth checking any time
-a Timeline component with viewport-width breakpoints gets reused inside a
-container whose own width doesn't track the viewport.
+Character drill-in is a **UI stack** on the shared panel (`panelStack`),
+not browser history. `openDayPanel()` is the only stack reset. Back
+appears at depth > 1; on mobile a qualifying swipe pops one level except
+from the root. `buildCharacterAppearances()` mirrors Timeline's scan
+order (phases, then chronicled, then lightrace) so rerun counts match.
 
-Clicking a debut card or birthday chip drills into that character's own
-`.char-appear-list` via a **UI stack** on the shared detail panel
-(`panelStack`/`pushPanelView()`/`popPanelView()`/`renderPanelTop()`).
-`openDayPanel()` is the only thing that resets the stack; push/pop only
-re-renders content, animated via the shared `swapWithFade()`. A **Back**
-button appears whenever stack depth > 1; on mobile (topbar hidden
-entirely) a qualifying swipe pops one stack level instead of always
-closing, except from the stack's root.
+## Month view (desktop, ≥900px)
 
-`buildCharacterAppearances()` is a pure-data mirror of timeline.js's
-`characterIndex` (same per-version scan order — phases, then chronicled,
-then lightrace — so rerun counts line up identically), built once at
-bootstrap rather than duplicating Timeline's full render path.
+`?date=YYYY-MM` is the month view. Reload on a <900px window shows year
+and keeps the month in the URL. An explicit Year toggle rewrites to
+`YYYY`. A `resize` listener drops the *display* back to year below 900px
+without stripping the param. `renderCalendar()` is the single dispatcher.
 
-## Month view (desktop-only zoom mode)
-A Year/Month toggle (hidden below 900px) swaps the 12-small-card grid for
-one large `.calendar-month-card.is-big` — the same glass-card language as
-the compact grid's 12 small ones, just one instead of twelve.
+Month and year are independent steppers so May N → May N+1 is one click.
+Labels use a **fixed** width (not `min-width`) so changing text doesn't
+shove the arrows. Stepper arrows share `.calendar-year-arrow` for
+styling; year-view click handlers must stay scoped to
+`.calendar-year-stepper .calendar-year-arrow`, or "next month" also
+fires `setYear(+1)`.
 
-**State**: `viewMode`/`currentMonth` are session-only, not persisted in the
-URL like `currentYear` is — reloading always starts back in year mode
-(deliberate: a persisted month view landing on a <900px viewport would
-need its own fallback for no real benefit, since the toggle wouldn't even
-be reachable there). A `resize` listener forces back to year mode if the
-window narrows below 900px mid-session. `renderCalendar()` is the single
-dispatcher every state setter goes through.
+`bannersByDate.get(isoDate)` is an **array**. Rendering only
+`debuts || banners[0]` hides a Chronicled/Lightrace group that shares
+the date with a real debut. Render those variant badges
+*unconditionally*, alongside the debut / plain-banner branch.
 
-Two independent stepper groups (month, year), not one combined stepper —
-lets a reader jump May 2025 → May 2026 in one click instead of stepping
-through 12 months. The year group is a verbatim reuse of the year-view's
-own popover markup/wiring, since that code already operates on "every
-matching element" rather than a specific instance. Both labels share one
-CSS rule except `width` — a *fixed* width (not `min-width`) is what stops
-the label resizing (and shoving its own arrows sideways) as the text
-changes.
+`jumpToDate()` must `setMonth()` first when in month view looking at a
+different month — otherwise the cell isn't in the DOM and the jump
+no-ops.
 
-**Real bug**: the month-nav arrows share `.calendar-year-arrow` with the
-year-view's own arrows purely for pill styling, but the year-view's click
-listeners originally selected on the bare `.is-prev`/`.is-next` classes,
-which the month arrows also carry — every "next month" click was silently
-also firing `setYear(currentYear + 1)`. Fixed by scoping those selectors
-to `.calendar-year-stepper .calendar-year-arrow...` specifically. Worth
-remembering any time a new element reuses an existing class purely for
-shared styling — an unscoped selector elsewhere that happens to match the
-same class combination will fire too.
-
-**`buildBigDayCell()`** mirrors `buildMonthCard()`'s per-day data lookups
-but renders real text where the compact grid only had room for a dot: a
-debut gets its version+phase badge and character names spelled out; a
-banner with no real debut gets the badge alone, keeping the same "quiet,
-not the headline" restraint as the `.is-banner` dot.
-
-**Real bug: Chronicled/Lightrace were invisible whenever their date also
-had a real debut.** `bannersByDate.get(isoDate)` is an *array* — a date can
-host more than one distinct banner group, since Chronicled/Lightrace share
-their parent phase's exact date. The cell only ever rendered one thing
-though (`debuts` if present, else `banners[0]`), so a Chronicled/Lightrace
-group sitting in that same array went completely unrendered whenever a
-real debut (or even just a different plain banner) already claimed the
-`if`/`else if`. Fixed by rendering Chronicled/Lightrace groups as their own
-small badge (`.calendar-day-badge.is-chronicled`/`.is-lightrace`, recolored
-only — same restraint as `.char-appear-version`'s own variant coloring)
-*unconditionally*, alongside whatever the debuts/plain-banner branch above
-already rendered, not folded into that branch's either/or.
-
-**`jumpToDate()` needed a real fix, not just a wrapper**: it only ever
-checked/set `currentYear`, so in month mode looking at a different month
-than the target date, the cell genuinely isn't in the DOM and the jump
-silently no-op'd. Now derives the target month from the ISO date and calls
-`setMonth()` first when in month mode — fixes every caller for free.
-
-Weekday row has one border around the whole row (not per-letter — tried
-first, looked busier) so it reads as a single header bar distinct from the
-plain, borderless day numbers below it. Month view spells out full weekday
-names (`CALENDAR_WEEKDAY_NAMES`) instead of the compact grid's single
-letters, since there's real room for it.
+Weekday row: one border around the whole row, not per letter. Month view
+uses full weekday names (`CALENDAR_WEEKDAY_NAMES`).

@@ -6,6 +6,7 @@ import { GLOW_CONFIG } from "../../shared/glow-config.js";
 import { initPanelGrabberDrag } from "../../shared/panel.js";
 import { initCharSearch } from "../../shared/search.js";
 import { buildAppearanceRow } from "../../shared/appearance-row.js";
+import { smoothScrollToEl } from "../../shared/scroll.js";
 
 var characterIndex = {};
 var characterNotes = {};
@@ -181,7 +182,38 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, variant, dat
 	return card;
 }
 
-function openCharPanel(character) {
+// Shareable query params on this page only (`?char=`, `?v=`). Always
+// `replaceState` — a `pushState` overlay made Close = `history.back()`,
+// which also restores the pre-open scroll and undoes `jumpToCard()`.
+// Calendar's panel stack and `?date=` stay separate. Other params
+// (`fakeDate`) are left untouched.
+function setQueryParam(key, value) {
+	let url = new URL(location.href);
+	if (value == null || value === "") url.searchParams.delete(key);
+	else url.searchParams.set(key, value);
+	history.replaceState({ almanac: true }, "", url.pathname + url.search + url.hash);
+}
+
+function resolveCharacter(raw) {
+	if (!raw) return null;
+	if (characterIndex[raw]) return raw;
+	let want = raw.toLowerCase().replace(/\s+/g, "");
+	for (let name of Object.keys(characterIndex)) {
+		if (name.toLowerCase().replace(/\s+/g, "") === want) return name;
+		if ((characterAliases[name] || []).some(a => a.toLowerCase().replace(/\s+/g, "") === want)) return name;
+	}
+	return null;
+}
+
+function jumpToVersion(version) {
+	let patch = document.getElementById(`patch-${version}`);
+	let target = patch || document.getElementById(`v-section-${version}`);
+	if (!target) return;
+	smoothScrollToEl(target, { offset: -12 });
+}
+
+function openCharPanel(character, src) {
+	src = src || "ui";
 	let entries = characterIndex[character] || [];
 	if (entries.length === 0) return;
 
@@ -224,6 +256,9 @@ function openCharPanel(character) {
 	document.getElementById("detailPanelBackdrop").classList.add("is-open");
 	document.body.classList.add("panel-open");
 	document.documentElement.classList.add("panel-open");
+
+	if (src === "pop") return;
+	setQueryParam("char", character);
 }
 
 function closeCharPanel() {
@@ -234,13 +269,16 @@ function closeCharPanel() {
 	document.documentElement.classList.remove("panel-open");
 }
 
-function pageOffsetTop(el) {
-	let top = 0;
-	while (el) {
-		top += el.offsetTop;
-		el = el.offsetParent;
-	}
-	return top;
+function requestClosePanel() {
+	if (!document.getElementById("detailPanel").classList.contains("is-open")) return;
+	closeCharPanel();
+	setQueryParam("char", null);
+}
+
+function onTimelinePopState() {
+	let char = resolveCharacter(new URLSearchParams(location.search).get("char"));
+	if (char) openCharPanel(char, "pop");
+	else closeCharPanel();
 }
 
 function jumpToCard(version, phaseLabel) {
@@ -248,20 +286,29 @@ function jumpToCard(version, phaseLabel) {
 		`.phase-card[data-version="${CSS.escape(version)}"][data-phase-label="${CSS.escape(phaseLabel)}"]`
 	);
 	if (!card) return;
-	let top = pageOffsetTop(card) - 20;
-	window.scrollTo({ top, behavior: "smooth" });
+	smoothScrollToEl(card, { offset: -20 });
 	card.classList.add("is-highlighted");
 	setTimeout(() => card.classList.remove("is-highlighted"), 1800);
+	setQueryParam("v", version);
+}
+
+function applyUrlState() {
+	let params = new URLSearchParams(location.search);
+	let v = params.get("v");
+	let char = resolveCharacter(params.get("char"));
+	if (v) jumpToVersion(v);
+	if (char) openCharPanel(char, "load");
 }
 
 function initCharPanel() {
 	onDelegatedActivate(document.getElementById("timelineRoot"), ".char-trigger", trigger => openCharPanel(trigger.dataset.character));
-	document.getElementById("detailPanelClose").addEventListener("click", closeCharPanel);
-	document.getElementById("detailPanelBackdrop").addEventListener("click", closeCharPanel);
+	document.getElementById("detailPanelClose").addEventListener("click", requestClosePanel);
+	document.getElementById("detailPanelBackdrop").addEventListener("click", requestClosePanel);
 	document.addEventListener("keydown", e => {
-		if (e.key === "Escape") closeCharPanel();
+		if (e.key === "Escape") requestClosePanel();
 	});
-	initPanelGrabberDrag(closeCharPanel);
+	initPanelGrabberDrag(requestClosePanel);
+	window.addEventListener("popstate", onTimelinePopState);
 }
 
 function buildMarkerCol(markerEl) {
@@ -312,6 +359,7 @@ function buildPatchRow(entry, charCount, isLive) {
 	let version = entry.version;
 	let row = document.createElement("div");
 	row.className = "vt-row vt-patch-row container";
+	row.id = `patch-${version}`;
 
 	let marker = document.createElement("div");
 	marker.className = "vt-patch-marker" + (isLive ? " is-live" : "");
@@ -412,8 +460,9 @@ function buildVersionNav(groups) {
 		if (!a) return;
 		e.preventDefault();
 		let target = document.getElementById(a.dataset.target);
-		let top = target.offsetTop - 12;
-		window.scrollTo({ top, behavior: "smooth" });
+		smoothScrollToEl(target, { offset: -12 });
+		let major = a.dataset.target.replace("v-section-", "");
+		setQueryParam("v", major);
 	});
 }
 
@@ -453,28 +502,113 @@ function init(data) {
 				navLinks.forEach(l => l.classList.remove("active"));
 				link.classList.add("active");
 				let major = entry.target.id.replace("v-section-", "");
-				setRegionBackground(major);
+				requestRegionBackground(major);
 			}
 		});
 	}, { rootMargin: "-45% 0px -45% 0px", threshold: 0 });
 	majorBlocks.forEach(block => navObserver.observe(block));
 }
 
-var activeRegionLayer = "A";
-var currentRegionMajor = null;
-function setRegionBackground(major) {
-	if (major === currentRegionMajor) return;
+var wantedRegionMajor = null;
+var shownRegionMajor = null;
+var regionPhase = "idle"; // idle | out | in
+
+function regionBgUrl(major) {
+	let meta = versionMeta[major] || {};
+	if (!meta.bgImage) return null;
+	return `linear-gradient(rgba(7,7,12,0.78), rgba(7,7,12,0.9)), url(assets/regions/${meta.bgImage}.jpg)`;
+}
+
+function regionLayer() {
+	return document.getElementById("regionBg");
+}
+
+function preloadRegion(major) {
 	let meta = versionMeta[major] || {};
 	if (!meta.bgImage) return;
-	currentRegionMajor = major;
+	let img = new Image();
+	img.src = `assets/regions/${meta.bgImage}.jpg`;
+}
 
-	let nextLayer = document.getElementById(activeRegionLayer === "A" ? "regionBgB" : "regionBgA");
-	let prevLayer = document.getElementById(activeRegionLayer === "A" ? "regionBgA" : "regionBgB");
-	nextLayer.style.backgroundImage =
-		`linear-gradient(rgba(7,7,12,0.78), rgba(7,7,12,0.9)), url(assets/regions/${meta.bgImage}.jpg)`;
-	nextLayer.classList.add("is-active");
-	prevLayer.classList.remove("is-active");
-	activeRegionLayer = activeRegionLayer === "A" ? "B" : "A";
+function regionReduceMotion() {
+	return matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+// Fade the current photo to the starfield, then fade in whichever region
+// matches the *then*-current scroll position. Never crossfade two photos —
+// flying through the whole timeline used to flash every region in sequence.
+function requestRegionBackground(major) {
+	if (!regionBgUrl(major)) return;
+	wantedRegionMajor = major;
+	preloadRegion(major);
+	if (regionPhase === "idle") {
+		if (wantedRegionMajor === shownRegionMajor) return;
+		if (shownRegionMajor === null) startRegionFadeIn();
+		else startRegionFadeOut();
+	} else if (regionPhase === "in" && wantedRegionMajor !== shownRegionMajor) {
+		startRegionFadeOut();
+	}
+}
+
+function regionOpacity() {
+	return parseFloat(getComputedStyle(regionLayer()).opacity);
+}
+
+function startRegionFadeOut() {
+	let layer = regionLayer();
+	if (regionReduceMotion() || regionOpacity() < 0.01) {
+		layer.classList.remove("is-active");
+		onRegionBlack();
+		return;
+	}
+	regionPhase = "out";
+	layer.classList.remove("is-active");
+}
+
+function startRegionFadeIn() {
+	let url = regionBgUrl(wantedRegionMajor);
+	if (!url) {
+		regionPhase = "idle";
+		shownRegionMajor = null;
+		return;
+	}
+	let layer = regionLayer();
+	layer.style.backgroundImage = url;
+	shownRegionMajor = wantedRegionMajor;
+	if (regionReduceMotion()) {
+		layer.classList.add("is-active");
+		regionPhase = "idle";
+		return;
+	}
+	regionPhase = "in";
+	// Drop is-active first so a same-frame interrupt (fade-in started at
+	// opacity 0, then wanted changed) still restarts the 0→1 transition.
+	layer.classList.remove("is-active");
+	layer.offsetHeight;
+	layer.classList.add("is-active");
+}
+
+function onRegionBlack() {
+	shownRegionMajor = null;
+	startRegionFadeIn();
+}
+
+function onRegionTransitionEnd(e) {
+	if (e.propertyName !== "opacity") return;
+	if (e.target !== regionLayer()) return;
+	let opacity = regionOpacity();
+	if (regionPhase === "out") {
+		if (opacity > 0.05) return;
+		onRegionBlack();
+	} else if (regionPhase === "in") {
+		if (opacity < 0.95) return;
+		regionPhase = "idle";
+		if (wantedRegionMajor !== shownRegionMajor) startRegionFadeOut();
+	}
+}
+
+function initRegionBackground() {
+	regionLayer().addEventListener("transitionend", onRegionTransitionEnd);
 }
 
 async function loadJSON(path) {
@@ -499,9 +633,11 @@ async function bootstrap() {
 		characterElements = elements;
 		characterAliases = aliases;
 
+		initRegionBackground();
 		init(data);
 		initCharPanel();
 		initCharSearch(() => Object.keys(characterIndex), characterAliases, openCharPanel);
+		applyUrlState();
 	} catch (err) {
 		console.error(err);
 		document.getElementById("timelineRoot").textContent = "Failed to load banner data — please refresh the page.";

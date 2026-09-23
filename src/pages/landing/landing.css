@@ -78,13 +78,10 @@
 	.spotlight-banner{padding: 22px;}
 }
 /* Corner watermark and glow wash both crossfade between characters via a
-   two-layer A/B pattern — same technique as #regionBgA/#regionBgB in
-   app.js's setRegionBackground(): two persistent real elements, write the
-   new color/image to whichever one is currently inactive, toggle
-   is-active on both, and let the opacity transition below do the rest.
-   Plain custom-property values (--el-glow/--el-icon) can't be transitioned
-   by the browser on their own — this sidesteps that entirely rather than
-   relying on it.
+   two-layer A/B pattern: two persistent elements, write the new
+   color/image to whichever is inactive, toggle is-active, let opacity
+   transition. Custom properties (--el-glow/--el-icon) can't be
+   transitioned on their own.
    z-index:-1/0 need .spotlight-banner's own z-index:0 to stay contained to
    this card instead of escaping into the page's stacking context.
    top: alone anchors the box's EDGE, not the icon's visual center — since

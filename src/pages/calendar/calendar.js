@@ -5,6 +5,7 @@ import { swapWithFade, initPanelGrabberDrag } from "../../shared/panel.js";
 import { buildCharacterHeader } from "../../shared/glow.js";
 import { initCharSearch } from "../../shared/search.js";
 import { buildAppearanceRow } from "../../shared/appearance-row.js";
+import { smoothScrollToEl } from "../../shared/scroll.js";
 
 // Year-view calendar — the same banner history as a spreadsheet-shaped grid
 // instead of a line. Three event layers are plotted: version launches,
@@ -26,9 +27,43 @@ function clampYear(year) {
 	return Math.min(calendarMaxYear(), Math.max(CALENDAR_MIN_YEAR, year));
 }
 
-function getYearFromUrl() {
-	let parsed = parseInt(new URLSearchParams(location.search).get("year"), 10);
-	return isNaN(parsed) ? previewNow().getFullYear() : clampYear(parsed);
+// One `date` param, precision is the view: `2021` year, `2021-02` month
+// (desktop), `2021-02-03` that day (jump + open the panel). `year=` still
+// reads for old bookmarks, then rewrite drops it. fakeDate stays separate
+// — that's "what time it is", not "where you're looking."
+function parseCalendarDateParam(raw) {
+	if (!raw) return null;
+	let m = String(raw).match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/);
+	if (!m) return null;
+	let year = clampYear(parseInt(m[1], 10));
+	let month = m[2] != null ? parseInt(m[2], 10) - 1 : null;
+	let day = m[3] != null ? parseInt(m[3], 10) : null;
+	if (month != null && (month < 0 || month > 11)) {
+		month = null;
+		day = null;
+	}
+	if (day != null) {
+		let dim = new Date(year, month + 1, 0).getDate();
+		if (day < 1 || day > dim) day = null;
+	}
+	return { year, month, day };
+}
+
+function calendarDateParam() {
+	if (panelStack[0] && panelStack[0].type === "day") return panelStack[0].isoDate;
+	// Below 900px we show year view but can still remember YYYY-MM so a
+	// wider window restores month. An explicit Year toggle (viewMode year
+	// while month view is available) drops down to YYYY.
+	let holdMonth = currentMonth !== undefined && (viewMode === "month" || !isMonthViewAvailable());
+	if (holdMonth) return `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+	return String(currentYear);
+}
+
+function syncCalendarUrl() {
+	let url = new URL(location.href);
+	url.searchParams.delete("year");
+	url.searchParams.set("date", calendarDateParam());
+	history.replaceState(null, "", url.pathname + url.search + url.hash);
 }
 
 // "YYYY-MM-DD" -> version string. Built once at bootstrap.
@@ -682,9 +717,7 @@ function setYear(year) {
 	currentYear = clampYear(year);
 	updateYearLabel();
 	renderCalendar();
-	let url = new URL(location.href);
-	url.searchParams.set("year", String(currentYear));
-	history.replaceState(null, "", url);
+	syncCalendarUrl();
 	closeAllYearPopovers();
 	closeMonthPopover();
 }
@@ -701,19 +734,15 @@ function setMonth(year, month) {
 	updateYearLabel();
 	updateMonthLabel();
 	renderCalendar();
-	let url = new URL(location.href);
-	url.searchParams.set("year", String(currentYear));
-	history.replaceState(null, "", url);
+	syncCalendarUrl();
 	closeAllYearPopovers();
 	closeMonthPopover();
 }
 
-// viewMode is session-only (not persisted in the URL) — reloading always
-// starts back in year mode, which sidesteps a real edge case: a persisted
-// month view landing on a <900px viewport would need its own fallback
-// logic for no real benefit (the toggle wouldn't be reachable there
-// anyway to switch back).
-function setViewMode(mode) {
+// Month precision lives in `?date=YYYY-MM`, not a second param. Below
+// 900px the URL can still hold a month while the page shows year view —
+// widening restores month. An explicit Year toggle rewrites to `YYYY`.
+function setViewMode(mode, opts) {
 	if (mode === "month" && !isMonthViewAvailable()) mode = "year";
 	if (mode === viewMode) return;
 	viewMode = mode;
@@ -727,6 +756,7 @@ function setViewMode(mode) {
 	document.getElementById("calendarRoot").classList.toggle("is-month-view", viewMode === "month");
 	updateMonthLabel();
 	renderCalendar();
+	if (!opts || opts.sync !== false) syncCalendarUrl();
 }
 
 function buildYearPopovers() {
@@ -1141,12 +1171,14 @@ function openPanelFresh(view) {
 
 function openDayPanel(isoDate) {
 	openPanelFresh({ type: "day", isoDate });
+	syncCalendarUrl();
 }
 
 // Search-result entry point (see initCharSearch() in src/shared/search.js) — same
 // fresh-open behavior as a day cell, just landing directly on a character.
 function openCharacterPanel(name) {
 	openPanelFresh({ type: "character", name });
+	syncCalendarUrl();
 }
 
 function closeDayPanel() {
@@ -1162,6 +1194,7 @@ function closeDayPanel() {
 	document.body.classList.remove("panel-open");
 	document.documentElement.classList.remove("panel-open");
 	panelStack = [];
+	syncCalendarUrl();
 }
 
 function initDayPanel() {
@@ -1202,7 +1235,16 @@ document.querySelectorAll(".calendar-month-year-nav-arrow.is-next").forEach(btn 
 // past that mid-session while already in month mode — fall back to year
 // view rather than stranding the reader on a toggle-less month view.
 window.addEventListener("resize", () => {
-	if (viewMode === "month" && !isMonthViewAvailable()) setViewMode("year");
+	if (!isMonthViewAvailable()) {
+		if (viewMode === "month") setViewMode("year", { sync: false });
+		return;
+	}
+	if (viewMode !== "year") return;
+	let parsed = parseCalendarDateParam(new URLSearchParams(location.search).get("date"));
+	if (parsed && parsed.month != null) {
+		currentMonth = parsed.month;
+		setViewMode("month", { sync: false });
+	}
 });
 document.querySelectorAll(".calendar-year-label-wrap").forEach(wrap => {
 	let label = wrap.querySelector(".calendar-year-label");
@@ -1251,8 +1293,7 @@ function jumpToDate(isoDate) {
 	}
 	let cell = document.querySelector(`.calendar-day-cell[data-date="${isoDate}"]`);
 	if (!cell) return;
-	let reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-	cell.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+	smoothScrollToEl(cell, { block: "center" });
 	cell.classList.add("is-highlighted");
 	setTimeout(() => cell.classList.remove("is-highlighted"), 1800);
 }
@@ -1268,7 +1309,37 @@ document.querySelectorAll(".calendar-today-btn").forEach(btn => btn.addEventList
 async function bootstrapCalendar() {
 	await loadCalendarData();
 	buildYearPopovers();
-	setYear(getYearFromUrl());
+	applyCalendarUrl();
 	initCharSearch(() => Object.keys(characterAppearances), characterAliases, openCharacterPanel);
+}
+
+function applyCalendarUrl() {
+	let params = new URLSearchParams(location.search);
+	let parsed = parseCalendarDateParam(params.get("date"));
+	if (!parsed) {
+		let y = parseInt(params.get("year"), 10);
+		parsed = {
+			year: isNaN(y) ? previewNow().getFullYear() : clampYear(y),
+			month: null,
+			day: null
+		};
+	}
+	currentYear = parsed.year;
+	if (parsed.month != null) currentMonth = parsed.month;
+	let wantMonth = parsed.month != null && isMonthViewAvailable();
+	viewMode = wantMonth ? "month" : "year";
+	if (viewMode === "month" && currentMonth === undefined) currentMonth = 0;
+	document.querySelectorAll(".calendar-view-toggle-btn").forEach(btn => {
+		btn.classList.toggle("is-active", btn.dataset.view === viewMode);
+	});
+	document.getElementById("calendarRoot").classList.toggle("is-month-view", viewMode === "month");
+	updateYearLabel();
+	if (currentMonth !== undefined) updateMonthLabel();
+	renderCalendar();
+	syncCalendarUrl();
+	if (parsed.day == null || parsed.month == null) return;
+	let iso = `${parsed.year}-${String(parsed.month + 1).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`;
+	jumpToDate(iso);
+	openDayPanel(iso);
 }
 bootstrapCalendar();

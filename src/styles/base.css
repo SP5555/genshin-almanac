@@ -43,7 +43,10 @@
 @font-face{font-family: GIFont; src: url("../../assets/fonts/zh-cn.ttf"); font-display: swap;}
 
 html{
-	min-width: 320px; scroll-behavior: smooth;
+	min-width: 320px;
+	/* Native smooth scroll is not display-vsync'd (looks stepped on
+	   high-Hz screens). Window jumps go through src/shared/scroll.js. */
+	scroll-behavior: auto;
 	scrollbar-width: none; -ms-overflow-style: none;
 	overflow-x: hidden;
 	background-color: var(--bg);
@@ -64,7 +67,7 @@ body{
 }
 body::-webkit-scrollbar{display: none;}
 
-/* ---------- ambient region background, crossfades between major versions ---------- */
+/* ---------- ambient region background (Timeline sequential fade-to-black) ---------- */
 /* Shared by Timeline and Landing (Landing's spotlight reuses the same
    per-version region-art recipe) — genuinely cross-page, not Timeline-only. */
 .region-bg{

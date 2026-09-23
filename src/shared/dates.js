@@ -1,13 +1,15 @@
 // Date/phase-math helpers shared across pages. No dependencies on any other
 // module in this project.
 
+export const PHASE_LENGTH_DAYS = 21;
+export const LIVE_WINDOW_DAYS = 42;
+const DAY_MS = 86400000;
+
 /**
  * A phase's real-world start date, applying phase-notes.json's override for
  * the handful of historically irregular phases (1.3's 3-phase structure,
  * 3.0-3.2's compressed cadence — see AGENTS.md). Same 21-day cadence as
- * PHASE_LENGTH_DAYS in src/pages/landing/landing.js (duplicated there as a
- * literal rather than importing this, since that constant also drives
- * unrelated landing-only math).
+ * landing's live spotlight (`PHASE_LENGTH_DAYS`).
  * @param {{version: string, date: string}} entry - a data.json version entry
  * @param {number} phaseIndex - 0-based phase index within entry.banner
  * @param {Object<string, {date?: string}>} phaseNotes - phase-notes.json
@@ -17,7 +19,7 @@ export function getPhaseStartDate(entry, phaseIndex, phaseNotes) {
 	let override = (phaseNotes[`${entry.version}-${phaseIndex + 1}`] || {}).date;
 	if (override) return override;
 	let d = new Date(entry.date + "T00:00:00Z");
-	d.setUTCDate(d.getUTCDate() + phaseIndex * 21);
+	d.setUTCDate(d.getUTCDate() + phaseIndex * PHASE_LENGTH_DAYS);
 	return d.toISOString().slice(0, 10);
 }
 
@@ -58,11 +60,16 @@ export function countAppearancesThrough(data, versionIdx, phaseIdx, character) {
 // countdown ticking realistically during testing. Every "now" read for UI
 // purposes across the site should go through this instead of a bare
 // Date.now()/new Date() — parsing a *stored* date from data.json is
-// unaffected and shouldn't use this. Per-URL only, not persisted — the
-// param has to be on whatever page you're actually testing.
+// unaffected and shouldn't use this. Not localStorage: chrome.js copies
+// the param onto in-site links so clicking around stays in the same
+// preview. Off localhost the offset is 0, not merely hidden.
+export function isLocalDevHost() {
+	return typeof location !== "undefined"
+		&& (location.hostname === "localhost" || location.hostname === "127.0.0.1");
+}
+
 const PREVIEW_TIME_OFFSET_MS = (() => {
-	let isLocalDev = location.hostname === "localhost" || location.hostname === "127.0.0.1";
-	if (!isLocalDev) return 0;
+	if (!isLocalDevHost()) return 0;
 	let fakeDate = new URLSearchParams(location.search).get("fakeDate");
 	if (!fakeDate) return 0;
 	let parsed = new Date(fakeDate);
@@ -98,10 +105,6 @@ export function versionLaunchInstant(isoDate) {
 	return cstDateToUtcInstant(isoDate).getTime();
 }
 
-// Same "is the tracked data actually current" rule the timeline's .is-live
-// patch marker and the header brand dot both need.
-export const LIVE_WINDOW_DAYS = 42;
-
 /**
  * The most recently *launched* entry — walks backward from the end rather
  * than just taking data[data.length-1], since a version can be pre-staged
@@ -115,4 +118,59 @@ export function findLastLaunchedEntry(data, now) {
 		if (versionLaunchInstant(data[i].date) <= now) return data[i];
 	}
 	return null;
+}
+
+/**
+ * Live spotlight phase. Only reliable on a normal 21-day live cycle —
+ * landing does not apply historical phase-notes overrides here.
+ * @param {{banner: Array, date: string}} entry
+ * @param {number} nowMs
+ */
+export function getCurrentPhaseIndex(entry, nowMs) {
+	let phases = entry.banner;
+	if (phases.length <= 1) return 0;
+	let daysSince = Math.max(0, (nowMs - versionLaunchInstant(entry.date)) / DAY_MS);
+	return Math.min(Math.floor(daysSince / PHASE_LENGTH_DAYS), phases.length - 1);
+}
+
+/**
+ * Header live-dot + landing spotlight: last launched version, which phase,
+ * and whether the 42-day window has closed (stale dataset).
+ */
+export function liveBannerState(data, nowMs) {
+	let entry = findLastLaunchedEntry(data, nowMs);
+	if (!entry) {
+		return { entry: null, phaseIdx: 0, daysSinceLaunch: null, isLive: false, stale: false };
+	}
+	let daysSinceLaunch = (nowMs - versionLaunchInstant(entry.date)) / DAY_MS;
+	return {
+		entry,
+		phaseIdx: getCurrentPhaseIndex(entry, nowMs),
+		daysSinceLaunch,
+		isLive: daysSinceLaunch <= LIVE_WINDOW_DAYS,
+		stale: daysSinceLaunch > LIVE_WINDOW_DAYS
+	};
+}
+
+/**
+ * Server Clocks next-update card. Newest data.json row may be pre-staged
+ * (still in the future) — that is a confirmed countdown, not +42 days.
+ */
+export function nextVersionUpdate(data, nowMs) {
+	if (!data.length) return null;
+	let lastEntry = data[data.length - 1];
+	let prevEntry = data.length > 1 ? data[data.length - 2] : null;
+	let lastAnchor = versionLaunchInstant(lastEntry.date);
+	let isUpcoming = nowMs < lastAnchor;
+	let liveEntry = isUpcoming && prevEntry ? prevEntry : lastEntry;
+	let liveAnchorMs = versionLaunchInstant(liveEntry.date);
+	let targetMs = isUpcoming ? lastAnchor : liveAnchorMs + LIVE_WINDOW_DAYS * DAY_MS;
+	return {
+		lastEntry,
+		liveEntry,
+		isUpcoming,
+		isOverdue: !isUpcoming && nowMs > targetMs,
+		targetMs,
+		liveAnchorMs
+	};
 }

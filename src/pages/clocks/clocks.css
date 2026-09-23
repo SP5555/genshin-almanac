@@ -1,8 +1,8 @@
 /* ---------- Server Clocks page (page-specific, not loaded by index.html) ---------- */
 
 /* Background: single static image, same blur/dark-tint recipe as the
-   Timeline/Landing .region-bg crossfade (src/styles/base.css), just no
-   crossfade since there's only one image. Was misplaced in the old shared
+   Timeline/Landing .region-bg (src/styles/base.css), just no fade since
+   there's only one image. Was misplaced in the old shared
    style.css despite being Clocks-only — moved here since nothing else loads it. */
 #clocksBg{
 	background-image: linear-gradient(rgba(7,7,12,0.78), rgba(7,7,12,0.9)), url("../../../assets/backgrounds/server-clocks.webp");

@@ -1,237 +1,142 @@
 # Genshin Almanac — project notes
 
-Fan-made static site (vanilla HTML/CSS/JS, zero build step) tracking Genshin
-Impact character banner history, growing into a multi-page companion site.
-Built by the owner before they knew how to code — not a professional
-codebase; keep additions zero-build/vanilla-JS unless asked to modernize.
+Fan-made static site (vanilla HTML/CSS/JS, zero build step) tracking
+Genshin Impact character banner history. Keep additions zero-build /
+vanilla JS unless asked to modernize.
 
-Renamed from "GI Gacha Timeline" (repo `SP5555/GI-Gacha-Timeline`, domain
-gigachatimeline.netlify.app) to "Genshin Almanac" (repo
-`SP5555/genshin-almanac`, live at genshin-almanac.netlify.app) around
-2026-08-23.
+`npm run dev` (`live-server`) is required locally — `data/*.json` loads
+via `fetch()`, which is CORS-blocked on `file://`. The deployed site
+(Netlify, https, no `netlify.toml`) does not have this problem.
 
-`npm run dev` (`live-server`) is **required** for local testing — `data/*.json`
-loads via `fetch()`, which is CORS-blocked on `file://`. No effect on the
-deployed site (Netlify serves over https, no `netlify.toml` needed).
+**This file holds what the code cannot.** Decisions, rejected approaches,
+and facts that would be expensive to re-derive. Not a directory listing,
+not a changelog, not a walkthrough of how a function works. Docs stay
+version-agnostic unless the version *is* the fact: 1.3's filler phase,
+2.7's delay, 3.0–3.2's shortened cadence, the 1.0 launch roster.
 
-**Keep this file lean.** Record decisions, non-obvious reasoning, and facts
-that would be expensive to re-derive (research, gotchas, rejected
-approaches) — not a narrated history of routine implementation. The code
-and git log already show what changed; this file should only hold what
-they can't tell you. Same goes for inline code comments and the per-page
-docs below: state the current fact, not the sequence of attempts that led
-to it. Docs stay version-agnostic (no "as of version X we added Y")
-unless the version itself is a lifetime note — 1.3's filler phase, 2.7's
-delay, 3.0–3.2's shortened cadence, the 1.0 launch roster. Those don't
-fall out of `data.json` and would be expensive to re-derive.
+Per-page notes: [`docs/landing.md`](docs/landing.md),
+[`docs/timeline.md`](docs/timeline.md), [`docs/clocks.md`](docs/clocks.md),
+[`docs/calendar.md`](docs/calendar.md). Art sources and roster/date
+research: [`data/SOURCES.md`](data/SOURCES.md) — read it before sourcing
+art or adding a version.
 
-## Directory layout
+## Layout (the parts that aren't obvious from filenames)
 
-- `index.html` — landing page (the site's actual root/entry point).
-  `timeline.html` — the full banner Timeline (used to be `index.html`,
-  renamed when the landing page was built). `clocks.html` — Server Clocks
-  page. `calendar.html` — Calendar page. All four stay at repo root as
-  thin entry points — everything they load lives under `src/`.
-- `src/pages/<page>/<page>.js` + `<page>.css` — one page's own logic and
-  styles, co-located: `landing/`, `timeline/` (`timeline.js`, renamed from
-  the historical `app.js` to match this convention — still the only thing
-  that knows how to render the full timeline DOM), `calendar/`,
-  `clocks/`. Each page's `.js` is loaded as a real ES module
-  (`<script type="module">`) with explicit `import`s — no more relying on
-  `<script>` tag order to make a shared function available as a global.
-- `src/shared/` — cross-page utilities, split by concern so an import
-  states exactly what a file depends on instead of everything being an
-  implicit global:
-  - `dom.js` — `facePath()`/`faceImg()`/`formatDate()`/`joinNames()`/
-    `rarityBadge()`/`onActivate()`/`onDelegatedActivate()`.
-  - `dates.js` — `getPhaseStartDate()`/`countAppearancesThrough()`/
-    `previewNow()` (see "Testing date/time-sensitive UI")/
-    `findLastLaunchedEntry()`/`versionLaunchInstant()`/`LIVE_WINDOW_DAYS`.
-  - `search.js` — the character-search stack (`initCharSearch()`/
-    `matchInfo()`/`highlightMatches()`).
-  - `glow.js` — `buildRays()`/`buildCharacterHeader()`; imports
-    `glow-config.js` itself, so only the pages that actually import
-    `glow.js` (Timeline, Calendar) ever pull in the ray-tuning config —
-    Landing and Server Clocks don't.
-  - `glow-config.js` — release-glow ray tuning knobs, kept as `.js` not
-    JSON since it applies its own values as CSS custom properties.
-  - `panel.js` — `swapWithFade()`/`initPanelGrabberDrag()`.
-  - `chrome.js` — the back-to-top button + header brand live-dot; run on
-    import (every page imports it for the side effect, same as the old
-    shared.js's unconditional calls).
-  - `appearance-row.js` — `buildAppearanceRow()`, a character's one row in
-    their own appearance-history list — shared between Timeline and
-    Calendar (was duplicated byte-for-byte between the two before).
-- `src/styles/reset.css` + `src/styles/base.css` — shared base (palette,
-  header, footer, character search, the phase-card and detail-panel
-  components Calendar reuses from Timeline, back-to-top button, brand
-  live-dot). Timeline-only styles (`.vt-*`, the version side-nav, the
-  timeline intro) live in `src/pages/timeline/timeline.css` instead —
-  `base.css` only holds what's genuinely used by 2+ pages.
-- `data/*.json` — plain JSON, no comments/trailing commas. `data/SOURCES.md`
-  — art asset sourcing reference (APIs, file patterns, codenames) and the
-  data-accuracy research behind `data.json`'s dates/rosters, split out so
-  it's only loaded when actually sourcing new art or adding a new version.
-- `assets/faces/<name>.png`, `assets/namecards/<name>.jpg`,
-  `assets/elements/<element>.svg`, `assets/regions/<region>.jpg`,
-  `assets/backgrounds/server-clocks.webp`, `assets/fonts/zh-cn.ttf`.
-- `scripts/validate-data.js` (`npm run validate`) — cross-checks the
-  `data/*.json` files against each other; see "Data validation" below.
-- `docs/` — one file per page, holding that page's implementation notes
-  (data schemas it owns, physics/animation internals, real bugs caught and
-  fixed, rejected approaches). Read the relevant one before working on that
-  page; this file only holds what's true across all of them:
-  - [`docs/landing.md`](docs/landing.md) — `index.html` /
-    `src/pages/landing/` (spotlight carousel physics, trivia ticker,
-    sidebar).
-  - [`docs/timeline.md`](docs/timeline.md) — `timeline.html` /
-    `src/pages/timeline/` (data.json schema, detail panel,
-    chronicled/lightrace banners, search, release-glow rays).
-  - [`docs/clocks.md`](docs/clocks.md) — `clocks.html` /
-    `src/pages/clocks/` (server/reset facts, timezone math).
-  - [`docs/calendar.md`](docs/calendar.md) — `calendar.html` /
-    `src/pages/calendar/` (year/month grid, debuts, birthdays, day panel,
-    panel stack).
+Root `*.html` files are thin entry points. Page code lives in
+`src/pages/<page>/` as ES modules with explicit imports. `src/shared/` is
+split by concern so an import states the dependency. `src/styles/base.css`
+holds only what two or more pages actually use.
+
+`timeline.js` is still the only thing that builds a full per-character
+appearance index. Landing uses `countAppearancesThrough()` instead of
+importing that. Split the index out when a page actually needs it, not
+before.
+
+Header HTML is duplicated per page — fine at a handful of pages, not worth
+templating without a build step. `data.json` is small; don't split it
+per-version until it's an order of magnitude larger.
 
 ## Design decisions
-- Header is `position: relative`, not `sticky` — deliberate, so it doesn't
-  occupy permanent viewport space.
+
+- Header is `position: relative`, not `sticky` — it should not occupy
+  permanent viewport space.
 - `--line` is lavender, chosen to tie into `--four`.
-- Breakpoints are shared across pages on purpose (`480`/`600`/`768`/`900`
-  only) — fewer distinct widths means fewer places the layout visibly
-  jumps as the window resizes.
+- Breakpoints are shared on purpose (`480` / `600` / `768` / `900` only).
+- Separate physical HTML pages, not a JS router. Cross-document View
+  Transitions (`@view-transition { navigation: auto }`) are why that still
+  feels like one site.
+- Character banners only. No separate confirmed-next-version date field —
+  a stale override would rot the same way skipped patch updates do. If
+  the newest `data.json` row is still in the future, Server Clocks counts
+  down to that date ("Confirmed"). Otherwise next-update is last launch
+  + 42 days, then "Overdue".
 
 ## CSS/animation gotchas
-1. **Animate only `transform`/`opacity`.** Anything else (`width`,
-   `margin`, `background-attachment:fixed`) forces main-thread layout every
-   frame. Bit the panel nudge (`margin-left`→`transform`) and the region-
-   background reveal (stray `background-attachment:fixed`). An element
-   with no prior `will-change` can also show a one-off "cold start" dropped
+
+1. **Animate only `transform` / `opacity`.** Anything else (`width`,
+   `margin`, `background-attachment: fixed`) forces main-thread layout
+   every frame. An element with no prior `will-change` can also drop one
    frame on its first transition.
-2. **`position:fixed` vs. a plain element's background — paint order isn't
-   DOM order, until a `transform` changes that.** A non-transformed
-   element's background paints *below* a `position:fixed` sibling
-   regardless of DOM order; the moment it gets a `transform` (even
-   conditionally), it's promoted into its own stacking context and can
-   paint *above* instead. **Rule**: never put a background that must stay
-   under the region layer on an element that might ever receive a
-   `transform` — put it on `<body>`.
-3. **`position:sticky`** is the right tool for "docks below X, then sticks
-   to the viewport edge" — no scroll listener needed. Give the sticky
-   wrapper `height:0;overflow:visible` so it doesn't also push content
+2. **`position: fixed` vs. a plain element's background — paint order
+   isn't DOM order until a `transform` changes that.** A non-transformed
+   element's background paints *below* a `position: fixed` sibling
+   regardless of DOM order. **Rule:** a background that must stay under
+   the region layer goes on `<body>`, never on an element that might
+   receive a `transform`.
+3. **`position: sticky`** for "docks below X, then sticks." Give the
+   wrapper `height: 0; overflow: visible` so it doesn't also push content
    down.
-4. **`overflow:hidden` on `<body>` doesn't stop touch-scroll chaining if
-   `<html>` is the real scroll owner** — `html{overflow-x:hidden}` with no
-   explicit `overflow-y` computes `overflow-y:auto` per spec, making
-   `<html>` the scrolling box. Lock `panel-open` on both
-   `documentElement` and `body`. Verify touch fixes via real CDP
-   `Input.dispatchTouchEvent`, not synthetic `TouchEvent` (doesn't drive
-   Chromium's real touch pipeline).
-5. **`background-clip:text` gradients size to the element's box, not the
-   rendered text** — short strings only reveal a sliver of the gradient
-   unless the element is `display:inline-block` so its box shrinks to its
-   content.
-6. **`<svg>` has `overflow:hidden` by default**, clipping anything past its
-   viewBox — including `filter:drop-shadow()` glow on a child near the
-   edge. Set `overflow:visible` on the `<svg>` itself.
-7. **Multiple `backdrop-filter:blur()` elements on one page can visibly
-   "bleed"/ghost onto each other** in Chrome (real GPU compositing only,
-   not reproducible headless — treat it as a real class of bug regardless).
-   Fix: `isolation:isolate` on the blurred elements so each composites
-   independently instead of sharing a backdrop bitmap with layout
-   siblings; also make sure any property that changes on `:hover` (e.g.
-   `box-shadow`) is in the element's `transition` list rather than popping
-   in instantly, since an abrupt style change seems to trigger the
-   shared-bitmap recompute in the first place.
+4. **`overflow: hidden` on `<body>` doesn't stop touch-scroll chaining if
+   `<html>` is the real scroll owner.** `html { overflow-x: hidden }` with
+   no `overflow-y` computes `overflow-y: auto`, making `<html>` the
+   scrolling box. Lock `panel-open` on both `documentElement` and `body`.
+   Verify touch via real CDP `Input.dispatchTouchEvent`, not a synthetic
+   `TouchEvent`.
+5. **`background-clip: text` gradients size to the element's box**, not
+   the rendered text — short strings need `display: inline-block`.
+6. **`<svg>` defaults to `overflow: hidden`**, clipping `filter:
+   drop-shadow()` glow on a child near the edge. Set `overflow: visible`
+   on the `<svg>`.
+7. **Multiple `backdrop-filter: blur()` elements can ghost onto each
+   other in Chrome** (real GPU compositing; not reproducible headless).
+   `isolation: isolate` on each blurred element; include any `:hover`
+   property (e.g. `box-shadow`) in `transition` so it doesn't pop and
+   trigger a shared-bitmap recompute.
 
-## Art provenance & data accuracy
-Moved to `data/SOURCES.md` — API endpoints, file-naming patterns,
-codenames, rejected asset sources (with why), and how `data.json`'s
-dates/rosters were verified (confidence levels, the 1.0 launch roster),
-kept out of this file so routine sessions don't need to load it. Read it
-before sourcing any new character/region art, or before adding a new
-version to `data.json`.
+8. **Never `scroll-behavior: smooth` or `behavior: "smooth"`.** Chromium
+   runs that animation on its own clock, well below a high-Hz display.
+   Window jumps go through `src/shared/scroll.js` (rAF / vsync, wall-clock
+   duration). CSS transitions and the landing springs already follow
+   vsync; `SPRING_STEP_MS` is only a tuning conversion, not a tick rate.
 
-## Data validation
-`npm run validate` (`scripts/validate-data.js`) cross-checks `data.json`
-against `character-notes.json`, `character-elements.json`,
-`character-aliases.json`, and `phase-notes.json`. Split into one file per
-concern under `scripts/checks/` (`character-notes.js`, `character-elements.js`,
-`character-aliases.js`, `phase-notes.js`, `character-assets.js`), each
-exporting a `(ctx) => problems[]` function; `validate-data.js` itself is
-just the runner — loads the JSON once, builds `ctx`, calls every check,
-reports. `scripts/checks/util.js` holds the shared bits every check needs:
-`readJSON`/`assetPath`/`slug`, and `buildCanonicalData()` — deriving the
-canonical character/phase set from `data.json` (including `chronicled`
-*and* `lightrace` entries, not just `banner[]`) once in the runner rather
-than per-check. Checks: orphaned keys, characters missing an element (or
-an element with no matching `assets/elements/*.svg`), alias strings reused
-across two characters, stale `phase-notes` keys, and missing face/namecard
-art (which fail *silently* in the UI — neither has an `onerror`
-fallback). Not wired into CI yet, so it only catches things when someone
-remembers to run it.
+A CSS `transition` shorthand on a breakpoint **replaces** the base list
+rather than merging — if a later rule restates `transition`, every
+property the base was animating has to be repeated or it becomes instant.
 
-Add a new check by dropping a file in `scripts/checks/` (same
-`(ctx) => problems[]` shape) and requiring it in `validate-data.js`'s
-`checks` array — deliberately an explicit list, not a directory scan, so
-it's obvious from one place which checks actually run.
+## Data & art
+
+The agent runs `npm run fetch-art -- <Name>` (the user does not). It
+downloads face / namecard / splash from the sources in `data/SOURCES.md`
+and does not edit JSON. Empty `"4": []` on a phase is valid (5-stars
+confirmed first); omitting the key is not — most readers assume the key
+exists. Face lookup can lag on `characters.json`/`loc.json`; details and
+the no-guessing rule live in `SOURCES.md` and the add-version skill.
+
+`npm run validate` (`scripts/validate-data.js`) is an explicit list of
+checks in `scripts/checks/` — not a directory scan. Face and namecard
+`<img>`s have no `onerror` fallback, so missing files fail silently in
+the UI; the checker is what catches them. Splash is allowed to be
+missing (landing shows a note). Not wired into CI.
 
 ## Testing date/time-sensitive UI
-`previewNow()` (`src/shared/dates.js`) is a drop-in replacement for
-`Date.now()`/`new Date()` everywhere "now" is read for UI purposes (phase
-math, daily reset countdowns, live indicators) — imported by all four
-pages. Add `?fakeDate=2026-09-30T14:30:00` (date-only also works) to
-any page's URL while running `npm run dev` to preview it as of that instant
-— time keeps flowing forward normally from there (a fixed offset applied
-to the real clock, computed once at load) rather than freezing, so
-`setInterval`-driven countdowns still tick realistically during testing.
-Gated to `localhost`/`127.0.0.1` so it's structurally inert on the
-deployed site regardless of what URL a visitor tries — the offset is
-hardcoded to 0 off that hostname check, not just hidden. Reads of the
-current moment go through `previewNow()`. "Has this version launched"
-and the 42-day live/stale window go through `versionLaunchInstant()`
-(06:00 CST of `data.json`'s date — the real maintenance start, same as
-Server Clocks). Displayed calendar dates stay YYYY-MM-DD. Per-URL only,
-not persisted across navigation.
 
-## Ideas discussed for future work (not started)
-- Weapon banners aren't tracked (character banners only).
-- No personal pull-tracking or stats view (longest drought, most-reran
-  character, release-cadence chart) — **deliberately deprioritized**, not
-  just unbuilt: plenty of other Genshin sites already do plain stats
-  dashboards, and the data being there doesn't matter if the presentation
-  reads as generic. Only worth revisiting with a genuinely distinctive
-  presentation angle.
-- The manual per-patch update process (hand-editing `data.json` +
-  hand-sourcing art) is why the site fell 17 versions behind once — worth a
-  scripted/automated data pipeline if picking this up as a project.
-- Multi-page candidates still on the table: **Region/lore explorer**
-  (browse by nation, reusing the region-background/glow visual language
-  already built for Timeline/landing) — real gap: no character→region
-  mapping exists yet (`character-elements.json` is element, not nation;
-  needs a new `character-regions.json` with an explicit "Unaffiliated"
-  sentinel for characters like Skirk, not omission). **Character profile
-  pages** (dedicated shareable URLs) are the next-cheapest candidate after
-  that.
-- "On this day" — partly built as the landing trivia ticker's anniversary
-  cards and, more fully, as the Calendar page's year-view grid. A dedicated
-  single-date page would still need the same nearest-match handling.
+`previewNow()` is the stand-in for `Date.now()` / `new Date()` wherever
+"now" is read for UI. `?fakeDate=2026-09-30T14:30:00` (date-only works)
+on localhost applies a fixed offset so intervals still tick. Off
+`localhost` / `127.0.0.1` the offset is hardcoded to 0, not merely hidden.
+Not localStorage — `chrome.js` copies the param onto in-site links so a
+click from landing to Timeline stays in the same preview.
 
-## Multi-page architecture
-Separate physical HTML pages (not a JS router/SPA) — zero-build, Netlify
-serves multi-page static sites with no config. Smooth transitions between
-pages come from the native cross-document View Transitions API, not from
-merging into an SPA (see `docs/clocks.md`).
+`npm run when -- 2026-09-23T06:00:00+08:00` prints live-dot / spotlight
+phase / next-update from the same functions the pages import (`dates.js`).
+Date-only is 06:00 CST. Check the UI against it; the script has no
+separate copy of the formulas.
 
-`timeline.js` itself hasn't been split into shared-utilities-vs-timeline-
-specific yet, since no page has needed to reuse its full `characterIndex`
-building — see "Directory layout" above for the pieces that already moved
-into `src/shared/` (each a real ES module now, not a global) once a second
-page needed the same non-render logic without the full index. Do the
-bigger split when a page actually needs the full index (e.g. Character
-profile pages).
+"Has this version launched" and the 42-day live window use
+`versionLaunchInstant()` — 06:00 CST of `data.json`'s date, the real
+maintenance start — not local midnight. Displayed calendar dates stay
+YYYY-MM-DD.
 
-Header is duplicated per page (not templated) — fine at 2-4 pages, not
-worth the machinery. `data.json` (12.3KB total) isn't worth splitting
-per-version for lazy-loading at current size — revisit only at a 10-20x
-size increase.
+## Deliberately not doing
+
+- **Weapon banners, personal pull-tracking, stats dashboards.** Other
+  Genshin sites already do those; only revisit with a presentation that
+  isn't generic.
+- **Region / lore explorer** still needs `character-regions.json` with an
+  explicit `"Unaffiliated"` sentinel (omission is not unaffiliated).
+- **Dedicated character profile pages.** Timeline already has shareable
+  `?char=` URLs; a standalone page has to add something the drawer
+  doesn't.
+- **A dedicated "on this day" page.** Landing trivia and Calendar already
+  cover nearest-match / year-grid; a single-date page would still need
+  the same nearest-match handling.

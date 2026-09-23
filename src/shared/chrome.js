@@ -2,7 +2,8 @@
 // button and the header brand's live-status dot. Importing this module for
 // its side effects is enough — same as the unconditional calls at the
 // bottom of the old shared.js.
-import { previewNow, findLastLaunchedEntry, LIVE_WINDOW_DAYS, versionLaunchInstant } from "./dates.js";
+import { previewNow, findLastLaunchedEntry, LIVE_WINDOW_DAYS, versionLaunchInstant, isLocalDevHost } from "./dates.js";
+import { smoothScrollY } from "./scroll.js";
 
 function initBackToTop() {
 	let btn = document.getElementById("backToTop");
@@ -13,7 +14,7 @@ function initBackToTop() {
 	}
 	window.addEventListener("scroll", onScroll, { passive: true });
 	onScroll();
-	btn.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+	btn.addEventListener("click", () => smoothScrollY(0));
 }
 
 async function initBrandLivePulse() {
@@ -38,3 +39,29 @@ async function initBrandLivePulse() {
 
 initBackToTop();
 initBrandLivePulse();
+preserveFakeDateOnLinks();
+
+// Localhost only: copy ?fakeDate= onto same-origin page links so Timeline
+// / Calendar / Clocks / landing keep the same preview. GitHub and hashes
+// stay untouched. Production never has a non-zero offset anyway.
+function preserveFakeDateOnLinks() {
+	if (!isLocalDevHost()) return;
+	let fake = new URLSearchParams(location.search).get("fakeDate");
+	if (!fake) return;
+	function apply(a) {
+		let href = a.getAttribute("href");
+		if (!href || href.startsWith("#") || href.startsWith("mailto:")) return;
+		let url;
+		try { url = new URL(href, location.href); }
+		catch { return; }
+		if (url.origin !== location.origin) return;
+		url.searchParams.set("fakeDate", fake);
+		let file = url.pathname.replace(/^.*\//, "") || "index.html";
+		a.setAttribute("href", file + url.search + url.hash);
+	}
+	document.querySelectorAll("a[href]").forEach(apply);
+	document.addEventListener("click", e => {
+		let a = e.target.closest("a[href]");
+		if (a) apply(a);
+	}, true);
+}

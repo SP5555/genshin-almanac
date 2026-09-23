@@ -34,14 +34,11 @@ a *different* file per character than any of the above — `File:<Name>_Wish.png
 (not `Character <Name> Full Wish.png` — similar name, different asset, see
 below). This is the actual in-game wish-reveal art (dynamic pose,
 transparent alpha background — confirmed via `ffprobe` showing `yuva420p`)
-and, unlike everything else tried, is **genuinely pixel-uniform**: every
-character checked so far (5-stars and 4-stars alike) is exactly
-2048x1024, since it's HoYoverse's own fixed-size UI template rather than
-independently-composed promotional art. `object-fit: contain` is still
-used rather than `cover` — a uniform canvas doesn't guarantee a uniform
-*pose* within it, so contain remains the safe choice — but with the box
-ratio matching the source exactly there's effectively no letterboxing in
-practice.
+and, unlike the rejected files below, is **pixel-uniform**: every
+character is exactly 2048×1024, HoYoverse's own fixed-size UI template
+rather than independently-composed promo art. `object-fit: contain` is
+still used rather than `cover` — a uniform canvas doesn't guarantee a
+uniform *pose* within it.
 
 Confirmed query for checking a character's splash art before downloading
 it (returns dimensions without fetching the full image):
@@ -49,7 +46,7 @@ it (returns dimensions without fetching the full image):
 https://genshin-impact.fandom.com/api.php?action=query&titles=File:<Name>_Wish.png&prop=imageinfo&iiprop=url%7Csize&format=json
 ```
 
-Took four tries to land on, kept here so they aren't re-attempted:
+Rejected (don't re-attempt):
 `File:<Name> Card.png` bakes the gacha-pull card frame and "GENSHIN IMPACT"
 logo into the image itself (not croppable away with CSS); `File:Character
 <Name> Game.png` is a plain standing in-game render on a flat backdrop, not
@@ -69,7 +66,14 @@ the art slot when it's missing, so wait rather than substituting any of
 the above.
 
 Don't re-derive codenames by guessing for future characters/regions — they
-often don't match the display name.
+often don't match the display name. `npm run fetch-art -- <Name>` is the
+repeatable path (enka faces/namecards, Fandom Wish.png). Face lookup prefers
+`characters.json`/`loc.json` `SideIconName`. Those two files can lag
+`namecards.json` (new characters often land on the CDN and in the namecard
+store first); then the script uses a published namecard Icon stem only if
+`UI_AvatarIcon_<code>.png` is actually on enka (so Kirara's namecard
+`Kirara` still cannot be mistaken for face `Momoka`). It still refuses to
+invent a stem that isn't in an enka store.
 
 ## Data accuracy
 
@@ -77,8 +81,7 @@ Roster/date facts are verified by cross-referencing at least two
 independent sources (game8.co, gamewith.net, etc.). A single
 AI-summarized fetch of an aggregator page has produced garbled version
 numbers — don't trust that alone. 4-star trios are sometimes only
-two-source confirmed (same moderate-confidence bar as 6.2 Phase 2's
-Iansan/Chevreuse/Gaming); that's acceptable. Unrevealed phases stay out
+two-source confirmed; that's an acceptable bar. Unrevealed phases stay out
 of `data.json` until a first-party notice or equivalent exists — don't
 pre-stage a phase whose 5-stars the sources still disagree on.
 

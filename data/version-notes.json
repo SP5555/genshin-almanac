@@ -5,5 +5,5 @@
 	"4": { "region": "Fontaine", "tagline": "Hydro Archon of Justice", "bgImage": "fontaine" },
 	"5": { "region": "Natlan", "tagline": "Pyro Archon of War", "bgImage": "natlan" },
 	"6": { "region": "Nod-Krai", "label": "Luna", "tagline": "Song of the Welkin Moon", "bgImage": "nodkrai" },
-	"7": { "region": "Snezhnaya", "tagline": "Cryo Archon — the ninth and final of The Seven", "bgImage": "snezhnaya" }
+	"7": { "region": "Snezhnaya", "tagline": "Cryo Archon of Love", "bgImage": "snezhnaya" }
 }

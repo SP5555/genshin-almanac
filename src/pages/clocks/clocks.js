@@ -1,5 +1,5 @@
 import "../../shared/chrome.js";
-import { previewNow, cstDateToUtcInstant, MAINTENANCE_START_HOUR_CST } from "../../shared/dates.js";
+import { previewNow, LIVE_WINDOW_DAYS, nextVersionUpdate } from "../../shared/dates.js";
 
 const SERVERS = [
 	{ name: "America", offset: -5 },
@@ -9,7 +9,6 @@ const SERVERS = [
 ];
 const RESET_LOCAL_HOUR = 4;
 const DAY_MS = 86400000;
-const PREDICTED_CADENCE_DAYS = 42;
 const RING_CIRCUMFERENCE = 2 * Math.PI * 52;
 
 function nextServerReset(offsetHours, now) {
@@ -167,20 +166,10 @@ function buildDailyClocks() {
 	setInterval(() => tickDailyClocks(cards), 1000);
 }
 
-function buildUpdateCard(lastEntry, prevEntry) {
-	let lastEntryAnchor = cstDateToUtcInstant(lastEntry.date, MAINTENANCE_START_HOUR_CST);
-	// data.json normally only gets a version added once it's actually live — but
-	// if it's been pre-staged ahead of its official date (announced via
-	// livestream, added early), the newest entry's own date is still in the
-	// future. Treat that as a *known* upcoming launch instead of a past one:
-	// count down to its real date rather than guessing +42 days from it, and
-	// fall back to the entry before it as "the current live version" for display.
-	let isUpcoming = previewNow().getTime() < lastEntryAnchor.getTime();
-	let liveEntry = isUpcoming && prevEntry ? prevEntry : lastEntry;
-	let liveAnchor = isUpcoming && prevEntry
-		? cstDateToUtcInstant(prevEntry.date, MAINTENANCE_START_HOUR_CST)
-		: lastEntryAnchor;
-	let target = isUpcoming ? lastEntryAnchor : new Date(liveAnchor.getTime() + PREDICTED_CADENCE_DAYS * DAY_MS);
+function buildUpdateCard(data) {
+	let nowMs = previewNow().getTime();
+	let { lastEntry, liveEntry, isUpcoming, targetMs, liveAnchorMs } = nextVersionUpdate(data, nowMs);
+	let target = new Date(targetMs);
 
 	let [liveY, liveM, liveD] = liveEntry.date.split("-").map(Number);
 	let liveLabel = new Date(Date.UTC(liveY, liveM - 1, liveD))
@@ -197,7 +186,7 @@ function buildUpdateCard(lastEntry, prevEntry) {
 	`;
 	let estimateDesc = `
 		Version <strong>${liveEntry.version}</strong> launched <strong>${liveLabel}</strong>, and updates land
-		roughly every <strong>${PREDICTED_CADENCE_DAYS} days</strong> — so the next one is expected around
+		roughly every <strong>${LIVE_WINDOW_DAYS} days</strong> — so the next one is expected around
 		<strong>${targetLabel}</strong> your time. Maintenance always starts at the same real-world moment
 		for all four servers at once (06:00 China Standard Time), which is why there's one clock here, not
 		four. This cadence has only ever shifted once in the game's history (a 2022 delay, recovered over the
@@ -229,9 +218,7 @@ function buildUpdateCard(lastEntry, prevEntry) {
 	let wasOverdue = null;
 	function tick({ animateBar = true } = {}) {
 		let now = previewNow();
-		// A confirmed upcoming launch can't be "overdue" — its target is by
-		// definition still in the future the whole time isUpcoming holds.
-		let isOverdue = !isUpcoming && now.getTime() > target.getTime();
+		let { isOverdue, targetMs: tMs, liveAnchorMs: aMs } = nextVersionUpdate(data, now.getTime());
 		if (!isUpcoming && isOverdue !== wasOverdue) {
 			card.classList.toggle("is-overdue", isOverdue);
 			badgeEl.textContent = isOverdue ? "Overdue" : "Estimated";
@@ -239,10 +226,10 @@ function buildUpdateCard(lastEntry, prevEntry) {
 			wasOverdue = isOverdue;
 		}
 		card.querySelector('[data-role="countdown"]').textContent = isOverdue
-			? `Overdue by ${formatDurationWithDays(now.getTime() - target.getTime())}`
-			: formatDurationWithDays(target.getTime() - now.getTime());
+			? `Overdue by ${formatDurationWithDays(now.getTime() - tMs)}`
+			: formatDurationWithDays(tMs - now.getTime());
 		if (animateBar) {
-			let fraction = Math.min(1, Math.max(0, (now.getTime() - liveAnchor.getTime()) / (target.getTime() - liveAnchor.getTime())));
+			let fraction = Math.min(1, Math.max(0, (now.getTime() - aMs) / (tMs - aMs)));
 			card.querySelector('[data-role="bar"]').style.width = `${fraction * 100}%`;
 		}
 	}
@@ -262,9 +249,7 @@ async function bootstrapClocks() {
 		let res = await fetch("data/data.json");
 		if (!res.ok) throw new Error(`Failed to load data.json: ${res.status}`);
 		let data = await res.json();
-		let last = data[data.length - 1];
-		let prev = data.length > 1 ? data[data.length - 2] : null;
-		buildUpdateCard(last, prev);
+		buildUpdateCard(data);
 	} catch (err) {
 		console.error(err);
 		document.getElementById("updateCard").textContent =

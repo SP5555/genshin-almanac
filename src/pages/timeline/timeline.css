@@ -36,8 +36,13 @@
 	display: inline-block;
 }
 .timeline-subtitle{font-size: 13px; color: var(--text-dim); max-width: 480px; margin: 10px auto 0; line-height: 1.5;}
+/* Sequential fade-to-starfield, then fade-in — not a photo-to-photo
+   crossfade. Shorter than the shared 1.6s so a single region change isn't
+   3s of black. */
+.region-bg{transition: opacity 0.65s ease;}
 @media (prefers-reduced-motion: reduce){
 	.timeline-intro{animation: none;}
+	.region-bg{transition: none;}
 }
 
 .timeline-root{

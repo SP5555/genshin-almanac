@@ -1,6 +1,6 @@
 import "../../shared/chrome.js";
 import { formatDate, joinNames } from "../../shared/dom.js";
-import { countAppearancesThrough, previewNow, LIVE_WINDOW_DAYS, findLastLaunchedEntry, versionLaunchInstant } from "../../shared/dates.js";
+import { countAppearancesThrough, previewNow, LIVE_WINDOW_DAYS, PHASE_LENGTH_DAYS, findLastLaunchedEntry, versionLaunchInstant, getCurrentPhaseIndex } from "../../shared/dates.js";
 import { swapWithFade } from "../../shared/panel.js";
 
 // Phase length confirmed at 21 days (not a round 20) via cross-checked
@@ -8,15 +8,6 @@ import { swapWithFade } from "../../shared/panel.js";
 // 2-phase, ~42-day cycle; historical irregular-length versions (delays,
 // shortened recovery patches, 3-phase versions) aren't handled here, since
 // this only ever needs to be right for whichever version is currently live.
-const PHASE_LENGTH_DAYS = 21;
-
-function getCurrentPhaseIndex(entry, now) {
-	let phases = entry.banner;
-	if (phases.length <= 1) return 0;
-	let start = versionLaunchInstant(entry.date);
-	let daysSince = Math.max(0, (now - start) / 86400000);
-	return Math.min(Math.floor(daysSince / PHASE_LENGTH_DAYS), phases.length - 1);
-}
 
 // Same hex values baked into assets/elements/*.svg (HoYoverse's own element
 // colors), reused here so the banner glow / 4-star badges match the element
@@ -44,8 +35,9 @@ function splashPath(character) {
 // than swapping in the square portrait.
 const SPLASH_MISSING_COPY = "Wish art isn't in yet — we'd rather wait for the real portrait than hang a stand-in. It'll show up right here.";
 const SPLASH_MISSING_COPY_COMPACT = "Wish art's still packing — no stand-ins. It'll land right here.";
+let splashNameSeq = 0;
 
-function attachSplashArt(img, wrap, character, compact) {
+function attachSplashArt(img, wrap, character, compact, nameId) {
 	img.src = splashPath(character);
 	img.alt = character;
 	img.loading = "lazy";
@@ -57,6 +49,7 @@ function attachSplashArt(img, wrap, character, compact) {
 		let note = document.createElement("p");
 		note.className = "spotlight-splash-missing";
 		note.textContent = compact ? SPLASH_MISSING_COPY_COMPACT : SPLASH_MISSING_COPY;
+		if (nameId) note.setAttribute("aria-labelledby", nameId);
 		wrap.appendChild(note);
 	};
 }
@@ -75,18 +68,22 @@ function buildSpotlightFiveCard(character, data, versionIdx, phaseIdx, notes) {
 	imgWrap.className = "spotlight-fivecard-img-wrap";
 	let img = document.createElement("img");
 	img.className = "spotlight-fivecard-img";
-	// Native "drag to save image" hijacks the carousel's pointer-drag
-	// (pointercancel instead of pointerup). attachSplashArt sets draggable=false.
-	attachSplashArt(img, imgWrap, character);
-	imgWrap.appendChild(img);
-	card.appendChild(imgWrap);
 
 	let label = document.createElement("div");
 	label.className = "spotlight-fivecard-label";
 	let name = document.createElement("span");
 	name.className = "spotlight-fivecard-name";
+	name.id = `spotlight-name-${++splashNameSeq}`;
 	name.textContent = character;
 	label.appendChild(name);
+
+	// Native "drag to save image" hijacks the carousel's pointer-drag
+	// (pointercancel instead of pointerup). attachSplashArt sets draggable=false.
+	// Name exists first so a sync 404 can still aria-labelledby it.
+	attachSplashArt(img, imgWrap, character, false, name.id);
+	imgWrap.appendChild(img);
+	card.appendChild(imgWrap);
+
 	let tags = document.createElement("div");
 	tags.className = "spotlight-fivecard-tags";
 	if (!charNotes.preexisting) {
@@ -219,13 +216,9 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 	let banner = document.createElement("div");
 	banner.className = "spotlight-banner";
 
-	// Two-layer A/B crossfade for both the glow wash and the corner
-	// watermark — same technique as #regionBgA/#regionBgB in timeline.js's
-	// setRegionBackground(): write the new value to whichever layer is
-	// currently inactive, toggle is-active on both, let the CSS opacity
-	// transition handle the rest. A plain custom property swap can't be
-	// smoothly transitioned by the browser on its own, which is what made
-	// the old single-layer version snap instantly.
+	// Two-layer A/B crossfade for glow wash and corner watermark: write the
+	// new value on the inactive layer, toggle is-active, CSS opacity does
+	// the rest. Custom properties can't be transitioned on their own.
 	let glowA = document.createElement("div");
 	glowA.className = "spotlight-banner-glow";
 	let glowB = document.createElement("div");
@@ -888,18 +881,20 @@ function buildSpotlightFourCard(character, data, versionIdx, phaseIdx, notes, el
 	dragLayer.className = "spotlight-fourcard-drag";
 	let img = document.createElement("img");
 	img.className = "spotlight-fourcard-img";
-	attachSplashArt(img, imgWrap, character, true);
-	dragLayer.appendChild(img);
-	imgWrap.appendChild(dragLayer);
-	card.appendChild(imgWrap);
-	attachSpringDrag(card, dragLayer);
 
 	let label = document.createElement("div");
 	label.className = "spotlight-fourcard-label";
 	let name = document.createElement("span");
 	name.className = "spotlight-fourcard-name";
+	name.id = `spotlight-name-${++splashNameSeq}`;
 	name.textContent = character;
 	label.appendChild(name);
+
+	attachSplashArt(img, imgWrap, character, true, name.id);
+	dragLayer.appendChild(img);
+	imgWrap.appendChild(dragLayer);
+	card.appendChild(imgWrap);
+	attachSpringDrag(card, dragLayer);
 	// Same tag mechanism as the 5-star cards (rerun-tag/is-first), rather
 	// than the old grayscale-filter + colored-ring distinction — one
 	// convention for "is this a release or a rerun" instead of two.
@@ -1216,10 +1211,8 @@ async function bootstrapLanding() {
 		let triviaCards = shuffle([...getAnniversaryCards(data, versionMeta, notes, now), ...sampleTrivia(triviaPool, 3)]);
 		document.getElementById("triviaTicker").replaceWith(buildTriviaTicker(triviaCards));
 
-		// Same background recipe as the Timeline's per-version region art (see
-		// setRegionBackground() in timeline.js) — always the *current* region rather
-		// than a hardcoded image, so this doesn't go stale the moment a new
-		// region drops.
+		// Same background recipe as the Timeline's per-version region art —
+		// always the *current* region rather than a hardcoded image.
 		let major = entry.version.split(".")[0];
 		let meta = versionMeta[major];
 		if (meta && meta.bgImage) {

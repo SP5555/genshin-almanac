@@ -4,7 +4,9 @@
   "description": "Local dev server only — the deployed site is plain HTML/CSS/JS with no build step.",
   "scripts": {
     "dev": "live-server --port=8200 --ignore=node_modules,.git",
-    "validate": "node scripts/validate-data.js"
+    "validate": "node scripts/validate-data.js",
+    "when": "node scripts/when.mjs",
+    "fetch-art": "node scripts/fetch-art.js"
   },
   "devDependencies": {
     "live-server": "^1.2.2"

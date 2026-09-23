@@ -16,6 +16,8 @@ different countdown sites, put in one place instead.
   one continuous scroll. Real verified launch dates, genuine releases vs.
   reruns, rate-down exceptions, Chronicled Wish re-releases, the filler
   phase nobody remembers — tracked properly instead of hand-waved.
+- **Calendar** — the same banner history as a year grid: version launches,
+  character debuts, and birthdays.
 - **Server Clocks** — live daily reset countdowns for America, Europe,
   Asia, and TW/HK/MO, converted to your own time zone, plus an estimate
   for when the next version drops and a live countdown ring for each.
@@ -33,6 +35,15 @@ npm run dev
 `fetch()`, so double-clicking `index.html` won't work — browsers block
 `fetch()` on `file://` URLs. The deployed site doesn't have this problem
 since it's served over `https://`.
+
+```bash
+npm run fetch-art -- Vesna
+```
+
+downloads that character's face, namecard, and (when Fandom has it) splash
+art. `npm run validate` cross-checks the JSON files against each other.
+`npm run when -- 2020-09-28` prints what the live-dot / spotlight / next
+update should show at that instant (06:00 CST if you pass a date only).
 
 ---
 
