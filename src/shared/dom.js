@@ -1,9 +1,19 @@
 // Small DOM/formatting building blocks shared across pages. No dependencies
 // on any other module in this project.
 
+/** Filename stem: "Hu Tao" → "hutao". Same rule as scripts/checks/util.js. */
+export function slug(name) {
+	return name.replace(/\s/g, "").toLowerCase();
+}
+
 /** @param {string} character @returns {string} */
 export function facePath(character) {
-	return `assets/faces/${character.replace(/\s/g, "").toLowerCase()}.png`;
+	return `assets/faces/${slug(character)}.png`;
+}
+
+/** @param {string} character @returns {string} */
+export function namecardPath(character) {
+	return `assets/namecards/${slug(character)}.jpg`;
 }
 
 /**

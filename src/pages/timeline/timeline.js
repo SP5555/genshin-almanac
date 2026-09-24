@@ -1,6 +1,6 @@
 import "../../shared/chrome.js";
 import { faceImg, formatDate, onDelegatedActivate } from "../../shared/dom.js";
-import { getPhaseStartDate, previewNow, LIVE_WINDOW_DAYS, findLastLaunchedEntry, versionLaunchInstant } from "../../shared/dates.js";
+import { getPhaseStartDate, previewNow, liveBannerState } from "../../shared/dates.js";
 import { buildRays, buildCharacterHeader } from "../../shared/glow.js";
 import { GLOW_CONFIG } from "../../shared/glow-config.js";
 import { initPanelGrabberDrag } from "../../shared/panel.js";
@@ -472,11 +472,8 @@ function init(data) {
 	let root = document.getElementById("timelineRoot");
 	let majorBlocks = [];
 	let now = previewNow().getTime();
-	let launchedEntry = findLastLaunchedEntry(data, now);
-	let daysSinceLastEntry = launchedEntry
-		? (now - versionLaunchInstant(launchedEntry.date)) / 86400000
-		: Infinity;
-	let lastVersion = (launchedEntry && daysSinceLastEntry <= LIVE_WINDOW_DAYS) ? launchedEntry.version : null;
+	let live = liveBannerState(data, now);
+	let lastVersion = live.isLive ? live.entry.version : null;
 
 	groups.forEach(group => {
 		let block = buildVersionBlock(group, charCount, lastVersion);
@@ -573,7 +570,7 @@ function startRegionFadeIn() {
 		return;
 	}
 	let layer = regionLayer();
-	layer.style.backgroundImage = url;
+	layer.style.setProperty("--region-url", url);
 	shownRegionMajor = wantedRegionMajor;
 	if (regionReduceMotion()) {
 		layer.classList.add("is-active");
@@ -596,6 +593,10 @@ function onRegionBlack() {
 function onRegionTransitionEnd(e) {
 	if (e.propertyName !== "opacity") return;
 	if (e.target !== regionLayer()) return;
+	// ::after also transitions opacity; that event fires on this element
+	// with pseudoElement set. The black-frame handoff keys off the photo
+	// layer itself, not the blur overlay.
+	if (e.pseudoElement) return;
 	let opacity = regionOpacity();
 	if (regionPhase === "out") {
 		if (opacity > 0.05) return;

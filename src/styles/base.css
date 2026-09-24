@@ -544,12 +544,33 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 .detail-panel-header::before{top: 0; background: linear-gradient(to bottom, var(--bg-alt), transparent);}
 .detail-panel-header::after{bottom: 0; background: linear-gradient(to top, var(--bg-alt), transparent);}
 .detail-panel-header > *{position: relative; z-index: 1;}
-/* Asymmetric layout for a character (avatar left, name/tags right) instead
-   of the day-panel header's centered column — the two share this element,
-   so this only applies once .is-character marks which one is showing. */
-.detail-panel-header.is-character{flex-direction: row; align-items: center; justify-content: flex-start; text-align: left;}
+/* Title card, not a flex row sitting on a darkened crop. Namecard is its
+   own layer (same recipe as Calendar's debut cards) so the scrim can stay
+   left-weighted and the art can actually show on the right. overflow:hidden
+   clips that art to the strip; rays live inside it. Day-panel headers
+   never get .is-character, so their centered column is untouched. */
+.detail-panel-header.is-character{
+	flex-direction: row; align-items: center; justify-content: flex-start; text-align: left;
+	overflow: hidden;
+}
+.detail-panel-header.is-character::before, .detail-panel-header.is-character::after{content: none;}
+.detail-panel-header.is-character .detail-panel-header-art,
+.detail-panel-header.is-character .detail-panel-header-scrim{
+	position: absolute; inset: 0; z-index: 0;
+}
+.detail-panel-header-art{background-size: cover; background-position: center;}
+.detail-panel-header-scrim{
+	background:
+		linear-gradient(to bottom, var(--bg-alt), transparent 28px),
+		linear-gradient(to top, var(--bg-alt), transparent 36px),
+		linear-gradient(to right, rgba(13,13,20,0.72) 0%, rgba(13,13,20,0.4) 38%, rgba(13,13,20,0.1) 100%);
+}
 .detail-panel-header-text{display: flex; flex-direction: column; gap: 10px; min-width: 0; flex: 1;}
 .detail-panel-name{font-size: 24px; font-weight: bold; color: var(--text);}
+.detail-panel-header.is-character .detail-panel-name{
+	text-shadow: 0 1px 8px rgba(0,0,0,0.7);
+}
+.detail-panel-header.is-character .phase-face-lg{width: 64px; height: 64px;}
 /* align-items:center, not the flex default stretch — .detail-panel-badge
    and .rate-down-tag are different heights (more so once the >=768px
    breakpoint below grows the badge), and neither tag centers its own text
@@ -631,7 +652,7 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 @media (min-width: 768px){
 	.detail-panel{width: min(560px, 92vw);}
 	.detail-panel-header{min-height: 240px; padding-left: 40px; padding-right: 40px;}
-	.detail-panel-header .phase-face-lg{width: 76px; height: 76px;}
+	.detail-panel-header.is-character .phase-face-lg{width: 88px; height: 88px;}
 	.detail-panel-name{font-size: 28px;}
 	.detail-panel-badge{font-size: 12px; padding: 4px 12px;}
 	.detail-panel-content{padding-left: 32px; padding-right: 32px;}

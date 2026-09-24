@@ -1,13 +1,7 @@
 import "../../shared/chrome.js";
-import { formatDate, joinNames } from "../../shared/dom.js";
-import { countAppearancesThrough, previewNow, LIVE_WINDOW_DAYS, PHASE_LENGTH_DAYS, findLastLaunchedEntry, versionLaunchInstant, getCurrentPhaseIndex } from "../../shared/dates.js";
+import { formatDate, joinNames, slug } from "../../shared/dom.js";
+import { countAppearancesThrough, previewNow, liveBannerState } from "../../shared/dates.js";
 import { swapWithFade } from "../../shared/panel.js";
-
-// Phase length confirmed at 21 days (not a round 20) via cross-checked
-// sources — see AGENTS.md. Only reliable for the live version's normal
-// 2-phase, ~42-day cycle; historical irregular-length versions (delays,
-// shortened recovery patches, 3-phase versions) aren't handled here, since
-// this only ever needs to be right for whichever version is currently live.
 
 // Same hex values baked into assets/elements/*.svg (HoYoverse's own element
 // colors), reused here so the banner glow / 4-star badges match the element
@@ -27,7 +21,52 @@ const ELEMENT_COLORS = {
 // characters actually featured on the landing page so far; see
 // data/SOURCES.md for where these come from and how to add more.
 function splashPath(character) {
-	return `assets/splash/${character.replace(/\s/g, "").toLowerCase()}.webp`;
+	return `assets/splash/${slug(character)}.webp`;
+}
+
+function timelineCharHref(name) {
+	return `timeline.html?char=${encodeURIComponent(name)}`;
+}
+
+function calendarDateHref(isoDate) {
+	return `calendar.html?date=${isoDate}`;
+}
+
+// <a href> is natively draggable in HTML5. That starts a browser drag after
+// a few pixels, fires pointercancel, and kills our carousel/spring. Capture
+// on pointerdown plus this flag is what used to keep img-drag from doing
+// the same thing.
+function characterLink(name) {
+	let a = document.createElement("a");
+	a.href = timelineCharHref(name);
+	a.draggable = false;
+	a.addEventListener("dragstart", e => e.preventDefault());
+	return a;
+}
+
+// After a real drag, the following `click` would otherwise follow an <a>.
+// Threshold is "finger slipped", not "started a gesture."
+const CLICK_DRAG_PX = 8;
+function ignoreClickIfDragged(el, thresholdPx = CLICK_DRAG_PX) {
+	let origin = null;
+	let dragged = false;
+	el.addEventListener("pointerdown", e => {
+		origin = { x: e.clientX, y: e.clientY };
+		dragged = false;
+	});
+	el.addEventListener("pointermove", e => {
+		if (!origin) return;
+		if (Math.hypot(e.clientX - origin.x, e.clientY - origin.y) >= thresholdPx) dragged = true;
+	});
+	let clearOrigin = () => { origin = null; };
+	el.addEventListener("pointerup", clearOrigin);
+	el.addEventListener("pointercancel", clearOrigin);
+	el.addEventListener("click", e => {
+		if (!dragged) return;
+		e.preventDefault();
+		e.stopPropagation();
+		dragged = false;
+	}, true);
 }
 
 // Face-icon fallback looked like a broken load. We wait for the real
@@ -58,7 +97,7 @@ function buildSpotlightFiveCard(character, data, versionIdx, phaseIdx, notes) {
 	let charNotes = notes[character] || {};
 	let count = countAppearancesThrough(data, versionIdx, phaseIdx, character);
 
-	let card = document.createElement("div");
+	let card = characterLink(character);
 	card.className = "spotlight-fivecard";
 
 	// See .spotlight-fivecard-img-wrap in landing.css for why this wrapper
@@ -306,7 +345,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 	// it's the farthest slot and therefore guaranteed fully hidden — never
 	// mid-transition.
 	let slots = [-1, 0, 1].map(offset => {
-		let el = document.createElement("div");
+		let el = characterLink(fiveStars[0]);
 		el.className = "spotlight-fivecard";
 		carousel.appendChild(el);
 		return { offset, el, character: undefined };
@@ -328,6 +367,7 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 		if (slot.character === character) return;
 		slot.character = character;
 		let fresh = buildSpotlightFiveCard(character, data, versionIdx, phaseIdx, notes);
+		slot.el.href = fresh.getAttribute("href");
 		slot.el.replaceChildren(...fresh.childNodes);
 		// Cached once per content swap, not re-queried every render() frame.
 		slot.labelEl = slot.el.querySelector(".spotlight-fivecard-label");
@@ -348,6 +388,8 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 			slot.el.style.opacity = String(Math.max(0, 1 - dist));
 			slot.el.style.filter = `brightness(${brightness})`;
 			slot.el.classList.toggle("is-active", slot.offset === 0);
+			slot.el.tabIndex = slot.offset === 0 ? 0 : -1;
+			slot.el.style.pointerEvents = slot.offset === 0 ? "" : "none";
 			// Riding its own extra parallax offset on top of the card's —
 			// see CAROUSEL_LABEL_PARALLAX.
 			slot.labelEl.style.transform = `translateX(${diff * getSlotPx() * CAROUSEL_LABEL_PARALLAX}px)`;
@@ -589,20 +631,31 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 	};
 	let startBounce = () => { if (bounceRAF === null) bounceRAF = requestAnimationFrame(tickBounce); };
 
+	let dragPending = false;
+	let dragOriginX = 0;
+
 	carousel.addEventListener("pointerdown", e => {
 		stopAutoAdvance();
 		stopAnimation();
-		carousel.classList.add("is-dragging");
+		dragPending = true;
+		dragOriginX = e.clientX;
 		dragStartY = e.clientY;
-		startBounce();
-		// Capture so pointermove/pointerup still fire on this element even if
-		// the drag continues outside the carousel's bounds.
-		carousel.setPointerCapture(e.pointerId);
-		dragging = true;
 		lastPointerX = e.clientX;
 		velocityHistory = [{ x: e.clientX, t: performance.now() }];
+		// Capture immediately — waiting until the 8px click-vs-drag
+		// threshold lets <a> native-drag (or touch pan-y) steal the
+		// pointer and fire pointercancel. Movement still doesn't start
+		// until that threshold; this only owns the pointer.
+		carousel.setPointerCapture(e.pointerId);
 	});
 	carousel.addEventListener("pointermove", e => {
+		if (dragPending && !dragging) {
+			if (Math.hypot(e.clientX - dragOriginX, e.clientY - dragStartY) < CLICK_DRAG_PX) return;
+			dragPending = false;
+			dragging = true;
+			carousel.classList.add("is-dragging");
+			startBounce();
+		}
 		if (!dragging) return;
 		// 1:1 tracking: dragging by dx px moves the active card by exactly
 		// dx px, since dx/slotPx position-units * slotPx px = dx.
@@ -626,7 +679,11 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 		pruneVelocityHistory(now);
 	});
 	let endDrag = () => {
-		if (!dragging) return;
+		dragPending = false;
+		if (!dragging) {
+			startAutoAdvance();
+			return;
+		}
 		dragging = false;
 		carousel.classList.remove("is-dragging");
 		bounceTargetY = 0;
@@ -655,6 +712,15 @@ function buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elem
 	};
 	carousel.addEventListener("pointerup", endDrag);
 	carousel.addEventListener("pointercancel", endDrag);
+	ignoreClickIfDragged(carousel);
+	// Capture is on the carousel, not the <a>, so the click target is this
+	// div — 4-star cards capture on the link itself and don't need this.
+	carousel.addEventListener("click", e => {
+		if (e.defaultPrevented) return;
+		if (e.target.closest("a.spotlight-fivecard")) return;
+		let active = slots.find(s => s.offset === 0);
+		if (active && active.el.href) active.el.click();
+	});
 
 	render();
 	// This first render happens before `banner` is attached to the document
@@ -716,6 +782,7 @@ function attachSpringDrag(handleEl, targetEl, options = {}) {
 	if (targetEl.tagName === "IMG") targetEl.draggable = false;
 
 	let dragging = false;
+	let pending = false;
 	let startX = 0, startY = 0;
 	// targetX/Y is where the "pull" currently wants targetEl to be — the
 	// (capped) mouse offset while dragging, or (0,0) once released. x/y/vx/vy
@@ -807,10 +874,8 @@ function attachSpringDrag(handleEl, targetEl, options = {}) {
 	let startSim = () => { if (simRAF === null) simRAF = requestAnimationFrame(tick); };
 
 	handleEl.classList.add(draggableClass);
-	handleEl.addEventListener("pointerdown", e => {
-		if (e.pointerType !== "mouse") return;
+	let beginDrag = e => {
 		dragging = true;
-		startX = e.clientX; startY = e.clientY;
 		targetX = 0; targetY = 0;
 		// Re-derived on every drag start (not cached from attach time) — see
 		// getBaseTransform's own comment above for why. Guarded to only fire
@@ -823,24 +888,38 @@ function attachSpringDrag(handleEl, targetEl, options = {}) {
 		// settle clears it.
 		if (!hasFixedBaseTransform && simRAF === null) baseTransform = getBaseTransform();
 		handleEl.classList.add(draggingClass);
-		handleEl.setPointerCapture(e.pointerId);
 		startSim();
+	};
+	handleEl.addEventListener("pointerdown", e => {
+		if (e.pointerType !== "mouse") return;
+		// Wait for real movement so a click can follow the <a> href. The
+		// toy used to capture on mousedown, which ate the click.
+		pending = true;
+		startX = e.clientX; startY = e.clientY;
+		handleEl.setPointerCapture(e.pointerId);
 	});
 	handleEl.addEventListener("pointermove", e => {
+		if (pending && !dragging) {
+			if (Math.hypot(e.clientX - startX, e.clientY - startY) < CLICK_DRAG_PX) return;
+			pending = false;
+			beginDrag(e);
+		}
 		if (!dragging) return;
 		[targetX, targetY] = rubberBand(e.clientX - startX, e.clientY - startY);
 	});
 	let endDrag = () => {
+		pending = false;
 		if (!dragging) return;
 		dragging = false;
 		handleEl.classList.remove(draggingClass);
 		targetX = 0; targetY = 0;
-		// tick() is already running (started on pointerdown) and keeps
-		// going on its own — nothing else to kick off here, the target
-		// just moved back to center for it to chase.
+		// tick() is already running (started when the drag crossed the
+		// click threshold) and keeps going on its own — nothing else to
+		// kick off here, the target just moved back to center for it to chase.
 	};
 	handleEl.addEventListener("pointerup", endDrag);
 	handleEl.addEventListener("pointercancel", endDrag);
+	ignoreClickIfDragged(handleEl);
 }
 
 // Small "trading card" per 4-star — face icon, faint element-symbol
@@ -856,7 +935,7 @@ function buildSpotlightFourCard(character, data, versionIdx, phaseIdx, notes, el
 	let element = elements[character];
 	let colors = ELEMENT_COLORS[element];
 
-	let card = document.createElement("div");
+	let card = characterLink(character);
 	card.className = "spotlight-fourcard";
 	if (colors) {
 		card.style.setProperty("--el-glow", colors.glow);
@@ -992,7 +1071,10 @@ function getAnniversaryCards(data, versionMeta, notes, now) {
 
 	if (best.past && best.past.diffDays === 0) {
 		let { entry, launch } = best.past;
-		return [`On this day in ${launch.getFullYear()}, version ${entry.version} (${region(entry)}) launched!`];
+		return [{
+			text: `On this day in ${launch.getFullYear()}, version ${entry.version} (${region(entry)}) launched!`,
+			href: calendarDateHref(entry.date)
+		}];
 	}
 
 	// Guaranteed >=1 by the same-year skip above, so no "0 years" case to
@@ -1012,12 +1094,18 @@ function getAnniversaryCards(data, versionMeta, notes, now) {
 		let { entry, diffDays, launch } = best.past;
 		let daysAgo = -diffDays;
 		let years = yearsSince(launch);
-		cards.push(`${daysAgo} day${daysAgo === 1 ? "" : "s"} ago — version ${entry.version} (${region(entry)}) marked ${years} year${years === 1 ? "" : "s"} since its ${formatMonthDayYear(entry.date)} launch${debutClause(entry)}.`);
+		cards.push({
+			text: `${daysAgo} day${daysAgo === 1 ? "" : "s"} ago — version ${entry.version} (${region(entry)}) marked ${years} year${years === 1 ? "" : "s"} since its ${formatMonthDayYear(entry.date)} launch${debutClause(entry)}.`,
+			href: calendarDateHref(entry.date)
+		});
 	}
 	if (best.future) {
 		let { entry, diffDays, launch } = best.future;
 		let years = yearsSince(launch);
-		cards.push(`Coming up in ${diffDays} day${diffDays === 1 ? "" : "s"} — version ${entry.version} (${region(entry)}) will mark ${years} year${years === 1 ? "" : "s"} since its ${formatMonthDayYear(entry.date)} launch${debutClause(entry)}.`);
+		cards.push({
+			text: `Coming up in ${diffDays} day${diffDays === 1 ? "" : "s"} — version ${entry.version} (${region(entry)}) will mark ${years} year${years === 1 ? "" : "s"} since its ${formatMonthDayYear(entry.date)} launch${debutClause(entry)}.`,
+			href: calendarDateHref(entry.date)
+		});
 	}
 	return cards;
 }
@@ -1090,8 +1178,20 @@ function buildTriviaTicker(cards) {
 		if (progressFill) progressFill.classList.toggle("is-paused", paused);
 	}
 
+	function applyTriviaCard(card) {
+		if (card.href) {
+			let a = document.createElement("a");
+			a.className = "trivia-text-link";
+			a.href = card.href;
+			a.textContent = card.text;
+			textEl.replaceChildren(a);
+		} else {
+			textEl.textContent = card.text;
+		}
+	}
+
 	function render(index) {
-		swapWithFade(textEl, [textEl], () => { textEl.textContent = cards[index]; });
+		swapWithFade(textEl, [textEl], () => applyTriviaCard(cards[index]));
 		dotEls.forEach((d, i) => d.classList.toggle("is-active", i === index));
 		resetProgress();
 	}
@@ -1121,7 +1221,7 @@ function buildTriviaTicker(cards) {
 	wrap.appendChild(textEl);
 	if (cards.length > 1) wrap.appendChild(dots);
 	if (progress) wrap.appendChild(progress);
-	textEl.textContent = cards[0];
+	applyTriviaCard(cards[0]);
 	resetProgress();
 
 	return wrap;
@@ -1176,39 +1276,28 @@ async function bootstrapLanding() {
 		let triviaPool = await triviaRes.json();
 
 		let now = previewNow();
-		// Not always data[data.length-1] — a version can be pre-staged in
-		// data.json up to a week before its real launch (roster/art set,
-		// announced, but not live yet). Walk backward for the last entry
-		// that's actually launched — same pattern as findLastLaunchedEntry()
-		// (shared.js, used by the header's live dot) and the Timeline's own
-		// live-ripple logic — otherwise the spotlight would confidently show
-		// the *next* version as already live during that pre-staged week.
-		let entry = findLastLaunchedEntry(data, now.getTime()) || data[0];
+		// Same liveBannerState() as the header live-dot and Timeline marker.
+		// Falls back to data[0] only if nothing has launched yet (empty or
+		// all-future data.json) so the card still has something to show.
+		let live = liveBannerState(data, now.getTime());
+		let entry = live.entry || data[0];
 		let versionIdx = data.indexOf(entry);
-		let phaseIdx = getCurrentPhaseIndex(entry, now.getTime());
+		let phaseIdx = live.entry ? live.phaseIdx : 0;
+		let phaseStartDate = live.phaseStartDate || entry.date;
 
 		document.getElementById("spotlightHeading").textContent = `Version ${entry.version} — Phase ${phaseIdx + 1}`;
-		// The *phase's* start date, not the version's launch date — same
-		// PHASE_LENGTH_DAYS math getCurrentPhaseIndex() already used to pick
-		// this phase, so it's consistent (and correctly falls back to
-		// entry.date itself for phase 1).
-		let phaseStart = new Date(entry.date + "T00:00:00Z");
-		phaseStart.setUTCDate(phaseStart.getUTCDate() + phaseIdx * PHASE_LENGTH_DAYS);
-		document.getElementById("spotlightSub").textContent = `Live since ${formatDate(phaseStart.toISOString().slice(0, 10))}`;
-		// Same LIVE_WINDOW_DAYS staleness rule as the header's brand dot
-		// (shared.js) — once data.json hasn't been updated in that long, this
-		// card is almost certainly showing an old version/phase rather than
-		// whatever's actually live, so say so instead of confidently
-		// displaying stale info with no indication anything's off.
-		let daysSinceLaunch = (now.getTime() - versionLaunchInstant(entry.date)) / 86400000;
+		document.getElementById("spotlightSub").textContent = `Live since ${formatDate(phaseStartDate)}`;
 		let staleEl = document.getElementById("spotlightStale");
-		if (daysSinceLaunch > LIVE_WINDOW_DAYS) {
+		if (live.stale) {
 			staleEl.textContent = "This might be old news by now — we may be behind on the latest update.";
 			staleEl.hidden = false;
 		}
 		document.getElementById("spotlightCard").replaceWith(buildSpotlight(data, versionIdx, phaseIdx, notes, elements));
 
-		let triviaCards = shuffle([...getAnniversaryCards(data, versionMeta, notes, now), ...sampleTrivia(triviaPool, 3)]);
+		let triviaCards = shuffle([
+			...getAnniversaryCards(data, versionMeta, notes, now),
+			...sampleTrivia(triviaPool, 3).map(text => ({ text })),
+		]);
 		document.getElementById("triviaTicker").replaceWith(buildTriviaTicker(triviaCards));
 
 		// Same background recipe as the Timeline's per-version region art —

@@ -1,13 +1,24 @@
 # Landing page (`index.html` / `src/pages/landing/`)
 
 Cross-cutting notes live in `AGENTS.md`. No `.page-nav` entry for this
-page — the brand link already goes here.
+page — the brand link already goes here. The `h1` matches the other
+pages' named titles. The tagline is a first-impression line picked at
+random from five on each load (inline script next to the `<p>`, not the
+deferred module, so it doesn't flash the fallback). Link cards stay
+in-voice rather than feature blurbs.
 
-**Spotlight** is whichever phase of the latest `data.json` entry is
-running, not a hand-maintained card. Phase length is **21 days** from
-`versionLaunchInstant()`. Only the *live* version has to be correct;
-historical irregular cycles stay on the Timeline as written. A future
-irregular live version is a one-off then, same as the 42-day estimate.
+**Spotlight** is whichever phase `liveBannerState()` says is running, not
+a hand-maintained card. 5-star and 4-star cards are `timeline.html?char=` links. `<a href>`
+is natively draggable — capture the pointer on down and set
+`draggable=false`, or the browser's own drag fires `pointercancel` and
+the carousel/spring never starts. Carousel capture is on the wrapper,
+so a tap has to be forwarded to the center card or the click never
+hits the `<a>` (4-star cards capture on the link itself). A click after
+≥8px of movement is ignored so a swipe doesn't navigate. Phase length is **21 days** from
+`versionLaunchInstant()` (no historical phase-notes on this page). Only
+the *live* version has to be correct; irregular cycles stay on the
+Timeline as written. A future irregular live version is a one-off then,
+same as the 42-day estimate.
 
 Release/rerun badges use `countAppearancesThrough()` (scan up to this
 phase) rather than Timeline's full index. Region background comes from
@@ -65,7 +76,9 @@ can cross a character while bouncing (`resolveRotation()` renumbers
 ## Trivia ticker
 
 Plain text, no drag. Mix of computed launch-anniversaries and 3 samples
-from `data/trivia.json`. Fade/resize via `swapWithFade()`.
+from `data/trivia.json`. Fade/resize via `swapWithFade()`. Anniversary
+cards link to `calendar.html?date=` (that version's `data.json` date);
+sampled facts stay unlinked.
 
 Anniversaries are **nearest-match, not exact-date** — most calendar days
 have no launch. Nearest past *and* nearest future, collapsing to one card

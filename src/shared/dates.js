@@ -6,6 +6,21 @@ export const LIVE_WINDOW_DAYS = 42;
 const DAY_MS = 86400000;
 
 /**
+ * Calendar date a live phase would start on a normal 21-day cycle —
+ * no phase-notes overrides. Landing's spotlight, the header live-dot,
+ * and `npm run when` all use this; historical Timeline/Calendar dates
+ * go through `getPhaseStartDate()` instead.
+ * @param {{date: string}} entry
+ * @param {number} phaseIndex
+ * @returns {string} ISO date (YYYY-MM-DD)
+ */
+export function livePhaseStartDate(entry, phaseIndex) {
+	let d = new Date(entry.date + "T00:00:00Z");
+	d.setUTCDate(d.getUTCDate() + phaseIndex * PHASE_LENGTH_DAYS);
+	return d.toISOString().slice(0, 10);
+}
+
+/**
  * A phase's real-world start date, applying phase-notes.json's override for
  * the handful of historically irregular phases (1.3's 3-phase structure,
  * 3.0-3.2's compressed cadence — see AGENTS.md). Same 21-day cadence as
@@ -18,9 +33,7 @@ const DAY_MS = 86400000;
 export function getPhaseStartDate(entry, phaseIndex, phaseNotes) {
 	let override = (phaseNotes[`${entry.version}-${phaseIndex + 1}`] || {}).date;
 	if (override) return override;
-	let d = new Date(entry.date + "T00:00:00Z");
-	d.setUTCDate(d.getUTCDate() + phaseIndex * PHASE_LENGTH_DAYS);
-	return d.toISOString().slice(0, 10);
+	return livePhaseStartDate(entry, phaseIndex);
 }
 
 /**
@@ -140,12 +153,21 @@ export function getCurrentPhaseIndex(entry, nowMs) {
 export function liveBannerState(data, nowMs) {
 	let entry = findLastLaunchedEntry(data, nowMs);
 	if (!entry) {
-		return { entry: null, phaseIdx: 0, daysSinceLaunch: null, isLive: false, stale: false };
+		return {
+			entry: null,
+			phaseIdx: 0,
+			phaseStartDate: null,
+			daysSinceLaunch: null,
+			isLive: false,
+			stale: false
+		};
 	}
+	let phaseIdx = getCurrentPhaseIndex(entry, nowMs);
 	let daysSinceLaunch = (nowMs - versionLaunchInstant(entry.date)) / DAY_MS;
 	return {
 		entry,
-		phaseIdx: getCurrentPhaseIndex(entry, nowMs),
+		phaseIdx,
+		phaseStartDate: livePhaseStartDate(entry, phaseIdx),
 		daysSinceLaunch,
 		isLive: daysSinceLaunch <= LIVE_WINDOW_DAYS,
 		stale: daysSinceLaunch > LIVE_WINDOW_DAYS

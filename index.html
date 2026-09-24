@@ -29,7 +29,20 @@
 
       <section class="landing-hero">
         <h1 class="landing-title">Genshin Almanac</h1>
-        <p class="landing-tagline">Everything dated, everything tracked — because nobody else kept score.</p>
+        <p class="landing-tagline" id="landingTagline">Teyvat has its own laws, and one of them is a new heaven every forty-two days. Here is the trail that leaves.</p>
+        <script>
+        (function () {
+          var lines = [
+            "Teyvat has its own laws, and one of them is a new heaven every forty-two days. Here is the trail that leaves.",
+            "Alice wrote the travel guide so you'd know where to stand. This is the other volume: who was on the wish, and which version it was.",
+            "Let Irminsul keep the memories. We'll keep the dates — who showed up, which patch, in the order Teyvat actually ran them.",
+            "May the wind lead, may the contracts hold, may the dates stay put — because the 50/50 already took the memories.",
+            "Celestia never sent a newsletter. So here is the unofficial one: who was on the wish, and how long they actually lasted."
+          ];
+          document.getElementById("landingTagline").textContent =
+            lines[Math.floor(Math.random() * lines.length)];
+        })();
+        </script>
       </section>
 
       <section class="landing-spotlight-intro">
@@ -53,16 +66,16 @@
 
           <section class="landing-links">
             <a href="timeline.html" class="landing-link-card">
-              <span class="landing-link-title">Full Timeline<span class="landing-link-arrow" aria-hidden="true">›</span></span>
-              <span class="landing-link-desc">Every banner from version 1.0 to today, with full character history.</span>
+              <span class="landing-link-title">Timeline<span class="landing-link-arrow" aria-hidden="true">›</span></span>
+              <span class="landing-link-desc">From the first Venti banner to whoever's stealing your primos tonight. The whole road. Bring snacks.</span>
             </a>
             <a href="calendar.html" class="landing-link-card">
               <span class="landing-link-title">Calendar<span class="landing-link-arrow" aria-hidden="true">›</span></span>
-              <span class="landing-link-desc">The same banner history as a year-view grid, with debuts and birthdays too.</span>
+              <span class="landing-link-desc">A calendar. In Teyvat. We're as surprised as you.</span>
             </a>
             <a href="clocks.html" class="landing-link-card">
               <span class="landing-link-title">Server Clocks<span class="landing-link-arrow" aria-hidden="true">›</span></span>
-              <span class="landing-link-desc">Daily reset countdowns and the next update estimate, in your time zone.</span>
+              <span class="landing-link-desc">Time in Teyvat is a group project. These are the answers.</span>
             </a>
           </section>
         </aside>

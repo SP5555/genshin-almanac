@@ -32,7 +32,7 @@ Keyed once per fact, not per occurrence.
 `tagline`, `label` (overrides the numeral — Nod-Krai majors are "Luna"),
 `bgImage`.
 
-**Filenames:** `name.replace(/\s/g, "").toLowerCase()`. **Display names**
+**Filenames:** `slug()` in `src/shared/dom.js` (`"Hu Tao"` → `hutao`). **Display names**
 are the short form: Shogun, Ayaka/Ayato, Kokomi, Yae, Itto, Kazuha, Sara,
 Heizou, Wanderer.
 
@@ -40,8 +40,9 @@ Heizou, Wanderer.
 
 `#detailPanel` is shared with Calendar (not `charPanel`). One header
 element, two layouts: default centered column vs
-`.detail-panel-header.is-character`. The next view has to leave it in the
-right state because the header isn't torn down. `buildCharacterHeader()`
+`.detail-panel-header.is-character` (namecard title card: art layer +
+left-weighted scrim, type overlaid). The next view has to leave it in
+the right state because the header isn't torn down. `buildCharacterHeader()`
 always shows release-style rays — it's a hero shot, not tied to whether
 *this* appearance was a debut.
 
@@ -78,10 +79,13 @@ live-derived count.
 ## Region background
 
 `#regionBg` fades the current photo out to the starfield, then fades in
-whichever region matches scroll position *at that black frame*. Mid
-fade-in, a newly wanted region only starts another fade-out — it never
-crossfades two photos (flying the full timeline used to flash every
-region). Starfield/dark fill stays on `<body>` (`AGENTS.md` gotcha #2).
+whichever region matches scroll position *at that black frame*. Extra
+blur while fading is a second `::after` layer (static `filter`, animated
+`opacity`) — not `transition: filter`. Mid fade-in, a newly wanted
+region only starts another fade-out — it never crossfades two photos
+(flying the full timeline used to flash every region). Starfield/dark
+fill stays on `<body>` (`AGENTS.md` gotcha #2). The photo lives in
+`--region-url` so the element itself doesn't paint an unblurred copy.
 
 ## Search
 
@@ -109,6 +113,5 @@ Header rays use `GLOW_CONFIG.rays.countHeader` (denser, one on screen).
 
 Ripple on the most recently launched entry, only if that instant is
 within 42 days — a stale dataset must not claim an old patch is live.
-Same `findLastLaunchedEntry()` / `versionLaunchInstant()` as the header
-dot and Server Clocks. A version can be pre-staged in `data.json` ahead
-of 06:00 CST.
+Same `liveBannerState()` as the header live-dot and landing spotlight.
+A version can be pre-staged in `data.json` ahead of 06:00 CST.

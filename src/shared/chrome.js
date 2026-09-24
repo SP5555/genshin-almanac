@@ -2,7 +2,7 @@
 // button and the header brand's live-status dot. Importing this module for
 // its side effects is enough — same as the unconditional calls at the
 // bottom of the old shared.js.
-import { previewNow, findLastLaunchedEntry, LIVE_WINDOW_DAYS, versionLaunchInstant, isLocalDevHost } from "./dates.js";
+import { previewNow, liveBannerState, isLocalDevHost } from "./dates.js";
 import { smoothScrollY } from "./scroll.js";
 
 function initBackToTop() {
@@ -24,13 +24,10 @@ async function initBrandLivePulse() {
 		let res = await fetch("data/data.json");
 		if (!res.ok) return;
 		let data = await res.json();
-		let now = previewNow().getTime();
-		let launched = findLastLaunchedEntry(data, now);
-		if (!launched) return;
-		let daysSince = (now - versionLaunchInstant(launched.date)) / 86400000;
-		if (daysSince <= LIVE_WINDOW_DAYS) {
+		let live = liveBannerState(data, previewNow().getTime());
+		if (live.isLive) {
 			dot.classList.add("is-live");
-			dot.title = `${launched.version} is the current live version`;
+			dot.title = `${live.entry.version} is the current live version`;
 		}
 	} catch (err) {
 		console.error(err);

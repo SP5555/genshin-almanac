@@ -1,5 +1,5 @@
 import "../../shared/chrome.js";
-import { faceImg, joinNames, rarityBadge, onDelegatedActivate } from "../../shared/dom.js";
+import { faceImg, joinNames, rarityBadge, onDelegatedActivate, namecardPath } from "../../shared/dom.js";
 import { getPhaseStartDate, countAppearancesThrough, previewNow } from "../../shared/dates.js";
 import { swapWithFade, initPanelGrabberDrag } from "../../shared/panel.js";
 import { buildCharacterHeader } from "../../shared/glow.js";
@@ -791,8 +791,7 @@ function buildCharacterCard(name, variant, badges) {
 
 	let art = document.createElement("div");
 	art.className = "calendar-day-card-art";
-	let namecardPath = `assets/namecards/${name.replace(/\s/g, "").toLowerCase()}.jpg`;
-	art.style.backgroundImage = `url(${namecardPath})`;
+	art.style.backgroundImage = `url(${namecardPath(name)})`;
 	card.appendChild(art);
 
 	let scrim = document.createElement("div");

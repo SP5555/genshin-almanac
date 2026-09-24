@@ -8,7 +8,6 @@ import { fileURLToPath } from "node:url";
 import {
 	liveBannerState,
 	nextVersionUpdate,
-	PHASE_LENGTH_DAYS,
 	versionLaunchInstant
 } from "../src/shared/dates.js";
 
@@ -44,13 +43,6 @@ let live = liveBannerState(data, nowMs);
 let next = nextVersionUpdate(data, nowMs);
 let entry = live.entry;
 let phase = entry ? entry.banner[live.phaseIdx] : null;
-let phaseStart = entry
-	? (() => {
-		let d = new Date(entry.date + "T00:00:00Z");
-		d.setUTCDate(d.getUTCDate() + live.phaseIdx * PHASE_LENGTH_DAYS);
-		return d.toISOString().slice(0, 10);
-	})()
-	: null;
 
 let lines = [
 	`now              ${now.toISOString()}`,
@@ -60,7 +52,7 @@ let lines = [
 		? [
 			`  version         ${entry.version}  phase ${live.phaseIdx + 1}`,
 			`  5-stars         ${(phase["5"] || []).join(", ") || "—"}`,
-			`  live since      ${phaseStart}  (phase start, UTC calendar date)`,
+			`  live since      ${live.phaseStartDate}  (phase start, UTC calendar date)`,
 			`  launched        ${iso(versionLaunchInstant(entry.date))}  (06:00 CST)`,
 			`  days since      ${live.daysSinceLaunch.toFixed(2)}`,
 			`  live-dot        ${live.isLive ? "on" : "off"}`,

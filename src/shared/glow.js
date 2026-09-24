@@ -6,7 +6,7 @@
 // them out here makes the dependency real: importing glow.js is what pulls
 // in glow-config.js, not a page's own <script> tag order.
 import { GLOW_CONFIG } from "./glow-config.js";
-import { faceImg, rarityBadge } from "./dom.js";
+import { faceImg, rarityBadge, namecardPath } from "./dom.js";
 
 /**
  * Flickering sunburst rays behind a release portrait — each ray is a
@@ -39,13 +39,13 @@ export function buildRays(count, colorVar) {
 }
 
 /**
- * The detail panel's character-view header (avatar+rays on the left,
- * name+tags on the right) — identical between Timeline's openCharPanel and
- * Calendar's renderCharacterPanel, so it's built once here instead of
- * twice. Only the header itself: each caller still sets its own content
- * background, preexisting note, stats, and appearance list around it,
- * since those differ (or don't exist at all) per page. Assumes `header`
- * has already been cleared.
+ * The detail panel's character-view header — namecard title card (art +
+ * left-weighted scrim, type overlaid), identical between Timeline's
+ * openCharPanel and Calendar's renderCharacterPanel. Only the header
+ * itself: each caller still sets its own content background, preexisting
+ * note, stats, and appearance list around it. Assumes `header` has
+ * already been cleared. Drops any leftover inline background (Calendar
+ * day views put region art on this same node).
  * @param {HTMLElement} header
  * @param {string} name
  * @param {"4"|"5"} rarity
@@ -53,9 +53,16 @@ export function buildRays(count, colorVar) {
  */
 export function buildCharacterHeader(header, name, rarity, notes) {
 	header.classList.add("is-character");
+	header.style.backgroundImage = "";
 
-	let namecardPath = `assets/namecards/${name.replace(/\s/g, "").toLowerCase()}.jpg`;
-	header.style.backgroundImage = `linear-gradient(to bottom, rgba(13,13,20,0.45), rgba(13,13,20,0.94)), url(${namecardPath})`;
+	let art = document.createElement("div");
+	art.className = "detail-panel-header-art";
+	art.style.backgroundImage = `url(${namecardPath(name)})`;
+	header.appendChild(art);
+
+	let scrim = document.createElement("div");
+	scrim.className = "detail-panel-header-scrim";
+	header.appendChild(scrim);
 
 	let avatarWrap = document.createElement("div");
 	avatarWrap.className = "avatar-wrap avatar-wrap-lg";

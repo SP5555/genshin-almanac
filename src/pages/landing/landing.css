@@ -2,14 +2,14 @@
 
 .landing-root{position: relative; z-index: 1; padding: 20px 0 70px 0;}
 
-.landing-hero{padding: 40px 0 8px 0; text-align: center;}
+.landing-hero{padding: 36px 0 4px 0; text-align: center;}
 .landing-title{
-	font-size: 34px; font-weight: bold; letter-spacing: 0.5px;
+	font-size: 28px; font-weight: bold; letter-spacing: 0.5px;
 	background: linear-gradient(90deg, var(--five), var(--four));
 	-webkit-background-clip: text; background-clip: text; color: transparent;
 	display: inline-block;
 }
-.landing-tagline{font-size: 14px; color: var(--text-dim); max-width: 460px; margin: 10px auto 0; line-height: 1.5;}
+.landing-tagline{font-size: 13px; color: var(--text-dim); max-width: 540px; margin: 10px auto 0; line-height: 1.5;}
 
 /* Below 900px this is a no-op (plain column flow, same as before it
    existed) — the sidebar split only kicks in once there's room for the
@@ -23,7 +23,7 @@
 		display: flex; flex-direction: column; gap: 24px;
 		/* .landing-spotlight itself carries no margin — the gap above its
 		   carousel comes from .spotlight-banner's own margin-top:28px, so
-		   this matches that instead of the intro section's larger 48px. */
+		   this matches that instead of sitting under the intro. */
 		margin-top: 28px;
 	}
 	/* Cancel the standalone top-margins below (tuned for when these were
@@ -38,7 +38,7 @@
 	.landing-sidebar .landing-link-card:nth-child(3){grid-column: auto; justify-self: stretch; max-width: none;}
 }
 
-.landing-spotlight-intro{margin-top: 48px; text-align: center;}
+.landing-spotlight-intro{margin-top: 28px; text-align: center;}
 .landing-spotlight-label{
 	display: inline-block;
 	font-size: 10.5px; font-weight: bold; letter-spacing: 0.6px; text-transform: uppercase;
@@ -159,6 +159,8 @@
 	user-select: none;
 }
 .spotlight-carousel.is-interactive.is-dragging{cursor: grabbing;}
+.spotlight-carousel.is-interactive .spotlight-fivecard{cursor: grab;}
+.spotlight-carousel.is-interactive.is-dragging .spotlight-fivecard{cursor: grabbing;}
 /* transform/opacity/filter are ALWAYS driven from JS per frame here (see
    buildSpotlightBanner in landing.js) — drag, momentum coast, and the
    settle-to-rest sweep alike — never a CSS transition. No transition
@@ -167,7 +169,10 @@
 	grid-column: 1; grid-row: 1; justify-self: center;
 	width: 100%; max-width: 680px; padding: 0 6px;
 	display: flex; flex-direction: column; align-items: center;
+	color: inherit; text-decoration: none;
+	-webkit-user-drag: none;
 }
+.spotlight-fivecard:focus-visible{outline: 2px solid var(--five); outline-offset: 4px;}
 .spotlight-fivecard.is-active{z-index: 1;}
 @media (min-width: 600px){
 	.spotlight-fivecard{padding: 0 16px;}
@@ -305,16 +310,17 @@
 	overflow: hidden;
 	backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 	transition: background-color 0.25s, border-color 0.25s;
+	color: inherit; text-decoration: none;
+	-webkit-user-drag: none;
 }
 @media (min-width: 600px){
 	.spotlight-fourcard{flex: 1 1 0; max-width: none; margin: 0;}
 }
 .spotlight-fourcard:hover{background-color: var(--glass-hover); border-color: var(--glass-border-hover);}
-/* Purely decorative grab affordance for the spring-drag toy (see
-   attachSpringDrag() in landing.js) — added via JS, not unconditionally,
-   so touch devices (which never get the drag wired up at all) don't show
-   a grab cursor that's just noise there. */
-.spotlight-fourcard.is-spring-draggable{cursor: grab;}
+.spotlight-fourcard:focus-visible{outline: 2px solid var(--four); outline-offset: 3px;}
+/* Spring-drag is mouse-only; the card is a Timeline link. Pointer at rest,
+   grabbing only while the toy is actually pulled. */
+.spotlight-fourcard.is-spring-draggable{cursor: pointer;}
 .spotlight-fourcard.is-spring-draggable.is-dragging{cursor: grabbing;}
 /* Dedicated layer for the watermark so it can use real CSS opacity — a
    z-index below the card's own painted background/border (see z-index:0 +
@@ -435,6 +441,13 @@
 	transition: opacity 0.25s, height 0.3s ease;
 }
 .trivia-text.is-fading{opacity: 0;}
+.trivia-text-link{
+	color: inherit; text-decoration: none;
+}
+.trivia-text-link:hover{
+	text-decoration: underline; text-underline-offset: 3px;
+}
+.trivia-text-link:focus-visible{outline: 2px solid var(--five); outline-offset: 3px;}
 .trivia-dots{display: flex; justify-content: center; gap: 8px; margin-top: 12px;}
 .trivia-dot{
 	width: 8px; height: 8px; padding: 0; border: none; border-radius: 50%;

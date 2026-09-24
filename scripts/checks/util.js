@@ -4,6 +4,8 @@ const path = require("path");
 const ROOT = path.join(__dirname, "..", "..");
 const readJSON = file => JSON.parse(fs.readFileSync(path.join(ROOT, "data", file), "utf8"));
 const assetPath = (...p) => path.join(ROOT, "assets", ...p);
+// Same rule as src/shared/dom.js slug() — keep in sync; this file is CJS
+// and cannot import that ESM module.
 const slug = name => name.replace(/\s/g, "").toLowerCase();
 
 // data.json (banner phases + chronicled + lightrace entries) is the single

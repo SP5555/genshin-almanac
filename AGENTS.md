@@ -1,8 +1,16 @@
 # Genshin Almanac — project notes
 
-Fan-made static site (vanilla HTML/CSS/JS, zero build step) tracking
-Genshin Impact character banner history. Keep additions zero-build /
-vanilla JS unless asked to modernize.
+Fan-made static site (vanilla HTML/CSS/JS, zero build step). Keep
+additions zero-build / vanilla JS unless asked to modernize.
+
+## Purpose
+
+Hobby project, not a Genshin helper-database. Plenty of sites already
+catalog every item, build, and banner as tables. This one is an almanac:
+the same character-banner history, shown as lived time — one continuous
+timeline, a year grid, server mornings in your kitchen, "now" as a
+physical spotlight. The test for a new feature is whether it changes
+*how you look at* that history, not whether it adds another box of facts.
 
 `npm run dev` (`live-server`) is required locally — `data/*.json` loads
 via `fetch()`, which is CORS-blocked on `file://`. The deployed site
@@ -128,6 +136,8 @@ maintenance start — not local midnight. Displayed calendar dates stay
 YYYY-MM-DD.
 
 ## Deliberately not doing
+
+The Purpose section is the yes-test. This list is the known no.
 
 - **Weapon banners, personal pull-tracking, stats dashboards.** Other
   Genshin sites already do those; only revisit with a presentation that

@@ -38,11 +38,32 @@
 .timeline-subtitle{font-size: 13px; color: var(--text-dim); max-width: 480px; margin: 10px auto 0; line-height: 1.5;}
 /* Sequential fade-to-starfield, then fade-in — not a photo-to-photo
    crossfade. Shorter than the shared 1.6s so a single region change isn't
-   3s of black. */
-.region-bg{transition: opacity 0.65s ease;}
+   3s of black. Extra blur while fading is a second static-filter layer
+   whose opacity we animate (AGENTS.md: don't animate `filter` itself).
+   `--region-url` is set in JS; the element does not paint the photo. */
+.region-bg{
+	filter: none;
+	transition: opacity 0.65s ease;
+}
+.region-bg::before, .region-bg::after{
+	content: ""; position: absolute; pointer-events: none;
+	background-image: var(--region-url);
+	background-size: cover; background-position: center;
+}
+.region-bg::before{
+	inset: -20px;
+	filter: blur(1px);
+}
+.region-bg::after{
+	inset: -32px;
+	filter: blur(16px);
+	opacity: 0;
+	transition: opacity 0.65s ease;
+}
+.region-bg:not(.is-active)::after{opacity: 1;}
 @media (prefers-reduced-motion: reduce){
 	.timeline-intro{animation: none;}
-	.region-bg{transition: none;}
+	.region-bg, .region-bg::after{transition: none;}
 }
 
 .timeline-root{
