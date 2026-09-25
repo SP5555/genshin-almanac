@@ -399,6 +399,10 @@
 	position: absolute; top: 16px; left: 20px;
 	font-size: 11px; color: var(--text-dim); font-weight: normal;
 }
+.calendar-panel-version-num{
+	font-size: 13px; color: var(--text-dim);
+	text-shadow: 0 1px 8px rgba(0,0,0,0.7);
+}
 /* Applied when there's no launch (and so no region art or big centered
    text) to fill the shared 200px min-height — without this, the ~345 days
    a year that land here would show a big, mostly-empty dark box under a

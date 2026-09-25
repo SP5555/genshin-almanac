@@ -12,6 +12,7 @@ const checks = [
 	require("./checks/phase-notes"),
 	require("./checks/character-assets"),
 	require("./checks/version-notes"),
+	require("./checks/version-titles"),
 ];
 
 let data = readJSON("data.json");
@@ -21,9 +22,10 @@ let aliases = readJSON("character-aliases.json");
 let phaseNotes = readJSON("phase-notes.json");
 let birthdays = readJSON("character-birthdays.json");
 let versionNotes = readJSON("version-notes.json");
+let versionTitles = readJSON("version-titles.json");
 let { canonicalNames, validPhaseKeys } = buildCanonicalData(data);
 
-let ctx = { data, notes, elements, aliases, phaseNotes, birthdays, versionNotes, canonicalNames, validPhaseKeys, assetPath, slug };
+let ctx = { data, notes, elements, aliases, phaseNotes, birthdays, versionNotes, versionTitles, canonicalNames, validPhaseKeys, assetPath, slug };
 
 let problems = checks.flatMap(check => check(ctx));
 
@@ -32,5 +34,5 @@ if (problems.length) {
 	problems.forEach(p => console.error(`  - ${p}`));
 	process.exit(1);
 } else {
-	console.log(`All good — ${canonicalNames.size} characters cross-checked across data.json, notes, elements, aliases, birthdays, phase-notes, and version-notes.`);
+	console.log(`All good — ${canonicalNames.size} characters cross-checked across data.json, notes, elements, aliases, birthdays, phase-notes, version-notes, and version-titles.`);
 }

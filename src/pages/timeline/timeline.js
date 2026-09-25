@@ -1,8 +1,7 @@
 import "../../shared/chrome.js";
 import { faceImg, formatDate, onDelegatedActivate } from "../../shared/dom.js";
 import { getPhaseStartDate, previewNow, liveBannerState } from "../../shared/dates.js";
-import { buildRays, buildCharacterHeader } from "../../shared/glow.js";
-import { GLOW_CONFIG } from "../../shared/glow-config.js";
+import { buildCharacterHeader } from "../../shared/glow.js";
 import { initPanelGrabberDrag } from "../../shared/panel.js";
 import { initCharSearch } from "../../shared/search.js";
 import { buildAppearanceRow } from "../../shared/appearance-row.js";
@@ -12,6 +11,7 @@ var characterIndex = {};
 var characterNotes = {};
 var phaseNotes = {};
 var versionMeta = {};
+var versionTitles = {};
 var characterElements = {};
 var characterAliases = {};
 
@@ -70,7 +70,6 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, variant, dat
 		unit.dataset.character = character;
 		let avatarWrap = document.createElement("div");
 		avatarWrap.className = "avatar-wrap avatar-wrap-lg" + (isRelease ? " is-release" : "");
-		if (isRelease) avatarWrap.appendChild(buildRays(GLOW_CONFIG.rays.countLg, "var(--five-glow)"));
 		avatarWrap.appendChild(faceImg(character, "phase-face-lg" + (isRelease ? " is-release" : "")));
 		unit.appendChild(avatarWrap);
 
@@ -127,7 +126,6 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, variant, dat
 			row.dataset.character = character;
 			let avatarWrapSm = document.createElement("div");
 			avatarWrapSm.className = "avatar-wrap avatar-wrap-sm" + (isFourRelease ? " is-release" : "");
-			if (isFourRelease) avatarWrapSm.appendChild(buildRays(GLOW_CONFIG.rays.countSm, "var(--four-glow)"));
 			avatarWrapSm.appendChild(faceImg(character, "char-face-sm" + (isFourRelease ? " is-release" : "")));
 			row.appendChild(avatarWrapSm);
 			let name = document.createElement("span");
@@ -369,12 +367,25 @@ function buildPatchRow(entry, charCount, isLive) {
 	let content = document.createElement("div");
 	content.className = "vt-content";
 
+	let heading = document.createElement("div");
+	heading.className = "vt-patch-heading";
+
+	let titleText = versionTitles[version];
+	if (titleText) {
+		let titleEl = document.createElement("div");
+		titleEl.className = "vt-patch-title";
+		titleEl.textContent = titleText;
+		heading.appendChild(titleEl);
+	}
+
 	if (entry.date) {
 		let dateEl = document.createElement("div");
 		dateEl.className = "vt-patch-date";
 		dateEl.textContent = formatDate(entry.date);
-		content.appendChild(dateEl);
+		heading.appendChild(dateEl);
 	}
+
+	if (heading.childNodes.length) content.appendChild(heading);
 
 	let phasesWrap = document.createElement("div");
 	phasesWrap.className = "vt-phases";
@@ -623,17 +634,19 @@ async function loadJSON(path) {
 
 async function bootstrap() {
 	try {
-		let [data, notes, phases, versions, elements, aliases] = await Promise.all([
+		let [data, notes, phases, versions, titles, elements, aliases] = await Promise.all([
 			loadJSON("data/data.json"),
 			loadJSON("data/character-notes.json"),
 			loadJSON("data/phase-notes.json"),
 			loadJSON("data/version-notes.json"),
+			loadJSON("data/version-titles.json"),
 			loadJSON("data/character-elements.json"),
 			loadJSON("data/character-aliases.json")
 		]);
 		characterNotes = notes;
 		phaseNotes = phases;
 		versionMeta = versions;
+		versionTitles = titles;
 		characterElements = elements;
 		characterAliases = aliases;
 

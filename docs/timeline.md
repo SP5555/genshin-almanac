@@ -32,6 +32,12 @@ Keyed once per fact, not per occurrence.
 `tagline`, `label` (overrides the numeral — Nod-Krai majors are "Luna"),
 `bgImage`.
 
+**`data/version-titles.json`** (keyed by patch, `"1.1"` not `"1"`):
+official English version name. Not the Archon tagline. Timeline patch
+rows show it next to the version bubble, above the date. Calendar
+launch-day headers use it as the headline. Not on character panels —
+a person isn't a patch.
+
 **Filenames:** `slug()` in `src/shared/dom.js` (`"Hu Tao"` → `hutao`). **Display names**
 are the short form: Shogun, Ayaka/Ayato, Kokomi, Yae, Itto, Kazuha, Sara,
 Heizou, Wanderer.
@@ -43,8 +49,8 @@ element, two layouts: default centered column vs
 `.detail-panel-header.is-character` (namecard title card: art layer +
 left-weighted scrim, type overlaid). The next view has to leave it in
 the right state because the header isn't torn down. `buildCharacterHeader()`
-always shows release-style rays — it's a hero shot, not tied to whether
-*this* appearance was a debut.
+always shows a release-style hero shot — halo + bloom, not tied to
+whether *this* appearance was a debut.
 
 Appearance rows `jumpToCard()` without closing the panel. Desktop used
 to nudge `.timeline-root` with `transform`; the panel is a centered
@@ -96,18 +102,15 @@ canonical name → aliases. Four match tiers (name starts / contains, then
 alias starts / contains) so a real name always outranks an alias. The
 subtitle only shows aliases that matched the query.
 
-## Release-glow rays
+## Release-glow
 
-Hundreds of absolutely-positioned ray divs on an un-virtualized timeline.
-`content-visibility: auto` on `.rays-wrap` only (`position: absolute`, so
-`jumpToCard()`'s `offsetTop` chain is untouched).
+A CSS corona (`::before` on `.avatar-wrap.is-release`), not per-blade
+divs. Mask is in portrait-radius space: 95–100 anti-alias ramp, 100–140
+glow fade. Pulse is `opacity` only. Bloom ring on the face stays.
 
-Rejected: a single `repeating-conic-gradient` (slower, no per-ray
-flicker); two orbiting dots (same cost, worse look).
-
-Angles are stratified (one random per `360°/count` arc). Gradient has a
-solid plateau before fading — `filter: blur()` was softening the peak.
-Header rays use `GLOW_CONFIG.rays.countHeader` (denser, one on screen).
+Rejected: a blade per angle (hundreds of blurred, infinitely-animated
+divs on an un-virtualized timeline); a single `repeating-conic-gradient`
+(slower, no flicker); two orbiting dots (same cost, worse look).
 
 ## Live marker
 

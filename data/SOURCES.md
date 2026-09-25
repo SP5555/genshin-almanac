@@ -107,3 +107,15 @@ Every version in `data.json` has a verified real launch `date` — not a
 naive "every 42 days" formula. Two real exceptions: **2.7 delayed ~20
 days** (Shanghai COVID lockdown, May 10→31 2022), **3.0–3.2 each ran 35
 days** (7 short × 3) to recover that delay by 3.3.
+
+Official English **version titles** (the Special Program / launcher name,
+not the region tagline in `version-notes.json`) live in
+`data/version-titles.json`, keyed by the same `"1.0"` strings as
+`data.json`. Collected from the Fandom Version history table (and its
+first launcher splashscreen per patch), cross-checked against Game8's
+Versions list. 6.x is Luna I–VIII in those tables; we store the numeric
+key. Official HoYoverse notices win spelling: 5.5 is "Day of the
+Flame's Return"; 7.0 is "Everwinter Without Mercy"; 7.1 is **"A Rekviem
+for the Underworld"** — not Game8's "A Requiem for the Afterlife".
+1.0 is "Welcome to Teyvat" (Fandom splashscreen files sometimes
+capitalize "To").

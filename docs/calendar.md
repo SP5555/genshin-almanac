@@ -55,8 +55,8 @@ day). A 4th neutral `.is-banner` dot marks a banner day with zero debuts,
 and only then.
 
 **Day panel:** debuts are namecard "trading cards"; birthdays are lighter
-chips. A launch day promotes "Version X.Y launch" to the headline; other
-days get a compact header. A reported seam on the header gradient (real
+chips. A launch day promotes the official patch title to the headline
+("Version X.Y" sits under it); other days get a compact header. A reported seam on the header gradient (real
 hardware only) was **not** fixed by `isolation: isolate` — don't retry
 that.
 

@@ -20,6 +20,8 @@
 	--birthday: #4fb8c4;
 	--birthday-glow: rgba(79, 184, 196, 0.25);
 	--line: #6e5a94;
+	--version-title: color-mix(in srgb, var(--five) 58%, white);
+	--version-title-glow: color-mix(in srgb, var(--five) 30%, transparent);
 	--content-max: 1140px;
 	--content-pad: 20px;
 	/* Card/panel roundedness scale — tweak these to shift the whole site's
@@ -103,6 +105,7 @@ body::-webkit-scrollbar{display: none;}
 	background: linear-gradient(90deg, var(--five), var(--four));
 	-webkit-background-clip: text; background-clip: text; color: transparent;
 	text-decoration: none; display: inline-block;
+	white-space: nowrap; flex-shrink: 0;
 }
 /* Small live-status dot on the wordmark — same ripple as the timeline's
    .is-live patch marker (see @keyframes patch-live-ripple in timeline.css),
@@ -146,10 +149,14 @@ body::-webkit-scrollbar{display: none;}
 }
 @media (min-width: 600px){
 	.site-header{padding: 16px 0;}
-	.site-header-inner{flex-direction: row; align-items: center; gap: 28px;}
 	.site-brand{font-size: 20px;}
 	.page-nav{gap: 22px;}
 	.page-nav-link{font-size: 14px;}
+}
+/* Row layout waits for 768 — at 600 the 20px wordmark + three nav
+   pills don't fit, and the brand wraps. */
+@media (min-width: 768px){
+	.site-header-inner{flex-direction: row; align-items: center; gap: 28px;}
 }
 
 /* ---------- back-to-top button (shared across pages, see src/shared/chrome.js) ---------- */
@@ -313,28 +320,36 @@ body::-webkit-scrollbar{display: none;}
 .is-chronicled .phase-five-group, .is-lightrace .phase-five-group{flex-wrap: wrap; justify-content: center; max-width: 340px;}
 .phase-five-unit{display: flex; flex-direction: column; align-items: center; gap: 6px;}
 
-/* flickering sunburst rays behind release portraits — each ray is a separate
-   blade with a randomized angle/delay/duration (set once as inline CSS vars
-   at render time, see src/shared/glow.js's buildRays()), so they appear/
-   disappear independently with no recurring JS — the randomness is baked
-   in, animation runs on CSS alone */
+/* corona behind a release portrait — doughnut mask in portrait-radius
+   space (0 = center, 100 = crop): 95–100 AA ramp, 100–140 glow fade.
+   Pulse is opacity only. 4-star wraps are .avatar-wrap-sm; the header's
+   4-star hero is .avatar-wrap-lg.is-four. */
 .avatar-wrap{position: relative; display: inline-flex; flex-shrink: 0;}
 .avatar-wrap img{position: relative; z-index: 1;}
-.rays-wrap{position: absolute; inset: -70%; z-index: 0; pointer-events: none; content-visibility: auto;
-	mask-image: radial-gradient(circle, transparent 34%, black 52%, transparent 80%);
-	-webkit-mask-image: radial-gradient(circle, transparent 34%, black 52%, transparent 80%);
+.avatar-wrap.is-release::before{
+	content: ""; position: absolute; z-index: 0; pointer-events: none;
+	inset: calc(-1 * var(--halo-inset, 20%)); border-radius: 50%;
+	background: var(--five);
+	-webkit-mask-image: radial-gradient(circle closest-side,
+		transparent var(--halo-in, 67.8571%),
+		#fff var(--halo-full, 71.4286%),
+		transparent 100%);
+	mask-image: radial-gradient(circle closest-side,
+		transparent var(--halo-in, 67.8571%),
+		#fff var(--halo-full, 71.4286%),
+		transparent 100%);
+	opacity: var(--halo-opacity-max, 0.8);
+	animation: release-halo var(--halo-dur, 5.5s) ease-in-out infinite;
 }
-.ray{position: absolute; top: 50%; left: 50%; width: var(--ray-width-lg, 2px); height: var(--ray-length-lg, 46%);
-	transform-origin: 50% 100%;
-	transform: translate(-50%, -100%) rotate(var(--ray-angle, 0deg)) scaleY(0.6);
-	background: linear-gradient(to top, var(--ray-color, var(--five-glow)) 0%, var(--ray-color, var(--five-glow)) 18%, transparent 95%);
-	opacity: 0; filter: blur(var(--ray-blur-lg, 2px));
-	animation: ray-flicker var(--ray-dur, 3s) ease-in-out var(--ray-delay, 0s) infinite;
+.avatar-wrap-sm.is-release::before, .avatar-wrap.is-four::before{
+	background: var(--four);
 }
-.avatar-wrap-sm .ray{width: var(--ray-width-sm, 1.5px); height: var(--ray-length-sm, 42%); filter: blur(var(--ray-blur-sm, 1.5px));}
-@keyframes ray-flicker{
-	0%, 100% { opacity: 0; transform: translate(-50%, -100%) rotate(var(--ray-angle, 0deg)) scaleY(0.6); }
-	50% { opacity: var(--ray-peak-opacity, 0.7); transform: translate(-50%, -100%) rotate(var(--ray-angle, 0deg)) scaleY(1); }
+@keyframes release-halo{
+	0%, 100% { opacity: var(--halo-opacity-min, 0.2); }
+	50% { opacity: var(--halo-opacity-max, 0.8); }
+}
+@media (prefers-reduced-motion: reduce){
+	.avatar-wrap.is-release::before{animation: none;}
 }
 
 .phase-face-lg{width: 48px; height: 48px; border-radius: 50%; object-fit: contain; flex-shrink: 0;
@@ -547,7 +562,7 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 /* Title card, not a flex row sitting on a darkened crop. Namecard is its
    own layer (same recipe as Calendar's debut cards) so the scrim can stay
    left-weighted and the art can actually show on the right. overflow:hidden
-   clips that art to the strip; rays live inside it. Day-panel headers
+   clips that art to the strip; the release corona lives inside it. Day-panel headers
    never get .is-character, so their centered column is untouched. */
 .detail-panel-header.is-character{
 	flex-direction: row; align-items: center; justify-content: flex-start; text-align: left;
@@ -569,6 +584,10 @@ html.panel-open, body.panel-open{overflow: hidden; overscroll-behavior: none;}
 .detail-panel-name{font-size: 24px; font-weight: bold; color: var(--text);}
 .detail-panel-header.is-character .detail-panel-name{
 	text-shadow: 0 1px 8px rgba(0,0,0,0.7);
+}
+.detail-panel-name.is-version-title{
+	color: var(--version-title);
+	text-shadow: 0 1px 10px rgba(0,0,0,0.65), 0 0 22px var(--version-title-glow);
 }
 .detail-panel-header.is-character .phase-face-lg{width: 64px; height: 64px;}
 /* align-items:center, not the flex default stretch — .detail-panel-badge

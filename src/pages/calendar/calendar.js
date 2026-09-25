@@ -71,6 +71,7 @@ let versionLaunches = new Map();
 // Major version ("6", "7", ...) -> {region, bgImage, ...}, for the day
 // panel's region-art header.
 let versionMeta = {};
+let versionTitles = {};
 // "YYYY-MM-DD" -> {five: [names], four: [names]}, every character's true
 // first appearance. Built once at bootstrap (buildDebutsByDate).
 let debutsByDate = new Map();
@@ -292,9 +293,10 @@ function getBirthdaysForDate(isoDate) {
 
 async function loadCalendarData() {
 	try {
-		let [dataRes, metaRes, notesRes, phaseNotesRes, elementsRes, birthdaysRes, aliasesRes] = await Promise.all([
+		let [dataRes, metaRes, titlesRes, notesRes, phaseNotesRes, elementsRes, birthdaysRes, aliasesRes] = await Promise.all([
 			fetch("data/data.json"),
 			fetch("data/version-notes.json"),
+			fetch("data/version-titles.json"),
 			fetch("data/character-notes.json"),
 			fetch("data/phase-notes.json"),
 			fetch("data/character-elements.json"),
@@ -304,6 +306,7 @@ async function loadCalendarData() {
 		let data = dataRes.ok ? await dataRes.json() : null;
 		if (data) data.forEach(entry => { versionLaunches.set(entry.date, entry.version); });
 		if (metaRes.ok) versionMeta = await metaRes.json();
+		if (titlesRes.ok) versionTitles = await titlesRes.json();
 		if (elementsRes.ok) characterElements = await elementsRes.json();
 		if (aliasesRes.ok) characterAliases = await aliasesRes.json();
 		if (data) characterRarity = buildCharacterRarity(data);
@@ -800,7 +803,7 @@ function buildCharacterCard(name, variant, badges) {
 
 	let rarity = characterRarity[name];
 	let avatarWrap = document.createElement("div");
-	avatarWrap.className = "avatar-wrap avatar-wrap-lg";
+	avatarWrap.className = "avatar-wrap avatar-wrap-lg is-release" + (rarity === "4" ? " is-four" : "");
 	avatarWrap.appendChild(faceImg(name, "phase-face-lg is-release" + (rarity === "4" ? " rarity-four" : "")));
 	card.appendChild(avatarWrap);
 
@@ -902,11 +905,9 @@ function buildBirthdayChip(name) {
 // is used for debuts only, one big art card per character), this shows
 // every character on the banner at once, release or rerun — the reason it
 // exists: an 18-character Chronicled Wish as individual art cards would be
-// a lot of scrolling for one day. No release-glow rays here — this page
-// does import glow.js (for buildCharacterHeader, see renderCharacterPanel
-// above), it's just a deliberate choice not to call buildRays() for these
-// compact phase-card avatars; release characters get the plain ring glow
-// instead.
+// a lot of scrolling for one day. Release characters still get the CSS
+// corona on `.avatar-wrap.is-release` (same as Timeline) — that's one
+// pseudo, not the old per-blade ray DOM this comment used to skip.
 function buildPhaseCard(banner) {
 	let card = document.createElement("div");
 	card.className = "trail-node phase-card calendar-phase-card" + (banner.variant ? ` is-${banner.variant}` : "");
@@ -1067,10 +1068,18 @@ function renderDayPanel(isoDate) {
 
 	let launchVersion = versionLaunches.get(isoDate);
 	if (launchVersion) {
+		let officialTitle = versionTitles[launchVersion];
 		let versionEl = document.createElement("h2");
-		versionEl.className = "detail-panel-name";
-		versionEl.textContent = `Version ${launchVersion} launch`;
+		versionEl.className = "detail-panel-name" + (officialTitle ? " is-version-title" : "");
+		versionEl.textContent = officialTitle || `Version ${launchVersion} launch`;
 		header.appendChild(versionEl);
+
+		if (officialTitle) {
+			let num = document.createElement("div");
+			num.className = "calendar-panel-version-num";
+			num.textContent = `Version ${launchVersion}`;
+			header.appendChild(num);
+		}
 
 		// Same per-version region-art recipe as Timeline/landing's ambient
 		// background — reuses the 7 already-sourced region images.
