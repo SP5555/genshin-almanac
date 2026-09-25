@@ -75,7 +75,7 @@
 }
 .clock-card:hover{background-color: var(--glass-hover); border-color: var(--glass-border-hover);}
 
-.clock-ring-wrap{position: relative; width: 104px; height: 104px;}
+.clock-ring-wrap{position: relative; width: 88px; height: 88px;}
 /* svg{overflow:hidden} is the browser default and clips anything past the
    120x120 viewBox — including the drop-shadow glow on the ring stroke below,
    since it sits close to the edge. overflow:visible lets the glow bleed out. */
@@ -86,10 +86,34 @@
 	filter: drop-shadow(0 0 4px var(--five-glow));
 	transition: stroke-dashoffset 1s cubic-bezier(0.25, 1, 0.5, 1);
 }
-.clock-ring-center{
-	position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+/* Remaining time lives under the ring, not in the hole — h/m/s stay the
+   same size. Version-card `.dur` is the inline suffix form. */
+.clock-readout{
+	display: flex; justify-content: center; gap: 14px;
+	font-variant-numeric: tabular-nums;
 }
-.clock-countdown{font-size: 14.5px; font-weight: bold; color: var(--text); letter-spacing: 0.3px; font-variant-numeric: tabular-nums;}
+.clock-readout-cell{
+	display: flex; flex-direction: column; align-items: center;
+	min-width: 3.2ch;
+}
+.clock-readout-cell .dur-num{
+	font-size: 22px; font-weight: bold; color: var(--text); line-height: 1;
+}
+.clock-readout-unit{
+	font-size: 11px; font-weight: bold; color: var(--text-dim);
+	margin-top: 4px; letter-spacing: 0.4px;
+}
+
+.dur{
+	display: inline-flex; align-items: baseline; gap: 0.32em;
+	white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.dur-part{display: inline-flex; align-items: baseline;}
+.dur-part[hidden]{display: none;}
+.dur-unit{
+	font-size: 0.58em; font-weight: bold; color: var(--text-dim);
+	margin-left: 0.06em;
+}
 
 .clock-weekstrip{display: flex; gap: 3px; margin-top: 6px; flex-shrink: 0;}
 .clock-weekday-letter{
@@ -143,9 +167,12 @@
 }
 .update-main{flex: 1; min-width: 230px;}
 .update-countdown{
-	font-size: 28px; font-weight: bold; color: var(--text); letter-spacing: 0.3px;
-	margin-top: 8px; font-variant-numeric: tabular-nums;
+	display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4em;
+	font-size: 28px; font-weight: bold; color: var(--text);
+	margin-top: 8px;
 }
+.update-countdown-prefix{font-size: 0.55em; color: var(--text-dim);}
+.update-countdown .dur{gap: 0.4em;}
 .update-desc{font-size: 12.5px; color: var(--text-dim); margin-top: 8px; line-height: 1.6; max-width: 480px;}
 .update-desc strong{color: var(--text); font-weight: bold;}
 

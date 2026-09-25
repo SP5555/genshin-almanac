@@ -26,7 +26,10 @@ midnight UTC (that drifted the day-count by up to 8 hours).
 Weekday strip is Monday-first and flips at the 4am reset, not midnight.
 Colors avoid `--four` / `--five` except Sunday (every domain open), which
 gets `--five`. Viewer timezone is shown near the top because every clock
-says "your time."
+says "your time." Remaining time uses unit suffixes (`39days 02hrs 26min 49sec`), not
+colons — colons mean a clock time on this page (`Resets 4:32 PM`). Seconds
+always show. Daily cards put the triplet *under* an empty ring so hrs/min/sec
+stay the same size; the version card keeps the inline suffix form.
 
 Ring fill waits for the card's entrance `animationend` — setting the
 value synchronously never transitions (no paint of the empty state).

@@ -48,22 +48,47 @@ function serverWeekdayIndex(offsetHours, now) {
 	return (gameDay.getUTCDay() + 6) % 7;
 }
 
-function formatDuration(ms) {
-	let totalSec = Math.max(0, Math.floor(ms / 1000));
-	let h = Math.floor(totalSec / 3600);
-	let m = Math.floor((totalSec % 3600) / 60);
-	let s = totalSec % 60;
-	return [h, m, s].map(n => String(n).padStart(2, "0")).join(":");
+function pad2(n) {
+	return String(n).padStart(2, "0");
 }
 
-function formatDurationWithDays(ms) {
+// Remaining time is labeled (14h 32m 08s), never colon-separated — colons
+// on this page mean a clock time ("Resets 4:32 PM"). Seconds always show.
+function splitDuration(ms, { withDays = false } = {}) {
 	let totalSec = Math.max(0, Math.floor(ms / 1000));
-	let days = Math.floor(totalSec / 86400);
-	let h = Math.floor((totalSec % 86400) / 3600);
-	let m = Math.floor((totalSec % 3600) / 60);
-	let s = totalSec % 60;
-	let hms = [h, m, s].map(n => String(n).padStart(2, "0")).join(":");
-	return days > 0 ? `${days}d ${hms}` : hms;
+	let d = 0;
+	let h;
+	if (withDays) {
+		d = Math.floor(totalSec / 86400);
+		h = Math.floor((totalSec % 86400) / 3600);
+	} else {
+		h = Math.floor(totalSec / 3600);
+	}
+	return { d, h, m: Math.floor((totalSec % 3600) / 60), s: totalSec % 60 };
+}
+
+function durPartHtml(unit, initial, { optional = false, label = unit } = {}) {
+	return `<span class="dur-part"${optional ? " hidden" : ""} data-unit="${unit}"><span class="dur-num">${initial}</span><span class="dur-unit">${label}</span></span>`;
+}
+
+function writeDuration(el, ms, { withDays = false } = {}) {
+	let { d, h, m, s } = splitDuration(ms, { withDays });
+	let dPart = el.querySelector('[data-unit="d"]');
+	if (dPart) {
+		dPart.hidden = !(withDays && d > 0);
+		dPart.querySelector(".dur-num").textContent = String(d);
+	}
+	el.querySelector('[data-unit="h"] .dur-num').textContent = pad2(h);
+	el.querySelector('[data-unit="m"] .dur-num').textContent = pad2(m);
+	el.querySelector('[data-unit="s"] .dur-num').textContent = pad2(s);
+}
+
+function readoutHtml() {
+	return `<div class="clock-readout" data-role="countdown">
+		<span class="clock-readout-cell" data-unit="h"><span class="dur-num">00</span><span class="clock-readout-unit">hrs</span></span>
+		<span class="clock-readout-cell" data-unit="m"><span class="dur-num">00</span><span class="clock-readout-unit">min</span></span>
+		<span class="clock-readout-cell" data-unit="s"><span class="dur-num">00</span><span class="clock-readout-unit">sec</span></span>
+	</div>`;
 }
 
 function buildClockCard(server) {
@@ -76,10 +101,8 @@ function buildClockCard(server) {
 				<circle class="clock-ring-progress" cx="60" cy="60" r="52"
 					stroke-dasharray="${RING_CIRCUMFERENCE}" stroke-dashoffset="${RING_CIRCUMFERENCE}"></circle>
 			</svg>
-			<div class="clock-ring-center">
-				<span class="clock-countdown" data-role="countdown">00:00:00</span>
-			</div>
 		</div>
+		${readoutHtml()}
 		<div class="clock-weekstrip" data-role="weekstrip">
 			${WEEKDAY_STRIP.map(d => `
 				<span class="clock-weekday-letter" style="--letter-color: ${d.color}" title="${d.name}">${d.letter}</span>
@@ -106,7 +129,7 @@ function updateClockCard(server, el, now, { animateRing = true } = {}) {
 		el.querySelector(".clock-ring-progress").style.strokeDashoffset =
 			String(RING_CIRCUMFERENCE * fraction);
 	}
-	el.querySelector('[data-role="countdown"]').textContent = formatDuration(remaining);
+	writeDuration(el.querySelector('[data-role="countdown"]'), remaining);
 	let todayIdx = serverWeekdayIndex(server.offset, now);
 	el.querySelectorAll('[data-role="weekstrip"] .clock-weekday-letter').forEach((letterEl, i) => {
 		letterEl.classList.toggle("is-today", i === todayIdx);
@@ -203,7 +226,10 @@ function buildUpdateCard(data) {
 	card.innerHTML = `
 		<div class="update-main">
 			<span class="update-badge" data-role="badge">${isUpcoming ? "Confirmed" : "Estimated"}</span>
-			<div class="update-countdown" data-role="countdown"></div>
+			<div class="update-countdown">
+				<span class="update-countdown-prefix" data-role="prefix" hidden>Overdue by</span>
+				<span class="dur" data-role="countdown">${durPartHtml("d", "0", { optional: true, label: "days" })}${durPartHtml("h", "00", { label: "hrs" })}${durPartHtml("m", "00", { label: "min" })}${durPartHtml("s", "00", { label: "sec" })}</span>
+			</div>
 			<p class="update-desc" data-role="desc">${isUpcoming ? confirmedDesc : ""}</p>
 		</div>
 		<div class="update-bar-wrap">
@@ -225,9 +251,12 @@ function buildUpdateCard(data) {
 			descEl.innerHTML = isOverdue ? overdueDesc : estimateDesc;
 			wasOverdue = isOverdue;
 		}
-		card.querySelector('[data-role="countdown"]').textContent = isOverdue
-			? `Overdue by ${formatDurationWithDays(now.getTime() - tMs)}`
-			: formatDurationWithDays(tMs - now.getTime());
+		card.querySelector('[data-role="prefix"]').hidden = !isOverdue;
+		writeDuration(
+			card.querySelector('[data-role="countdown"]'),
+			isOverdue ? now.getTime() - tMs : tMs - now.getTime(),
+			{ withDays: true }
+		);
 		if (animateBar) {
 			let fraction = Math.min(1, Math.max(0, (now.getTime() - aMs) / (tMs - aMs)));
 			card.querySelector('[data-role="bar"]').style.width = `${fraction * 100}%`;
