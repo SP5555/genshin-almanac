@@ -16,11 +16,11 @@ fixed offset (DST), unlike these synthetic server offsets. Landing,
 Timeline, and the header live-dot use the same 06:00 CST launch instant
 so they don't disagree with this page about whether a version is live.
 
-Next-update: if the newest `data.json` row has not launched yet, the
+Next-update: if the newest `versions.json` row has not launched yet, the
 badge is "Confirmed" and the target is that row's 06:00 CST instant.
 Otherwise last launch + 42 days ("Estimated"), then "Overdue" (counts
 up). There is no separate confirmed-date field — pre-staging the next
-version in `data.json` is the confirmation. Anchored to 06:00 CST, not
+version in `versions.json` is the confirmation. Anchored to 06:00 CST, not
 midnight UTC (that drifted the day-count by up to 8 hours).
 
 Weekday strip is Monday-first and flips at the 4am reset, not midnight.

@@ -7,7 +7,7 @@ const DAY_MS = 86400000;
 
 /**
  * Calendar date a live phase would start on a normal 21-day cycle —
- * no phase-notes overrides. Landing's spotlight, the header live-dot,
+ * no phase-overrides. Landing's spotlight, the header live-dot,
  * and `npm run when` all use this; historical Timeline/Calendar dates
  * go through `getPhaseStartDate()` instead.
  * @param {{date: string}} entry
@@ -21,13 +21,13 @@ export function livePhaseStartDate(entry, phaseIndex) {
 }
 
 /**
- * A phase's real-world start date, applying phase-notes.json's override for
+ * A phase's real-world start date, applying phase-overrides.json for
  * the handful of historically irregular phases (1.3's 3-phase structure,
  * 3.0-3.2's compressed cadence — see AGENTS.md). Same 21-day cadence as
  * landing's live spotlight (`PHASE_LENGTH_DAYS`).
- * @param {{version: string, date: string}} entry - a data.json version entry
+ * @param {{version: string, date: string}} entry - a versions.json row
  * @param {number} phaseIndex - 0-based phase index within entry.banner
- * @param {Object<string, {date?: string}>} phaseNotes - phase-notes.json
+ * @param {Object<string, {date?: string}>} phaseNotes - phase-overrides.json
  * @returns {string} ISO date (YYYY-MM-DD)
  */
 export function getPhaseStartDate(entry, phaseIndex, phaseNotes) {
@@ -43,7 +43,7 @@ export function getPhaseStartDate(entry, phaseIndex, phaseNotes) {
  * without rendering the entire timeline. Never scans chronicled/lightrace
  * (both are reruns by definition, so they never affect a first-appearance
  * count).
- * @param {Array} data - data.json
+ * @param {Array} data - versions.json
  * @param {number} versionIdx
  * @param {number} phaseIdx
  * @param {string} character
@@ -55,7 +55,11 @@ export function countAppearancesThrough(data, versionIdx, phaseIdx, character) {
 		let phases = data[vi].banner;
 		let maxPi = vi === versionIdx ? phaseIdx : phases.length - 1;
 		for (let pi = 0; pi <= maxPi; pi++) {
-			if (phases[pi]["5"].includes(character) || phases[pi]["4"].includes(character)) count++;
+			let phase = phases[pi];
+			// Arrays only — "*" is a full roster, not a featured-name list,
+			// so it does not count as an appearance.
+			if ((Array.isArray(phase["5"]) && phase["5"].includes(character))
+				|| (Array.isArray(phase["4"]) && phase["4"].includes(character))) count++;
 		}
 	}
 	return count;
@@ -72,7 +76,7 @@ export function countAppearancesThrough(data, versionIdx, phaseIdx, character) {
 // and re-applies the same offset, which is what keeps a setInterval-driven
 // countdown ticking realistically during testing. Every "now" read for UI
 // purposes across the site should go through this instead of a bare
-// Date.now()/new Date() — parsing a *stored* date from data.json is
+// Date.now()/new Date() — parsing a *stored* date from versions.json is
 // unaffected and shouldn't use this. Not localStorage: chrome.js copies
 // the param onto in-site links so clicking around stays in the same
 // preview. Off localhost the offset is 0, not merely hidden.
@@ -94,7 +98,7 @@ export function previewNow() {
 	return new Date(Date.now() + PREVIEW_TIME_OFFSET_MS);
 }
 
-// data.json's "date" is the CST calendar date a version went live.
+// versions.json's "date" is the CST calendar date a version went live.
 // Maintenance starts at 06:00 China Standard Time (UTC+8) for every server
 // at once — same fact Server Clocks uses. Local midnight of that date is
 // many hours late in America; UTC midnight is still two hours after
@@ -113,7 +117,7 @@ export function cstDateToUtcInstant(isoDate, hourCst = MAINTENANCE_START_HOUR_CS
 	return new Date(Date.UTC(y, m - 1, d, hourCst - CST_OFFSET_HOURS, 0, 0, 0));
 }
 
-/** Epoch ms of a version's real launch (06:00 CST on its data.json date). */
+/** Epoch ms of a version's real launch (06:00 CST on its versions.json date). */
 export function versionLaunchInstant(isoDate) {
 	return cstDateToUtcInstant(isoDate).getTime();
 }
@@ -121,8 +125,8 @@ export function versionLaunchInstant(isoDate) {
 /**
  * The most recently *launched* entry — walks backward from the end rather
  * than just taking data[data.length-1], since a version can be pre-staged
- * in data.json ahead of its official date (announced but not live yet).
- * @param {Array} data - data.json
+ * in versions.json ahead of its official date (announced but not live yet).
+ * @param {Array} data - versions.json
  * @param {number} now - epoch ms
  * @returns {Object|null}
  */
@@ -135,7 +139,7 @@ export function findLastLaunchedEntry(data, now) {
 
 /**
  * Live spotlight phase. Only reliable on a normal 21-day live cycle —
- * landing does not apply historical phase-notes overrides here.
+ * landing does not apply historical phase-overrides here.
  * @param {{banner: Array, date: string}} entry
  * @param {number} nowMs
  */
@@ -175,7 +179,7 @@ export function liveBannerState(data, nowMs) {
 }
 
 /**
- * Server Clocks next-update card. Newest data.json row may be pre-staged
+ * Server Clocks next-update card. Newest versions.json row may be pre-staged
  * (still in the future) — that is a confirmed countdown, not +42 days.
  */
 export function nextVersionUpdate(data, nowMs) {

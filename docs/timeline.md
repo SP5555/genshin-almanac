@@ -7,18 +7,21 @@ Cross-cutting notes live in `AGENTS.md`. `--line` (lavender) ties into
 
 JSON can't hold comments; this is the semantics.
 
-**`data/data.json`** — one entry per version. `banner[]` phases (usually
-2, sometimes 3), each with `"5"` / `"4"` arrays of **display-name
-strings**. Exceptional facts go in the notes files, not inline. Verified
-`date` (`YYYY-MM-DD`, see `data/SOURCES.md`). Optional `chronicled` /
+**`data/versions.json`** — one entry per patch. `title` is the official
+English name. `banner[]` phases (usually 2, sometimes 3), each with `"5"`
+/ `"4"` arrays of **display-name strings**. `"4": []` is unconfirmed
+4-stars; `"4": "*"` is the full roster of that rarity released so far
+(not a name list). Exceptional facts stay off the row. Verified `date`
+(`YYYY-MM-DD`, see `data/SOURCES.md`). Optional `chronicled` /
 `lightrace` objects.
 
-**`data/character-notes.json`** (keyed by display name):
-- `{"rateDown": true}` — standard-banner rate-down, not truly limited.
-- `{"preexisting": true}` — in the 1.0 launch roster without a featured
-  slot until later. Panel copy: appearances are technically reruns.
+**`data/characters.json`** (keyed by display name): required `element` and
+`birthday` (`MM-DD`). Optional `aliases`, `rateDown` (standard-banner
+rate-down, not truly limited), `preexisting` (1.0 launch roster without a
+featured slot until later — panel copy: appearances are technically
+reruns).
 
-**`data/phase-notes.json`** (keyed `"<version>-<phase#>"`):
+**`data/phase-overrides.json`** (keyed `"<version>-<phase#>"`):
 - `{"filler": true}` — padding phase. Lifetime case: `"1.3-2"` (Keqing),
   inserted so Hu Tao's funeral-parlor banner wouldn't land near Chinese
   New Year.
@@ -28,15 +31,13 @@ strings**. Exceptional facts go in the notes files, not inline. Verified
 
 Keyed once per fact, not per occurrence.
 
-**`data/version-notes.json`** (keyed by major version number): `region`,
+**`data/majors.json`** (keyed by major version number): `region`,
 `tagline`, `label` (overrides the numeral — Nod-Krai majors are "Luna"),
 `bgImage`.
 
-**`data/version-titles.json`** (keyed by patch, `"1.1"` not `"1"`):
-official English version name. Not the Archon tagline. Timeline patch
-rows show it next to the version bubble, above the date. Calendar
-launch-day headers use it as the headline. Not on character panels —
-a person isn't a patch.
+The patch `title` is not the Archon tagline. Timeline patch rows show it
+next to the version bubble, above the date. Calendar launch-day headers
+use it as the headline. Not on character panels — a person isn't a patch.
 
 **Filenames:** `slug()` in `src/shared/dom.js` (`"Hu Tao"` → `hutao`). **Display names**
 are the short form: Shogun, Ayaka/Ayato, Kokomi, Yae, Itto, Kazuha, Sara,
@@ -78,9 +79,9 @@ read as a grid). Those columns overflow between ~480–768px — a single
 column against a near-zero-width parent still sizes to min-content — so
 Chronicled stacks at 768px, same as the general `<480px` rule.
 
-Lightrace: same layout, `--lightrace` accent. Designates from the entire
-4-star roster, so `data.json` has no `"4"` array; the card shows a
-live-derived count.
+Lightrace: same layout, `--lightrace` accent. Its `"4"` is `"*"` (see
+schema above), so the card shows a live-derived count rather than one
+icon per name.
 
 ## Region background
 
@@ -97,7 +98,7 @@ fill stays on `<body>` (`AGENTS.md` gotcha #2). The photo lives in
 
 Sticky pill expands via `width`, not `clip-path`. Whitespace-insensitive.
 Matching lives in `src/shared/search.js` because Timeline and Calendar
-each build their own name→entries index. `character-aliases.json` is
+each build their own name→entries index. `characters.json` `aliases` is
 canonical name → aliases. Four match tiers (name starts / contains, then
 alias starts / contains) so a real name always outranks an alias. The
 subtitle only shows aliases that matched the query.
@@ -117,4 +118,4 @@ divs on an un-virtualized timeline); a single `repeating-conic-gradient`
 Ripple on the most recently launched entry, only if that instant is
 within 42 days — a stale dataset must not claim an old patch is live.
 Same `liveBannerState()` as the header live-dot and landing spotlight.
-A version can be pre-staged in `data.json` ahead of 06:00 CST.
+A version can be pre-staged in `versions.json` ahead of 06:00 CST.

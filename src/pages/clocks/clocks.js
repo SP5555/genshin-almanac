@@ -275,8 +275,8 @@ async function bootstrapClocks() {
 	showTimezoneNote();
 	buildDailyClocks();
 	try {
-		let res = await fetch("data/data.json");
-		if (!res.ok) throw new Error(`Failed to load data.json: ${res.status}`);
+		let res = await fetch("data/versions.json");
+		if (!res.ok) throw new Error(`Failed to load versions.json: ${res.status}`);
 		let data = await res.json();
 		buildUpdateCard(data);
 	} catch (err) {

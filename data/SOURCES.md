@@ -1,7 +1,7 @@
 # Asset sourcing & data accuracy
 
 Where every `assets/*` file comes from (and the gotchas hit finding each
-one), plus how `data/data.json`'s facts were verified. Split out of
+one), plus how `data/versions.json`'s facts were verified. Split out of
 `AGENTS.md` so a session only needs to load this when actually sourcing
 new art or adding new version/character data — not on every single
 session.
@@ -82,16 +82,15 @@ independent sources (game8.co, gamewith.net, etc.). A single
 AI-summarized fetch of an aggregator page has produced garbled version
 numbers — don't trust that alone. 4-star trios are sometimes only
 two-source confirmed; that's an acceptable bar. Unrevealed phases stay out
-of `data.json` until a first-party notice or equivalent exists — don't
+of `versions.json` until a first-party notice or equivalent exists — don't
 pre-stage a phase whose 5-stars the sources still disagree on.
 
 A phase's `"4"` array can legitimately be `[]` rather than filled — a
 version's Special Program sometimes confirms 5-stars before 4-stars.
-Leave it as an explicit empty array, not an omitted key: only
-`timeline.js` guards a missing `"4"`, `landing.js`/`calendar.js`/the
-`src/shared/` modules all assume every phase has one and will throw
-otherwise (e.g. `calendar.js`'s bootstrap indexing, the landing spotlight
-card). `npm run validate`
+Leave it as an explicit empty array, not an omitted key — readers assume
+every phase has `"4"`, and `npm run validate` rejects a missing slot.
+`"4": "*"` is the full-roster sentinel (every character of that rarity
+released so far), not interchangeable with `[]`. `npm run validate`
 already surfaces missing face/namecard art on its own once a new
 character's canonical name exists, so there's no separate note needed
 here for "art not sourced yet" — don't source it until enka.network/Fandom
@@ -103,15 +102,14 @@ Xingqiu, Beidou, Ningguang, Chongyun, Razor, Bennett. Genuine within-1.X
 debuts: Diona (1.1, despite being easy to assume launch roster), Xinyan
 (1.1), Rosaria (1.4), Yanfei (1.5).
 
-Every version in `data.json` has a verified real launch `date` — not a
+Every version in `versions.json` has a verified real launch `date` — not a
 naive "every 42 days" formula. Two real exceptions: **2.7 delayed ~20
 days** (Shanghai COVID lockdown, May 10→31 2022), **3.0–3.2 each ran 35
 days** (7 short × 3) to recover that delay by 3.3.
 
 Official English **version titles** (the Special Program / launcher name,
-not the region tagline in `version-notes.json`) live in
-`data/version-titles.json`, keyed by the same `"1.0"` strings as
-`data.json`. Collected from the Fandom Version history table (and its
+not the region tagline in `majors.json`) live on each `versions.json`
+row as `title`. Collected from the Fandom Version history table (and its
 first launcher splashscreen per patch), cross-checked against Game8's
 Versions list. 6.x is Luna I–VIII in those tables; we store the numeric
 key. Official HoYoverse notices win spelling: 5.5 is "Day of the

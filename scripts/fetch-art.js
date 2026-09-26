@@ -5,7 +5,7 @@
 const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
-const { ROOT, readJSON, assetPath, slug, buildCanonicalData } = require("./checks/util");
+const { ROOT, readJSON, assetPath, slug, buildCanonicalData, unpackCharacters } = require("./checks/util");
 
 const ENKA_CHARS = "https://raw.githubusercontent.com/EnkaNetwork/API-docs/master/store/characters.json";
 const ENKA_LOC = "https://raw.githubusercontent.com/EnkaNetwork/API-docs/master/store/loc.json";
@@ -189,10 +189,10 @@ async function fetchSplash(displayName, dest, opts, aliases) {
 
 function sidecarStatus(displayName, elements, birthdays, aliases, canonicalNames) {
 	let lines = [];
-	if (!canonicalNames.has(displayName)) lines.push("not in data.json yet");
-	if (!(displayName in elements)) lines.push("character-elements.json");
-	if (!(displayName in birthdays)) lines.push("character-birthdays.json");
-	if (!(displayName in aliases)) lines.push("character-aliases.json (only if they have one)");
+	if (!canonicalNames.has(displayName)) lines.push("not in versions.json yet");
+	if (!(displayName in elements)) lines.push("characters.json element");
+	if (!(displayName in birthdays)) lines.push("characters.json birthday");
+	if (!(displayName in aliases)) lines.push("characters.json aliases (only if they have one)");
 	return lines;
 }
 
@@ -267,10 +267,8 @@ async function main() {
 		process.exit(2);
 	}
 
-	let data = readJSON("data.json");
-	let aliases = readJSON("character-aliases.json");
-	let elements = readJSON("character-elements.json");
-	let birthdays = readJSON("character-birthdays.json");
+	let data = readJSON("versions.json");
+	let { aliases, elements, birthdays } = unpackCharacters(readJSON("characters.json"));
 	let { canonicalNames } = buildCanonicalData(data);
 
 	console.log("Loading enka store…");

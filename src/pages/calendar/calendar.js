@@ -5,6 +5,8 @@ import { swapWithFade, initPanelGrabberDrag } from "../../shared/panel.js";
 import { buildCharacterHeader } from "../../shared/glow.js";
 import { initCharSearch } from "../../shared/search.js";
 import { buildAppearanceRow } from "../../shared/appearance-row.js";
+import { unpackCharacters, titlesFromVersions } from "../../shared/characters.js";
+import { isFullRoster, listedNames } from "../../shared/roster.js";
 import { smoothScrollToEl } from "../../shared/scroll.js";
 
 // Year-view calendar — the same banner history as a spreadsheet-shaped grid
@@ -100,7 +102,7 @@ function buildDebutsByDate(data, notes, phaseNotes) {
 			let four = [];
 			for (let rarity of ["5", "4"]) {
 				let bucket = rarity === "5" ? five : four;
-				for (let name of phase[rarity]) {
+				for (let name of listedNames(phase[rarity])) {
 					let charNotes = notes[name] || {};
 					if (charNotes.preexisting) continue;
 					if (countAppearancesThrough(data, vi, pi, name) === 1) {
@@ -126,7 +128,7 @@ let characterRarity = {};
 let birthdaysByMonthDay = new Map();
 // Character name -> "YYYY-MM-DD" (see buildCharacterDebutDate below).
 let characterDebutDate = {};
-// character-notes.json's raw contents — kept at module scope since
+// character-notes flags now live on characters.json — kept at module scope since
 // renderCharacterPanel() needs it too, not just the build functions below.
 let characterNotes = {};
 // Character name -> array of alternate names, for the shared char-search
@@ -145,9 +147,11 @@ let characterAppearances = {};
 // mark every rerun.
 let bannersByDate = new Map();
 
-// Scans chronicled (and lightrace's "5" array) too, not just banner[] — a
-// character can be preexisting and only ever reran via Chronicled (e.g.
-// Diluc, Jean: real 5-stars with no regular featured phase in data.json).
+// Walks every rarity slot, not just banner[] — a character can be
+// preexisting and only ever reran on an extra banner (e.g. Diluc, Jean:
+// real 5-stars with no regular featured phase in versions.json). "*"
+// slots contribute no names (the full-roster summary is presentation,
+// not an appearance list).
 function buildCharacterRarity(data) {
 	let map = {};
 	function record(name, rarity) {
@@ -156,16 +160,18 @@ function buildCharacterRarity(data) {
 	for (let entry of data) {
 		for (let phase of entry.banner) {
 			for (let rarity of ["5", "4"]) {
-				for (let name of phase[rarity]) record(name, rarity);
+				for (let name of listedNames(phase[rarity])) record(name, rarity);
 			}
 		}
 		if (entry.chronicled) {
 			for (let rarity of ["5", "4"]) {
-				for (let name of (entry.chronicled[rarity] || [])) record(name, rarity);
+				for (let name of listedNames(entry.chronicled[rarity])) record(name, rarity);
 			}
 		}
 		if (entry.lightrace) {
-			for (let name of (entry.lightrace["5"] || [])) record(name, "5");
+			for (let rarity of ["5", "4"]) {
+				for (let name of listedNames(entry.lightrace[rarity])) record(name, rarity);
+			}
 		}
 	}
 	return map;
@@ -194,7 +200,7 @@ function buildCharacterDebutDate(data, phaseNotes, notes) {
 			let phase = entry.banner[pi];
 			let date = getPhaseStartDate(entry, pi, phaseNotes);
 			for (let rarity of ["5", "4"]) {
-				for (let name of phase[rarity]) {
+				for (let name of listedNames(phase[rarity])) {
 					if (!(name in map)) map[name] = date;
 				}
 			}
@@ -215,14 +221,15 @@ function buildCharacterDebutDate(data, phaseNotes, notes) {
 function buildCharacterAppearances(data, notes, phaseNotes) {
 	let index = {};
 	let counts = {};
-	function record(character, rarity, version, phaseLabel, isFiller, variant, date) {
+	function record(character, rarity, version, phaseLabel, isFiller, variant, date, allFour) {
 		let charNotes = notes[character] || {};
 		counts[character] = (counts[character] || 0) + 1;
 		let count = counts[character];
 		let isRelease = !charNotes.preexisting && count === 1;
 		(index[character] = index[character] || []).push({
 			version, phaseLabel, rarity, isRelease, rerun: count - 1,
-			rateDown: !!charNotes.rateDown, preexisting: !!charNotes.preexisting, isFiller, variant, date
+			rateDown: !!charNotes.rateDown, preexisting: !!charNotes.preexisting, isFiller, variant, date,
+			allFour: !!allFour
 		});
 	}
 	for (let entry of data) {
@@ -230,8 +237,9 @@ function buildCharacterAppearances(data, notes, phaseNotes) {
 			let phase = entry.banner[pi];
 			let phaseLabel = getPhaseLabel(entry, pi, phaseNotes);
 			let date = getPhaseStartDate(entry, pi, phaseNotes);
+			let allFour = isFullRoster(phase["4"]);
 			for (let rarity of ["5", "4"]) {
-				for (let name of phase[rarity]) record(name, rarity, entry.version, phaseLabel, phaseLabel === "Filler", null, date);
+				for (let name of listedNames(phase[rarity])) record(name, rarity, entry.version, phaseLabel, phaseLabel === "Filler", null, date, allFour);
 			}
 		}
 		if (entry.chronicled) {
@@ -240,15 +248,18 @@ function buildCharacterAppearances(data, notes, phaseNotes) {
 			// reusing the parent phase's own start date is the closest real anchor.
 			let date = getPhaseStartDate(entry, c.phase - 1, phaseNotes);
 			let label = `Chronicled Wish — ${c.theme}`;
+			let allFour = isFullRoster(c["4"]);
 			for (let rarity of ["5", "4"]) {
-				for (let name of (c[rarity] || [])) record(name, rarity, entry.version, label, false, "chronicled", date);
+				for (let name of listedNames(c[rarity])) record(name, rarity, entry.version, label, false, "chronicled", date, allFour);
 			}
 		}
 		if (entry.lightrace) {
 			let l = entry.lightrace;
 			let date = getPhaseStartDate(entry, l.phase - 1, phaseNotes);
-			// No "4" array by design (see timeline.js) — every 4-star is eligible.
-			for (let name of (l["5"] || [])) record(name, "5", entry.version, "Lightrace Wish", false, "lightrace", date);
+			let allFour = isFullRoster(l["4"]);
+			for (let rarity of ["5", "4"]) {
+				for (let name of listedNames(l[rarity])) record(name, rarity, entry.version, "Lightrace Wish", false, "lightrace", date, allFour);
+			}
 		}
 	}
 	return index;
@@ -268,9 +279,10 @@ function buildBannersByDate(appearances) {
 			let groups = byDate.get(entry.date);
 			let key = `${entry.version}|${entry.phaseLabel}`;
 			if (!groups.has(key)) {
-				groups.set(key, { version: entry.version, phaseLabel: entry.phaseLabel, variant: entry.variant, date: entry.date, five: [], four: [] });
+				groups.set(key, { version: entry.version, phaseLabel: entry.phaseLabel, variant: entry.variant, date: entry.date, five: [], four: [], allFour: false });
 			}
 			let group = groups.get(key);
+			if (entry.allFour) group.allFour = true;
 			(entry.rarity === "5" ? group.five : group.four).push({
 				name, isRelease: entry.isRelease, rerun: entry.rerun, rateDown: entry.rateDown, preexisting: entry.preexisting
 			});
@@ -293,27 +305,24 @@ function getBirthdaysForDate(isoDate) {
 
 async function loadCalendarData() {
 	try {
-		let [dataRes, metaRes, titlesRes, notesRes, phaseNotesRes, elementsRes, birthdaysRes, aliasesRes] = await Promise.all([
-			fetch("data/data.json"),
-			fetch("data/version-notes.json"),
-			fetch("data/version-titles.json"),
-			fetch("data/character-notes.json"),
-			fetch("data/phase-notes.json"),
-			fetch("data/character-elements.json"),
-			fetch("data/character-birthdays.json"),
-			fetch("data/character-aliases.json"),
+		let [dataRes, majorsRes, charsRes, phaseRes] = await Promise.all([
+			fetch("data/versions.json"),
+			fetch("data/majors.json"),
+			fetch("data/characters.json"),
+			fetch("data/phase-overrides.json"),
 		]);
 		let data = dataRes.ok ? await dataRes.json() : null;
 		if (data) data.forEach(entry => { versionLaunches.set(entry.date, entry.version); });
-		if (metaRes.ok) versionMeta = await metaRes.json();
-		if (titlesRes.ok) versionTitles = await titlesRes.json();
-		if (elementsRes.ok) characterElements = await elementsRes.json();
-		if (aliasesRes.ok) characterAliases = await aliasesRes.json();
+		if (majorsRes.ok) versionMeta = await majorsRes.json();
+		let unpacked = charsRes.ok ? unpackCharacters(await charsRes.json()) : { notes: {}, elements: {}, aliases: {}, birthdays: {} };
+		if (data) versionTitles = titlesFromVersions(data);
+		characterElements = unpacked.elements;
+		characterAliases = unpacked.aliases;
 		if (data) characterRarity = buildCharacterRarity(data);
-		if (birthdaysRes.ok) birthdaysByMonthDay = buildBirthdaysByMonthDay(await birthdaysRes.json());
-		let notes = notesRes.ok ? await notesRes.json() : {};
+		birthdaysByMonthDay = buildBirthdaysByMonthDay(unpacked.birthdays);
+		let notes = unpacked.notes;
 		characterNotes = notes;
-		let phaseNotes = phaseNotesRes.ok ? await phaseNotesRes.json() : {};
+		let phaseNotes = phaseRes.ok ? await phaseRes.json() : {};
 		if (data) {
 			debutsByDate = buildDebutsByDate(data, notes, phaseNotes);
 			characterDebutDate = buildCharacterDebutDate(data, phaseNotes, notes);
@@ -930,23 +939,22 @@ function buildPhaseCard(banner) {
 		divider.className = "phase-divider";
 		body.appendChild(divider);
 
-		// No column-split here (unlike Timeline's own chronicled/lightrace
-		// layout) — just a flat, left-aligned row that wraps on its own via
-		// .calendar-phase-card's flex-wrap (calendar.css).
+		// No column-split here (unlike Timeline's two-column split on a
+		// long 4-star list) — just a flat, left-aligned row that wraps on
+		// its own via .calendar-phase-card's flex-wrap (calendar.css).
 		let fourGroup = document.createElement("div");
 		fourGroup.className = "phase-four-group";
 		banner.four.forEach(entry => fourGroup.appendChild(buildPhaseUnit(entry, "four")));
 		body.appendChild(fourGroup);
-	} else if (banner.variant === "lightrace") {
+	} else if (banner.allFour) {
 		let divider = document.createElement("div");
 		divider.className = "phase-divider";
 		body.appendChild(divider);
 
-		// characterAppearances (not characterRarity, which skips chronicled
-		// entries entirely and isn't date-scoped) so this matches timeline.js's
-		// characterIndex-derived count exactly, including chronicled-only
-		// 4-stars (e.g. Amber, Kaeya, Lisa) and excluding anyone who only
-		// debuted after this particular Lightrace instance's own date.
+		// Date-scoped count from characterAppearances so this matches
+		// timeline.js's characterIndex-derived count, including 4-stars
+		// who never had a regular featured phase (e.g. Amber, Kaeya, Lisa)
+		// and excluding anyone who only debuted after this banner's date.
 		let fourStarCount = Object.keys(characterAppearances).filter(n => {
 			let entries = characterAppearances[n];
 			return entries[0].rarity === "4" && entries.some(e => e.date <= banner.date);

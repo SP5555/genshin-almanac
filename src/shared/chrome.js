@@ -21,7 +21,7 @@ async function initBrandLivePulse() {
 	let dot = document.getElementById("brandLiveDot");
 	if (!dot) return;
 	try {
-		let res = await fetch("data/data.json");
+		let res = await fetch("data/versions.json");
 		if (!res.ok) return;
 		let data = await res.json();
 		let live = liveBannerState(data, previewNow().getTime());

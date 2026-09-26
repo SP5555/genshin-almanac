@@ -41,7 +41,7 @@ importing that. Split the index out when a page actually needs it, not
 before.
 
 Header HTML is duplicated per page — fine at a handful of pages, not worth
-templating without a build step. `data.json` is small; don't split it
+templating without a build step. `versions.json` is small; don't split it
 per-version until it's an order of magnitude larger.
 
 ## Design decisions
@@ -55,7 +55,7 @@ per-version until it's an order of magnitude larger.
   feels like one site.
 - Character banners only. No separate confirmed-next-version date field —
   a stale override would rot the same way skipped patch updates do. If
-  the newest `data.json` row is still in the future, Server Clocks counts
+  the newest `versions.json` row is still in the future, Server Clocks counts
   down to that date ("Confirmed"). Otherwise next-update is last launch
   + 42 days, then "Overdue".
 
@@ -107,7 +107,8 @@ The agent runs `npm run fetch-art -- <Name>` (the user does not). It
 downloads face / namecard / splash from the sources in `data/SOURCES.md`
 and does not edit JSON. Empty `"4": []` on a phase is valid (5-stars
 confirmed first); omitting the key is not — most readers assume the key
-exists. Face lookup can lag on `characters.json`/`loc.json`; details and
+exists. `"4": "*"` is the full roster of that rarity released so far —
+not a name list, not `[]`. Face lookup can lag on enka's `store/characters.json`/`loc.json`; details and
 the no-guessing rule live in `SOURCES.md` and the add-version skill.
 
 `npm run validate` (`scripts/validate-data.js`) is an explicit list of
@@ -131,7 +132,7 @@ Date-only is 06:00 CST. Check the UI against it; the script has no
 separate copy of the formulas.
 
 "Has this version launched" and the 42-day live window use
-`versionLaunchInstant()` — 06:00 CST of `data.json`'s date, the real
+`versionLaunchInstant()` — 06:00 CST of `versions.json`'s date, the real
 maintenance start — not local midnight. Displayed calendar dates stay
 YYYY-MM-DD.
 
@@ -142,8 +143,9 @@ The Purpose section is the yes-test. This list is the known no.
 - **Weapon banners, personal pull-tracking, stats dashboards.** Other
   Genshin sites already do those; only revisit with a presentation that
   isn't generic.
-- **Region / lore explorer** still needs `character-regions.json` with an
-  explicit `"Unaffiliated"` sentinel (omission is not unaffiliated).
+- **Region / lore explorer** still needs a `region` field on
+  `characters.json` with an explicit `"Unaffiliated"` sentinel (omission
+  is not unaffiliated).
 - **Dedicated character profile pages.** Timeline already has shareable
   `?char=` URLs; a standalone page has to add something the drawer
   doesn't.

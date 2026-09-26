@@ -15,14 +15,14 @@ the carousel/spring never starts. Carousel capture is on the wrapper,
 so a tap has to be forwarded to the center card or the click never
 hits the `<a>` (4-star cards capture on the link itself). A click after
 ≥8px of movement is ignored so a swipe doesn't navigate. Phase length is **21 days** from
-`versionLaunchInstant()` (no historical phase-notes on this page). Only
+`versionLaunchInstant()` (no historical phase-overrides on this page). Only
 the *live* version has to be correct; irregular cycles stay on the
 Timeline as written. A future irregular live version is a one-off then,
 same as the 42-day estimate.
 
 Release/rerun badges use `countAppearancesThrough()` (scan up to this
 phase) rather than Timeline's full index. Region background comes from
-`version-notes.json` for the current major, not a hardcoded image.
+`majors.json` for the current major, not a hardcoded image.
 Preexisting 1.0-roster characters get no Release/Rerun tag — their real
 debut isn't a tracked banner.
 
@@ -77,7 +77,7 @@ can cross a character while bouncing (`resolveRotation()` renumbers
 
 Plain text, no drag. Mix of computed launch-anniversaries and 3 samples
 from `data/trivia.json`. Fade/resize via `swapWithFade()`. Anniversary
-cards link to `calendar.html?date=` (that version's `data.json` date);
+cards link to `calendar.html?date=` (that version's `versions.json` date);
 sampled facts stay unlinked.
 
 Anniversaries are **nearest-match, not exact-date** — most calendar days

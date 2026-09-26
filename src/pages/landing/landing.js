@@ -1,6 +1,8 @@
 import "../../shared/chrome.js";
 import { formatDate, joinNames, slug } from "../../shared/dom.js";
 import { countAppearancesThrough, previewNow, liveBannerState } from "../../shared/dates.js";
+import { unpackCharacters } from "../../shared/characters.js";
+import { listedNames } from "../../shared/roster.js";
 import { swapWithFade } from "../../shared/panel.js";
 
 // Same hex values baked into assets/elements/*.svg (HoYoverse's own element
@@ -1010,7 +1012,7 @@ function getDebuts(data, versionIdx, notes) {
 	for (let rarity of ["5", "4"]) {
 		let bucket = rarity === "5" ? fiveDebuts : fourDebuts;
 		for (let phase of phases) {
-			for (let name of phase[rarity]) {
+			for (let name of listedNames(phase[rarity])) {
 				if (seen.has(name)) continue;
 				seen.add(name);
 				// preexisting characters (the 1.0 launch roster) technically have a
@@ -1026,7 +1028,7 @@ function getDebuts(data, versionIdx, notes) {
 	return [...fiveDebuts, ...fourDebuts];
 }
 
-// data.json only has ~52 launch dates spread across 365 possible days, so a
+// versions.json only has ~52 launch dates spread across 365 possible days, so a
 // strict "exact date match" would be empty on ~86% of days (checked against
 // the real data). Instead this always surfaces the nearest anniversary —
 // past and future — falling back to a real "on this day" card on the rare
@@ -1236,16 +1238,17 @@ function buildSpotlight(data, versionIdx, phaseIdx, notes, elements) {
 		return !charNotes.preexisting && countAppearancesThrough(data, versionIdx, phaseIdx, character) === 1;
 	};
 	// A debut character leads the banner. Stable sort means two reruns (or
-	// two debuts) keep data.json's original order — this only ever reorders
+	// two debuts) keep versions.json's original order — this only ever reorders
 	// when exactly one side is a genuine release.
-	let fiveStars = [...phase["5"]].sort((a, b) => Number(isRelease(b)) - Number(isRelease(a)));
+	let fiveStars = [...listedNames(phase["5"])].sort((a, b) => Number(isRelease(b)) - Number(isRelease(a)));
 
 	frag.appendChild(buildSpotlightBanner(fiveStars, data, versionIdx, phaseIdx, notes, elements));
 
-	if (phase["4"].length > 0) {
+	let fours = listedNames(phase["4"]);
+	if (fours && fours.length > 0) {
 		let fourRow = document.createElement("div");
 		fourRow.className = "spotlight-fourcards";
-		phase["4"].forEach(character => {
+		fours.forEach(character => {
 			fourRow.appendChild(buildSpotlightFourCard(character, data, versionIdx, phaseIdx, notes, elements));
 		});
 		frag.appendChild(fourRow);
@@ -1256,28 +1259,25 @@ function buildSpotlight(data, versionIdx, phaseIdx, notes, elements) {
 
 async function bootstrapLanding() {
 	try {
-		let [dataRes, notesRes, versionRes, elementsRes, triviaRes] = await Promise.all([
-			fetch("data/data.json"),
-			fetch("data/character-notes.json"),
-			fetch("data/version-notes.json"),
-			fetch("data/character-elements.json"),
+		let [dataRes, charsRes, versionRes, triviaRes] = await Promise.all([
+			fetch("data/versions.json"),
+			fetch("data/characters.json"),
+			fetch("data/majors.json"),
 			fetch("data/trivia.json"),
 		]);
-		if (!dataRes.ok) throw new Error(`Failed to load data.json: ${dataRes.status}`);
-		if (!notesRes.ok) throw new Error(`Failed to load character-notes.json: ${notesRes.status}`);
-		if (!versionRes.ok) throw new Error(`Failed to load version-notes.json: ${versionRes.status}`);
-		if (!elementsRes.ok) throw new Error(`Failed to load character-elements.json: ${elementsRes.status}`);
+		if (!dataRes.ok) throw new Error(`Failed to load versions.json: ${dataRes.status}`);
+		if (!charsRes.ok) throw new Error(`Failed to load characters.json: ${charsRes.status}`);
+		if (!versionRes.ok) throw new Error(`Failed to load majors.json: ${versionRes.status}`);
 		if (!triviaRes.ok) throw new Error(`Failed to load trivia.json: ${triviaRes.status}`);
 		let data = await dataRes.json();
-		let notes = await notesRes.json();
+		let { notes, elements } = unpackCharacters(await charsRes.json());
 		let versionMeta = await versionRes.json();
-		let elements = await elementsRes.json();
 		let triviaPool = await triviaRes.json();
 
 		let now = previewNow();
 		// Same liveBannerState() as the header live-dot and Timeline marker.
 		// Falls back to data[0] only if nothing has launched yet (empty or
-		// all-future data.json) so the card still has something to show.
+		// all-future versions.json) so the card still has something to show.
 		let live = liveBannerState(data, now.getTime());
 		let entry = live.entry || data[0];
 		let versionIdx = data.indexOf(entry);

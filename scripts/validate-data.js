@@ -5,27 +5,20 @@
 const { readJSON, assetPath, slug, buildCanonicalData } = require("./checks/util");
 
 const checks = [
-	require("./checks/character-notes"),
-	require("./checks/character-elements"),
-	require("./checks/character-aliases"),
-	require("./checks/character-birthdays"),
-	require("./checks/phase-notes"),
+	require("./checks/characters"),
+	require("./checks/phase-overrides"),
 	require("./checks/character-assets"),
-	require("./checks/version-notes"),
-	require("./checks/version-titles"),
+	require("./checks/majors"),
+	require("./checks/versions"),
 ];
 
-let data = readJSON("data.json");
-let notes = readJSON("character-notes.json");
-let elements = readJSON("character-elements.json");
-let aliases = readJSON("character-aliases.json");
-let phaseNotes = readJSON("phase-notes.json");
-let birthdays = readJSON("character-birthdays.json");
-let versionNotes = readJSON("version-notes.json");
-let versionTitles = readJSON("version-titles.json");
+let data = readJSON("versions.json");
+let characters = readJSON("characters.json");
+let phaseOverrides = readJSON("phase-overrides.json");
+let majors = readJSON("majors.json");
 let { canonicalNames, validPhaseKeys } = buildCanonicalData(data);
 
-let ctx = { data, notes, elements, aliases, phaseNotes, birthdays, versionNotes, versionTitles, canonicalNames, validPhaseKeys, assetPath, slug };
+let ctx = { data, characters, phaseOverrides, majors, canonicalNames, validPhaseKeys, assetPath, slug };
 
 let problems = checks.flatMap(check => check(ctx));
 
@@ -34,5 +27,5 @@ if (problems.length) {
 	problems.forEach(p => console.error(`  - ${p}`));
 	process.exit(1);
 } else {
-	console.log(`All good — ${canonicalNames.size} characters cross-checked across data.json, notes, elements, aliases, birthdays, phase-notes, version-notes, and version-titles.`);
+	console.log(`All good — ${canonicalNames.size} characters cross-checked across versions.json, characters.json, phase-overrides.json, and majors.json.`);
 }

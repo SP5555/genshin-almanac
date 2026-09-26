@@ -37,11 +37,11 @@ reset week, not a calendar). Fixed height, not `aspect-ratio: 1/1` —
 almost every cell is empty and should stay calm. Border only on cells
 that have something, so the border *is* the signal.
 
-**Debuts** are derived: phase start date, same formula + `phase-notes`
+**Debuts** are derived: phase start date, same formula + `phase-overrides`
 overrides as Timeline, same filler-skipping labels. Chronicled /
 Lightrace are never scanned.
 
-**Birthdays:** `character-birthdays.json` (name → `"MM-DD"`). Game8 table,
+**Birthdays:** `characters.json` `birthday` (`"MM-DD"`). Game8 table,
 cross-check 2+ sources for new characters (those tables lag). Gated by
 full `YYYY-MM-DD`, not year alone — a year-only cutoff showed 1.0-roster
 birthdays before Sep 28, 2020; preexisting characters use that launch

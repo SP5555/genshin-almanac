@@ -12,7 +12,7 @@ import {
 } from "../src/shared/dates.js";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-const data = JSON.parse(fs.readFileSync(path.join(root, "data", "data.json"), "utf8"));
+const data = JSON.parse(fs.readFileSync(path.join(root, "data", "versions.json"), "utf8"));
 
 function parseNow(arg) {
 	if (!arg) return new Date();
@@ -64,11 +64,11 @@ let lines = [
 	next
 		? [
 			`  live version    ${next.liveEntry.version}`,
-			`  newest in data  ${next.lastEntry.version}`,
+			`  newest row       ${next.lastEntry.version}`,
 			`  badge           ${next.isUpcoming ? "Confirmed" : next.isOverdue ? "Overdue" : "Estimated"}`,
 			`  target          ${iso(next.targetMs)}`
 		].join("\n")
-		: "  (empty data.json)"
+		: "  (empty versions.json)"
 ];
 
 console.log(lines.join("\n"));

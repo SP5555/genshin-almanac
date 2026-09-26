@@ -5,6 +5,8 @@ import { buildCharacterHeader } from "../../shared/glow.js";
 import { initPanelGrabberDrag } from "../../shared/panel.js";
 import { initCharSearch } from "../../shared/search.js";
 import { buildAppearanceRow } from "../../shared/appearance-row.js";
+import { unpackCharacters, titlesFromVersions } from "../../shared/characters.js";
+import { isFullRoster, listedNames } from "../../shared/roster.js";
 import { smoothScrollToEl } from "../../shared/scroll.js";
 
 var characterIndex = {};
@@ -52,8 +54,9 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, variant, dat
 	let fiveGroup = document.createElement("div");
 	fiveGroup.className = "phase-five-group";
 	let fiveUnits = [];
-	for (let i = 0; i < phase["5"].length; i++) {
-		let { name: character, rateDown, preexisting } = normalizeChar(phase["5"][i]);
+	let fives = listedNames(phase["5"]);
+	for (let i = 0; i < fives.length; i++) {
+		let { name: character, rateDown, preexisting } = normalizeChar(fives[i]);
 		charCount[character] = (charCount[character] || 0) + 1;
 		let count = charCount[character];
 
@@ -100,7 +103,29 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, variant, dat
 	fiveUnits.forEach(u => fiveGroup.appendChild(u));
 	body.appendChild(fiveGroup);
 
-	if (phase["4"] && phase["4"].length > 0) {
+	let fours = listedNames(phase["4"]);
+	if (isFullRoster(phase["4"])) {
+		// "*" = the full roster of this rarity released so far, not a
+		// name list. Rendering that many icons isn't viable, and a
+		// hand-maintained list would only grow, so the count is derived
+		// from characterIndex (everyone who has appeared at this rarity
+		// by this point in the timeline).
+		let divider = document.createElement("div");
+		divider.className = "phase-divider";
+		body.appendChild(divider);
+
+		let fourStarCount = Object.keys(characterIndex).filter(n => characterIndex[n][0].rarity === "4").length;
+		let summary = document.createElement("div");
+		summary.className = "phase-four-summary";
+		// A literal <br> at a fixed clause break (rather than relying on
+		// max-width to wrap wherever it lands) is what lets the box's CSS
+		// width:fit-content hug the longer of the two actual lines — a
+		// width/max-width alone always resolves to the constraint itself once
+		// content forces a wrap, not the narrower width the wrapped text
+		// actually rendered at.
+		summary.append("Every 4-star character", document.createElement("br"), `released so far (${fourStarCount})`);
+		body.appendChild(summary);
+	} else if (fours && fours.length > 0) {
 		let divider = document.createElement("div");
 		divider.className = "phase-divider";
 		body.appendChild(divider);
@@ -108,8 +133,8 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, variant, dat
 		let fourGroup = document.createElement("div");
 		fourGroup.className = "phase-four-group";
 		let fourUnits = [];
-		for (let i = 0; i < phase["4"].length; i++) {
-			let { name: character, rateDown: fourRateDown, preexisting: fourPreexisting } = normalizeChar(phase["4"][i]);
+		for (let i = 0; i < fours.length; i++) {
+			let { name: character, rateDown: fourRateDown, preexisting: fourPreexisting } = normalizeChar(fours[i]);
 			charCount[character] = (charCount[character] || 0) + 1;
 			let fourCount = charCount[character];
 			let isFourRelease = !fourPreexisting && fourCount === 1;
@@ -135,7 +160,7 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, variant, dat
 			fourUnits.push(row);
 		}
 
-		if (variant === "chronicled" || variant === "lightrace") {
+		if (variant === "chronicled") {
 			let half = Math.ceil(fourUnits.length / 2);
 			[fourUnits.slice(0, half), fourUnits.slice(half)].forEach(colUnits => {
 				if (colUnits.length === 0) return;
@@ -148,31 +173,6 @@ function buildNode(version, phaseLabel, phase, charCount, isFiller, variant, dat
 			fourUnits.forEach(u => fourGroup.appendChild(u));
 		}
 		body.appendChild(fourGroup);
-	} else if (variant === "lightrace") {
-		// Real Lightrace Wish behavior: EVERY 4-star character in the game is a
-		// selectable designated-pull target, not a small curated subset — 50 of
-		// them as of this card's 6.7 debut, confirmed against Fandom's banner
-		// page. Rendering 50 individual icons isn't viable (a dozen already
-		// needed the chronicled column-split above), and since Lightrace is a
-		// permanent, ever-recurring banner, a hand-maintained name list would
-		// only ever grow — so data.json deliberately omits a "4" array here and
-		// this count is derived live from characterIndex (everyone who's
-		// appeared as a 4-star by this point in the timeline) instead.
-		let divider = document.createElement("div");
-		divider.className = "phase-divider";
-		body.appendChild(divider);
-
-		let fourStarCount = Object.keys(characterIndex).filter(n => characterIndex[n][0].rarity === "4").length;
-		let summary = document.createElement("div");
-		summary.className = "phase-four-summary";
-		// A literal <br> at a fixed clause break (rather than relying on
-		// max-width to wrap wherever it lands) is what lets the box's CSS
-		// width:fit-content hug the longer of the two actual lines — a
-		// width/max-width alone always resolves to the constraint itself once
-		// content forces a wrap, not the narrower width the wrapped text
-		// actually rendered at.
-		summary.append("Every 4-star character", document.createElement("br"), `released so far (${fourStarCount})`);
-		body.appendChild(summary);
 	}
 
 	card.appendChild(body);
@@ -634,21 +634,19 @@ async function loadJSON(path) {
 
 async function bootstrap() {
 	try {
-		let [data, notes, phases, versions, titles, elements, aliases] = await Promise.all([
-			loadJSON("data/data.json"),
-			loadJSON("data/character-notes.json"),
-			loadJSON("data/phase-notes.json"),
-			loadJSON("data/version-notes.json"),
-			loadJSON("data/version-titles.json"),
-			loadJSON("data/character-elements.json"),
-			loadJSON("data/character-aliases.json")
+		let [data, characters, phases, majors] = await Promise.all([
+			loadJSON("data/versions.json"),
+			loadJSON("data/characters.json"),
+			loadJSON("data/phase-overrides.json"),
+			loadJSON("data/majors.json"),
 		]);
-		characterNotes = notes;
+		let unpacked = unpackCharacters(characters);
+		characterNotes = unpacked.notes;
 		phaseNotes = phases;
-		versionMeta = versions;
-		versionTitles = titles;
-		characterElements = elements;
-		characterAliases = aliases;
+		versionMeta = majors;
+		versionTitles = titlesFromVersions(data);
+		characterElements = unpacked.elements;
+		characterAliases = unpacked.aliases;
 
 		initRegionBackground();
 		init(data);
