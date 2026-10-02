@@ -513,7 +513,10 @@ var regionPhase = "idle"; // idle | out | in
 function regionBgUrl(major) {
 	let meta = versionMeta[major] || {};
 	if (!meta.bgImage) return null;
-	return `linear-gradient(rgba(7,7,12,0.78), rgba(7,7,12,0.9)), url(assets/regions/${meta.bgImage}.jpg)`;
+	// Leading slash: a url() inside a custom property resolves against the
+	// stylesheet that consumes var(), not the page. This site is served
+	// from the origin root, so /assets/... does not depend on where the CSS lives.
+	return `linear-gradient(rgba(7,7,12,0.78), rgba(7,7,12,0.9)), url(/assets/regions/${meta.bgImage}.jpg)`;
 }
 
 function regionLayer() {

@@ -941,11 +941,10 @@ function buildSpotlightFourCard(character, data, versionIdx, phaseIdx, notes, el
 		card.style.setProperty("--el-glow", colors.glow);
 	}
 	if (element) {
-		// Relative to src/pages/landing/landing.css, not the page — a url()
-		// inside a custom property resolves against the stylesheet that
-		// consumes it via var(), not the document, so a document-relative
-		// path here 404s silently.
-		card.style.setProperty("--el-icon", `url(../../../assets/elements/${element.toLowerCase()}.svg)`);
+		// Leading slash: a url() inside a custom property resolves against the
+		// stylesheet that consumes var(), not the page. This site is served
+		// from the origin root, so /assets/... does not depend on where the CSS lives.
+		card.style.setProperty("--el-icon", `url(/assets/elements/${element.toLowerCase()}.svg)`);
 	}
 
 	// Same splash art + missing-note pattern as buildSpotlightFiveCard().
