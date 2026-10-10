@@ -39,6 +39,11 @@ module.exports = function checkVersions({ data }) {
 		else if (typeof title !== "string" || !title.trim()) {
 			problems.push(`versions.json: "${entry.version}" title is empty`);
 		}
+		if (entry.label !== undefined) {
+			if (typeof entry.label !== "string" || !entry.label.trim()) {
+				problems.push(`versions.json: "${entry.version}" label is empty`);
+			}
+		}
 		entry.banner.forEach((phase, i) => {
 			problems.push(...checkRoster(`versions.json ${entry.version} phase ${i + 1}`, phase));
 		});

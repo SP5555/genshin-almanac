@@ -112,7 +112,7 @@ not the region tagline in `majors.json`) live on each `versions.json`
 row as `title`. Collected from the Fandom Version history table (and its
 first launcher splashscreen per patch), cross-checked against Game8's
 Versions list. 6.x is Luna I–VIII in those tables; we store the numeric
-key. Official HoYoverse notices win spelling: 5.5 is "Day of the
+key as `version` and the public name as optional `label`. Official HoYoverse notices win spelling: 5.5 is "Day of the
 Flame's Return"; 7.0 is "Everwinter Without Mercy"; 7.1 is **"A Rekviem
 for the Underworld"** — not Game8's "A Requiem for the Afterlife".
 1.0 is "Welcome to Teyvat" (Fandom splashscreen files sometimes

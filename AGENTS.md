@@ -108,7 +108,8 @@ downloads face / namecard / splash from the sources in `data/SOURCES.md`
 and does not edit JSON. Empty `"4": []` on a phase is valid (5-stars
 confirmed first); omitting the key is not — most readers assume the key
 exists. `"4": "*"` is the full roster of that rarity released so far —
-not a name list, not `[]`. Face lookup can lag on enka's `store/characters.json`/`loc.json`; details and
+not a name list, not `[]`. Optional `label` on a version row is the public
+name when it isn't the numeric id (Luna I, not 6.0). Face lookup can lag on enka's `store/characters.json`/`loc.json`; details and
 the no-guessing rule live in `SOURCES.md` and the add-version skill.
 
 `npm run validate` (`scripts/validate-data.js`) is an explicit list of

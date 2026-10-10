@@ -35,7 +35,8 @@ Reuse traps for the stepper:
 **Day cells** are Sunday-first (Clocks' Monday-first strip is Genshin's
 reset week, not a calendar). Fixed height, not `aspect-ratio: 1/1` —
 almost every cell is empty and should stay calm. Border only on cells
-that have something, so the border *is* the signal.
+that have something, so the border *is* the signal. Always the numeric
+id (`6.0`), not `label` — Luna I–VIII overflow the year-grid cells.
 
 **Debuts** are derived: phase start date, same formula + `phase-overrides`
 overrides as Timeline, same filler-skipping labels. Chronicled /

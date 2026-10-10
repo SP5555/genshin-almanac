@@ -365,6 +365,7 @@
 },{
 	"version": "6.0",
 	"title": "A Dance of Snowy Tides and Hoarfrost Groves",
+	"label": "Luna I",
 	"banner": [
 		{ "5": ["Lauma", "Nahida"], "4": ["Barbara", "Kaveh", "Shinobu"] },
 		{ "5": ["Flins", "Yelan"], "4": ["Aino", "Dori", "Sucrose"] }
@@ -379,6 +380,7 @@
 },{
 	"version": "6.1",
 	"title": "An Elegy for Faded Moonlight",
+	"label": "Luna II",
 	"banner": [
 		{ "5": ["Furina", "Nefer"], "4": ["Collei", "Xingqiu", "Yaoyao"] },
 		{ "5": ["Arlecchino", "Zhongli"], "4": ["Lan Yan", "Rosaria", "Yun Jin"] }
@@ -387,6 +389,7 @@
 },{
 	"version": "6.2",
 	"title": "A Nocturne of the Far North",
+	"label": "Luna III",
 	"banner": [
 		{ "5": ["Durin", "Venti"], "4": ["Bennett", "Faruzan", "Jahoda"] },
 		{ "5": ["Varesa", "Xilonen"], "4": ["Chevreuse", "Gaming", "Iansan"] }
@@ -395,6 +398,7 @@
 },{
 	"version": "6.3",
 	"title": "A Traveler on a Winter's Night",
+	"label": "Luna IV",
 	"banner": [
 		{ "5": ["Columbina", "Ineffa"], "4": ["Fischl", "Ifa", "Sethos"] },
 		{ "5": ["Neuvillette", "Zibai"], "4": ["Aino", "Gorou", "Illuga"] }
@@ -403,6 +407,7 @@
 },{
 	"version": "6.4",
 	"title": "Homeward, He Who Caught the Wind",
+	"label": "Luna V",
 	"banner": [
 		{ "5": ["Flins", "Varka"], "4": ["Bennett", "Sucrose", "Xiangling"] },
 		{ "5": ["Escoffier", "Skirk"], "4": ["Candace", "Charlotte", "Dahlia"] }
@@ -417,6 +422,7 @@
 },{
 	"version": "6.5",
 	"title": "Augured Homecoming",
+	"label": "Luna VI",
 	"banner": [
 		{ "5": ["Chasca", "Linnea"], "4": ["Aino", "Illuga", "Noelle"] },
 		{ "5": ["Lauma", "Nefer"], "4": ["Jahoda", "Kirara", "Xingqiu"] }
@@ -431,6 +437,7 @@
 },{
 	"version": "6.6",
 	"title": "Truth Amongst the Pages of Purana",
+	"label": "Luna VII",
 	"banner": [
 		{ "5": ["Durin", "Nicole"], "4": ["Fischl", "Prune", "Razor"] },
 		{ "5": ["Lohen", "Mavuika"], "4": ["Bennett", "Mika", "Xiangling"] }
@@ -439,6 +446,7 @@
 },{
 	"version": "6.7",
 	"title": "Sunny Summer Fontinalia",
+	"label": "Luna VIII",
 	"banner": [
 		{ "5": ["Citlali", "Sandrone"], "4": ["Beidou", "Diona", "Freminet"] },
 		{ "5": ["Columbina", "Shogun"], "4": ["Jahoda", "Ororon", "Sethos"] }

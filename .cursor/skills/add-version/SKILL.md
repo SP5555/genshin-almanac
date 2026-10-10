@@ -28,7 +28,7 @@ Read `data/SOURCES.md` before touching any other CDN. Limits that are easy to re
 
 `scripts/fetch-art.js` does not edit JSON. After art:
 
-1. `data/versions.json` — `date` (YYYY-MM-DD, two independent sources), official `title`, `banner` phases with `"5"`/`"4"` (empty `"4": []` is valid; `"4": "*"` is the full roster of that rarity, not a name list).
+1. `data/versions.json` — `date` (YYYY-MM-DD, two independent sources), official `title`, optional `label` when the public name is not the numeric id (Luna I…), `banner` phases with `"5"`/`"4"` (empty `"4": []` is valid; `"4": "*"` is the full roster of that rarity, not a name list).
 2. `data/characters.json` for each new name: required `element` and `birthday`; `aliases` only when they have one. `rateDown` / `preexisting` only when true.
 3. New major only: `data/majors.json` (`region`, `tagline`, `bgImage`; `label` if the numeral is wrong, e.g. Luna). Irregular cadence only: `data/phase-overrides.json`.
 4. `npm run validate`

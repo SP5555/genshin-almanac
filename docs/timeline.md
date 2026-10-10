@@ -8,7 +8,8 @@ Cross-cutting notes live in `AGENTS.md`. `--line` (lavender) ties into
 JSON can't hold comments; this is the semantics.
 
 **`data/versions.json`** — one entry per patch. `title` is the official
-English name. `banner[]` phases (usually 2, sometimes 3), each with `"5"`
+English name. Optional `label` when the public name is not the numeric
+id (6.x is Luna I–VIII). `banner[]` phases (usually 2, sometimes 3), each with `"5"`
 / `"4"` arrays of **display-name strings**. `"4": []` is unconfirmed
 4-stars; `"4": "*"` is the full roster of that rarity released so far
 (not a name list). Exceptional facts stay off the row. Verified `date`
